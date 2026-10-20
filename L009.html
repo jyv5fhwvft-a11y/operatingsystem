@@ -1,0 +1,1859 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L09 — Threads &amp; Concurrency Models</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#threadCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Stage actors analogy */
+.stage-vis{padding:16px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);position:relative;min-height:280px;}
+.stage-actor{position:absolute;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;border:2px solid;z-index:2;}
+.stage-actor.a1{top:20%;left:15%;border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.16);color:#b9d0ff;animation:actorBob 3s ease-in-out infinite;}
+.stage-actor.a2{top:20%;left:40%;border-color:rgba(46,230,168,.85);background:rgba(46,230,168,.16);color:#88ffd8;animation:actorBob 3s ease-in-out infinite .5s;}
+.stage-actor.a3{top:20%;left:65%;border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.16);color:#ffd18a;animation:actorBob 3s ease-in-out infinite 1s;}
+.stage-actor.a4{top:20%;left:85%;border-color:rgba(160,107,255,.85);background:rgba(160,107,255,.16);color:#c9a7ff;animation:actorBob 3s ease-in-out infinite 1.5s;}
+@keyframes actorBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.stage-props{
+  position:absolute;bottom:20%;left:50%;transform:translateX(-50%);
+  padding:14px 24px;border-radius:12px;
+  border:1.5px dashed rgba(255,182,72,.65);background:rgba(255,182,72,.08);
+  font-family:var(--mono);font-size:11px;font-weight:800;color:#ffd18a;
+  text-align:center;letter-spacing:.05em;min-width:200px;
+}
+.stage-props .ic{font-size:20px;display:block;margin-bottom:4px;}
+.stage-scenery{
+  position:absolute;bottom:6%;left:20%;right:20%;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(255,182,72,.4),transparent);
+}
+.stage-label{position:absolute;top:8px;left:16px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--muted);}
+
+/* Shared vs private grid */
+.sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.sp-card{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.sp-card.shared{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.sp-card.private{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);}
+.sp-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.sp-card.shared h4{color:var(--emerald);}
+.sp-card.private h4{color:var(--amber);}
+.sp-item{font-size:12px;line-height:1.9;color:var(--ink-2);}
+.sp-item::before{content:'● ';margin-right:4px;}
+.sp-card.shared .sp-item::before{color:var(--emerald);}
+.sp-card.private .sp-item::before{color:var(--amber);}
+
+/* Browser tabs */
+.browser-vis{padding:8px 0;}
+.browser-window{border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.22);overflow:hidden;margin-bottom:12px;}
+.bw-titlebar{padding:8px 12px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--stroke);display:flex;align-items:center;gap:6px;}
+.bw-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);}
+.bw-label{margin-left:8px;font-family:var(--mono);font-size:10.5px;color:var(--muted);font-weight:700;}
+.bw-body{padding:12px 14px;font-size:11.5px;color:var(--ink-2);line-height:1.6;}
+.browser-tabs{border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.22);overflow:hidden;}
+.bt-tabbar{display:flex;gap:0;padding:6px 8px 0;background:rgba(255,255,255,.03);border-bottom:1px solid var(--stroke);}
+.bt-tab{padding:6px 14px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);border-radius:6px 6px 0 0;background:rgba(255,255,255,.03);}
+.bt-tab.active{background:rgba(46,230,168,.10);color:#88ffd8;border:1px solid rgba(46,230,168,.4);border-bottom:none;}
+.bt-body{padding:12px 14px;font-size:11.5px;color:var(--ink-2);line-height:1.6;}
+
+/* Memory layout with threads */
+.mem-threads{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);}
+.mt-seg{padding:12px 16px;border-radius:8px;border:1px solid var(--stroke);background:rgba(255,255,255,.03);display:flex;justify-content:space-between;align-items:center;}
+.mt-seg.shared{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.mt-seg .mt-name{font-family:var(--mono);font-size:11.5px;font-weight:800;letter-spacing:.04em;}
+.mt-seg.shared .mt-name{color:#88ffd8;}
+.mt-seg .mt-tag{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--muted);}
+.mt-stacks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.mt-stack{padding:10px 8px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);text-align:center;font-family:var(--mono);font-size:10.5px;font-weight:800;color:#ffd18a;letter-spacing:.03em;}
+.mt-stack small{display:block;font-size:8.5px;color:var(--muted);margin-top:3px;font-weight:700;letter-spacing:.06em;}
+
+/* Model diagrams */
+.model-vis{padding:16px 0;display:flex;flex-direction:column;gap:12px;}
+.model-box{border-radius:10px;padding:14px;border:1px solid;text-align:center;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;position:relative;}
+.model-box.user{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.model-box.kernel{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.model-box .mb-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;font-weight:900;}
+.model-threads{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
+.model-threads.two{grid-template-columns:repeat(2,1fr);}
+.model-threads.six{grid-template-columns:repeat(6,1fr);}
+.model-thread{padding:8px 4px;border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:800;text-align:center;letter-spacing:.03em;}
+.model-thread.user{border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.14);color:#b9d0ff;}
+.model-thread.kernel{border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.14);color:#88ffd8;}
+.model-arrow{text-align:center;font-size:18px;color:var(--muted);margin:6px 0;}
+.model-arrow.up{color:var(--blue-2);}
+.model-arrow.down{color:var(--emerald);}
+
+/* Comparison table */
+.cmp-table{display:grid;grid-template-columns:140px 1fr 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;font-size:12px;}
+.cmp-cell{background:#0a0f1c;padding:11px 10px;line-height:1.4;}
+.cmp-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.cmp-head{background:#0d1425;font-size:11.5px;font-weight:800;text-align:center;}
+.cmp-head.m2o{color:#b9d0ff;}
+.cmp-head.o2o{color:#88ffd8;}
+.cmp-head.m2m{color:#ffd18a;}
+.cmp-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.cmp-val{color:var(--ink-2);text-align:center;font-weight:600;}
+.cmp-val.good{color:#88ffd8;}
+.cmp-val.warn{color:#ffd18a;}
+.cmp-val.bad{color:#ff9fb1;}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Benefits grid */
+.benefits-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.benefit-card{padding:16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.benefit-card.b{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.benefit-card.c{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.benefit-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.benefit-card.b h4{color:var(--emerald);}
+.benefit-card.c h4{color:var(--crimson);}
+.benefit-card p{font-size:12.5px;line-height:1.6;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.activity-tb{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);font-family:var(--mono);font-size:11px;line-height:1.9;color:var(--ink-2);}
+.tb-row{display:grid;grid-template-columns:60px 1fr 60px 80px;gap:8px;padding:6px 8px;border-radius:5px;}
+.tb-row:hover{background:rgba(255,255,255,.03);}
+.tb-row.head{color:var(--blue-2);font-weight:800;border-bottom:1px solid var(--stroke);}
+.tb-row .tb-t{color:var(--amber);font-weight:800;}
+.tb-row .tb-name{color:var(--ink);}
+.tb-row .tb-threads{color:var(--emerald);font-weight:800;text-align:right;}
+.tb-row .tb-mem{color:var(--muted);text-align:right;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.sp-grid,.benefits-grid{grid-template-columns:1fr;}
+  .cmp-table{grid-template-columns:90px 1fr 1fr 1fr;font-size:11px;}
+  .slide{padding:76px 26px 96px;}
+  .model-threads{grid-template-columns:repeat(3,1fr);}
+  .model-threads.six{grid-template-columns:repeat(3,1fr);}
+  .mt-stacks{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .model-threads,.model-threads.two,.model-threads.six{grid-template-columns:repeat(2,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L09 Threads &amp; Concurrency</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L09 · Overview" data-anim="threadcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L09 · Threads &amp; Concurrency Models</span>
+    <div class="split">
+      <div class="stack">
+        <h1>What if two execution streams could <span class="grad-blue">share the same memory</span> — and what does that make cheaper, and what does it make dangerous?</h1>
+        <p class="lead">Contrast the architectural memory boundaries of independent processes against concurrent threads, and delineate Many-to-One, One-to-One, and Many-to-Many scheduling architectures.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L09</span>
+          <p>Processes are <strong>heavy</strong> — separate memory, separate address spaces, costly to create and switch. What if you need two execution streams <em>in the same program</em>? That's a <strong>thread</strong>, and it changes every rule we've seen so far.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the thread canvas on the right. Ask: <em>"If two threads share a heap, what happens when both of them write to the same variable at the same time?"</em> That question is Module 4 in a single sentence.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Four threads sharing one heap, each with own stack</div>
+        <canvas id="threadCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Thread Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 Processes vs. Threads — The Tradeoff</span>
+    <h2 style="margin-bottom:16px;">Processes are <span class="grad-crimson">heavyweight</span>. Threads are <span class="grad-emerald">lightweight</span>.</h2>
+    <div class="split">
+      <div class="panel crimson" style="padding:18px">
+        <span class="panel-label">Process cost (from L05-L06)</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">
+          Each process has its <strong>own address space</strong> (page tables, memory, files). Creating one requires <code style="font-family:var(--mono);color:#ff9fb1">fork()</code> — expensive.<br><br>
+          Switching between processes requires a <strong>full context switch</strong> — save/load 16 registers, flush TLB, swap page tables (CR3).<br><br>
+          Inter-process communication requires <strong>explicit IPC</strong> — pipes, sockets, shared memory, semaphores.
+        </p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">Thread cost</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">
+          Each thread shares its process's <strong>address space</strong> — same memory, same files, same globals. Creating one is much cheaper than <code style="font-family:var(--mono);color:#88ffd8">fork()</code>.<br><br>
+          Switching between threads is <strong>cheaper</strong> — same page tables, no TLB flush, just register swap.<br><br>
+          Communication is <strong>automatic</strong> — threads share memory by default. But that's also why threads are dangerous.
+        </p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:16px">
+      <div class="panel blue" style="padding:16px">
+        <span class="panel-label">When to use processes</span>
+        <p>When you need <strong>strong isolation</strong> — separate crash domains, separate permissions. Chrome tabs, per-user services, anything where one bug shouldn't kill the other.</p>
+      </div>
+      <div class="panel amber" style="padding:16px">
+        <span class="panel-label">When to use threads</span>
+        <p>When you need <strong>performance</strong> — parallel computation, overlapping I/O with CPU work, responsive UI. When the tasks are naturally cooperative and share data.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Stage">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Analogy 1 · Stage Actors Sharing a Single Props Table</span>
+    <h2 style="margin-bottom:16px;">Four actors. <span class="grad-violet">One stage. One props table.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>A theatrical play runs in an auditorium. Multiple <strong>actors (threads)</strong> step onto the same stage inside the same building. Each actor has their own <strong>script folder (thread stack)</strong> and performs independently — but they all share the exact same props table, background scenery, and storage crates (the <strong>shared heap and data</strong>).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The shared assets</span>
+          <p>The props table is where the risk lives. If one actor rearranges the props while another actor is about to pick up a specific item, they collide. <strong>The shared memory is a shared resource — and shared resources need coordination.</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The danger</span>
+          <p>If one actor knocks over the shared props table, <strong>every single actor is impacted immediately</strong>. There's no isolation between threads — a crash in one is a crash in all (usually — unless the kernel catches it).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole tradeoff in one image:</b> shared memory gives you fast coordination and no serialization overhead — but it also means the memory is a battlefield unless you add locks.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Four threads, one props table</div>
+        <div class="stage-vis">
+          <div class="stage-label">THE STAGE · one process</div>
+          <div class="stage-actor a1">🎭</div>
+          <div class="stage-actor a2">🎭</div>
+          <div class="stage-actor a3">🎭</div>
+          <div class="stage-actor a4">🎭</div>
+          <div class="stage-scenery"></div>
+          <div class="stage-props">
+            <span class="ic">📦</span>
+            SHARED PROPS TABLE<br>
+            <span style="font-size:9.5px;color:var(--muted);font-weight:600;letter-spacing:.1em;margin-top:4px;display:inline-block">the heap · the data segment · the file descriptors</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy · Shared vs Private">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Analogy 1 · What's Shared, What's Private</span>
+    <h2 style="margin-bottom:16px;">The exact split between threads of the same process</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Shared vs private</div>
+        <div class="sp-grid">
+          <div class="sp-card shared">
+            <h4>✓ SHARED</h4>
+            <div class="sp-item">Code segment (.text)</div>
+            <div class="sp-item">Data segment (.data / .bss)</div>
+            <div class="sp-item">Heap (malloc allocations)</div>
+            <div class="sp-item">Open file descriptors</div>
+            <div class="sp-item">Working directory</div>
+            <div class="sp-item">Signal handlers</div>
+            <div class="sp-item">Environment variables</div>
+          </div>
+          <div class="sp-card private">
+            <h4>◉ PRIVATE (per-thread)</h4>
+            <div class="sp-item">Thread ID</div>
+            <div class="sp-item">Program Counter (PC)</div>
+            <div class="sp-item">CPU registers</div>
+            <div class="sp-item">Stack (local variables, call frames)</div>
+            <div class="sp-item">Thread-local storage (TLS)</div>
+            <div class="sp-item">Signal mask</div>
+            <div class="sp-item">Scheduling priority (in some systems)</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The rule of thumb</span>
+          <p><strong>Anything a function can reach through a shared pointer</strong> is shared between threads. Anything declared <code style="font-family:var(--mono);color:#88ffd8">static</code> outside a function, anything on the heap, anything in a global — all visible to every thread.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What's private and why</span>
+          <p>Each thread needs its own <strong>program counter</strong> (which instruction am I executing?) and its own <strong>stack</strong> (what function am I inside, with what locals?). Without these, two threads couldn't run different code paths simultaneously.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The dangerous middle ground</span>
+          <p>Heap-allocated memory is technically "shared" — but only if threads have a pointer to it. That's why <code style="font-family:var(--mono);color:#ff9fb1">malloc</code> is <strong>thread-safe by default</strong> in modern libcs: the allocator itself uses internal locks.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy · Browser Tabs">
+  <div class="slide-inner">
+    <span class="badge">🌐 Analogy 2 · Independent Windows vs. Isolated Tabs</span>
+    <h2 style="margin-bottom:16px;">Processes are separate windows. <span class="grad-blue">Threads are tabs in one window.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Multiple processes</span>
+          <p>Running a standalone text editor alongside a standalone video game. Each has its own window, its own memory, its own resources. If the game crashes, the text editor keeps running.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Multiple threads</span>
+          <p>Multiple tabs within one web engine. They share the same browser process, the same session cookies, the same cache — but each tab has its own DOM and JavaScript context. If one tab hangs, the others usually stall too (in older browsers) — but a modern Chrome isolates each tab as a separate process, which is why one crashing tab doesn't kill your entire session.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> Chrome's "site isolation" is a real case where the same problem was solved twice — first with threads, later with processes. The tradeoff is: threads are faster but less isolated; processes are slower but crash-proof.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Same engine, different isolation</div>
+        <div class="browser-vis">
+          <div class="browser-window">
+            <div class="bw-titlebar">
+              <span class="bw-dot"></span>
+              <span class="bw-dot"></span>
+              <span class="bw-dot"></span>
+              <span class="bw-label">text_editor.exe · PID 4821</span>
+            </div>
+            <div class="bw-body">Own address space · own heap · own file descriptors</div>
+          </div>
+          <div class="browser-window">
+            <div class="bw-titlebar">
+              <span class="bw-dot"></span>
+              <span class="bw-dot"></span>
+              <span class="bw-dot"></span>
+              <span class="bw-label">video_game.exe · PID 4822</span>
+            </div>
+            <div class="bw-body">Own address space · own heap · own file descriptors</div>
+          </div>
+          <div class="browser-tabs">
+            <div class="bt-tabbar">
+              <div class="bt-tab active">tab 1 · PID 4823</div>
+              <div class="bt-tab active">tab 2 · PID 4824</div>
+              <div class="bt-tab active">tab 3 · PID 4825</div>
+            </div>
+            <div class="bt-body">Modern browsers isolate tabs as <strong>separate processes</strong>. A crash in one tab does not kill the browser.<br><br>
+            <span style="font-size:10.5px;color:var(--muted)">Older browsers used threads within one process — cheaper, but a crash killed everything.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Core · Shared vs Private">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — What a Thread Actually Is</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-emerald">lightweight unit of CPU utilization</span> inside a process</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Formal definition</span>
+          <p>A thread is a <strong>lightweight concurrent sequence of instructions</strong> executing within the shared ecosystem context of a parent process. The OS schedules threads, not processes — processes are just the container.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What each thread gets</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>Unique Thread ID</strong> — to distinguish it from siblings<br>
+            <strong>Program Counter</strong> — its current instruction<br>
+            <strong>Register state</strong> — saved on context switch<br>
+            <strong>Isolated Stack frame</strong> — its own local variables
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What threads share</span>
+          <p>Code segment, data segment, heap, file descriptors, signal handlers, environment. <strong>Everything that isn't on the private list.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The famous tradeoff:</b> shared state makes threads fast to coordinate but hard to get right. Every thread-safety bug you'll ever see traces back to this exact design choice.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Memory layout of a 4-thread process</div>
+        <div class="mem-threads">
+          <div class="mt-stacks">
+            <div class="mt-stack">T1<small>stack</small></div>
+            <div class="mt-stack">T2<small>stack</small></div>
+            <div class="mt-stack">T3<small>stack</small></div>
+            <div class="mt-stack">T4<small>stack</small></div>
+          </div>
+          <div class="mt-seg shared">
+            <span class="mt-name">.text</span>
+            <span class="mt-tag">SHARED</span>
+          </div>
+          <div class="mt-seg shared">
+            <span class="mt-name">.data / .bss</span>
+            <span class="mt-tag">SHARED</span>
+          </div>
+          <div class="mt-seg shared">
+            <span class="mt-name">heap</span>
+            <span class="mt-tag">SHARED</span>
+          </div>
+          <div class="mt-seg shared">
+            <span class="mt-name">file descriptors</span>
+            <span class="mt-tag">SHARED</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Four private stacks, one shared everything else. That's the whole architectural story of a thread.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Thread Benefits">
+  <div class="slide-inner">
+    <span class="badge emerald">✦ Why Use Threads — The Benefits</span>
+    <h2 style="margin-bottom:16px;">Four things threads make <span class="grad-emerald">cheaper or possible</span></h2>
+    <div class="benefits-grid">
+      <div class="benefit-card b">
+        <h4>⚡ Fast creation</h4>
+        <p>Creating a thread is much cheaper than <code style="font-family:var(--mono);color:#88ffd8">fork()</code>. No address-space copy, no page tables — just a new stack and a new TCB. Microseconds, not milliseconds.</p>
+      </div>
+      <div class="benefit-card b">
+        <h4>🔄 Fast switching</h4>
+        <p>Thread switch: save/load registers only. No TLB flush, no CR3 swap. This makes thread switches 5–10× cheaper than process switches.</p>
+      </div>
+      <div class="benefit-card b">
+        <h4>🤝 Zero-cost communication</h4>
+        <p>Threads share memory — any thread can read/write any global or heap variable. No pipes, no sockets, no marshalling. Just pointer dereferences.</p>
+      </div>
+      <div class="benefit-card b">
+        <h4>🔀 True parallelism</h4>
+        <p>On a multi-core CPU, multiple threads of one process can <strong>genuinely run simultaneously</strong> on different cores. Processes can too, but threads share the cache — better locality.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Thread Costs">
+  <div class="slide-inner">
+    <span class="badge crimson">✦ Why Threads Are Dangerous — The Costs</span>
+    <h2 style="margin-bottom:16px;">Four things that make threads <span class="grad-crimson">hard to use correctly</span></h2>
+    <div class="benefits-grid">
+      <div class="benefit-card c">
+        <h4>💥 No crash isolation</h4>
+        <p>A segmentation fault in one thread takes down the <strong>entire process</strong> — and all sibling threads with it. Compare to processes, where a crash affects only that process.</p>
+      </div>
+      <div class="benefit-card c">
+        <h4>⚔️ Race conditions</h4>
+        <p>Two threads writing to the same variable at the same time produce nondeterministic results. This is the entire subject of Module 4 (Process Synchronization).</p>
+      </div>
+      <div class="benefit-card c">
+        <h4>🔒 Deadlock risk</h4>
+        <p>Introducing locks to fix race conditions introduces a new failure mode — two threads waiting on each other's locks, neither making progress. Also Module 4.</p>
+      </div>
+      <div class="benefit-card c">
+        <h4>🔍 Debugging is terrible</h4>
+        <p>Thread bugs are often timing-dependent — they appear once in 10,000 runs, then disappear when you attach a debugger. This is why "it works on my machine" is a cliché.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Model · Many-to-One">
+  <div class="slide-inner">
+    <span class="badge">1️⃣ Many-to-One — Multiple user threads, one kernel thread</span>
+    <h2 style="margin-bottom:16px;">All threads share a <span class="grad-blue">single kernel execution slot</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Many user threads → one kernel thread</div>
+        <div class="model-vis">
+          <div class="model-box user">
+            <div class="mb-label">USER SPACE</div>
+            <div class="model-threads">
+              <div class="model-thread user">T1</div>
+              <div class="model-thread user">T2</div>
+              <div class="model-thread user">T3</div>
+              <div class="model-thread user">T4</div>
+            </div>
+          </div>
+          <div class="model-arrow down">▼</div>
+          <div class="model-box kernel">
+            <div class="mb-label">KERNEL SPACE</div>
+            <div class="model-threads two" style="grid-template-columns:1fr">
+              <div class="model-thread kernel" style="grid-column:span 2">K1 · single kernel thread</div>
+            </div>
+          </div>
+          <div class="model-arrow">▼</div>
+          <div class="model-box" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);color:#ffd18a">
+            <div class="mb-label">CPU CORE</div>
+            SINGLE CORE
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structure</span>
+          <p>Multiple user-level threads map to a <strong>single kernel thread context</strong>. The user library handles creation and switching. The kernel knows only one thread — from its perspective, one thing is running.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The upside</span>
+          <p><strong>Thread switching is incredibly fast</strong> — no kernel involvement at all. Purely a userspace operation: save registers, load registers, jump. Hundreds of nanoseconds.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The fatal flaw</span>
+          <p>If <strong>one user thread blocks on I/O</strong>, the entire kernel thread blocks — and <strong>all sibling threads freeze with it</strong>. The kernel can't context-switch to a sibling because it doesn't know the siblings exist.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Historical example:</b> old versions of Java "green threads" used this model. It worked well for CPU-bound computation but fell apart for I/O-heavy applications.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Model · One-to-One">
+  <div class="slide-inner">
+    <span class="badge emerald">1️⃣ One-to-One — Each user thread gets its own kernel thread</span>
+    <h2 style="margin-bottom:16px;">Full <span class="grad-emerald">kernel awareness</span> of every thread</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The structure</span>
+          <p>Every user thread maps directly to its own scheduled kernel thread. The kernel knows about every thread, schedules each independently, and can run them in true parallel on different cores.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The upside</span>
+          <p><strong>No blocking cascade.</strong> If one thread blocks on I/O, the kernel just schedules the others — they keep running on other cores or the same core. True parallelism across multi-core CPUs.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Each thread creation requires a <strong>syscall</strong> (or kernel-aware allocation). Thread switches go through the kernel — slightly more expensive than pure userspace switches, but still much cheaper than full process switches.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The scaling concern</span>
+          <p>Thousands of threads means thousands of kernel threads, which means thousands of task_structs, which means the scheduler has a lot of work. Modern kernels handle this well (Linux handles 100k+ threads), but it's not free.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Linux and Windows both use 1:1.</b> POSIX pthreads on Linux is implemented via <code style="font-family:var(--mono);color:#c9a7ff">clone()</code> with <code style="font-family:var(--mono);color:#c9a7ff">CLONE_VM</code> — each pthread is a real kernel-scheduled task.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">N user threads → N kernel threads</div>
+        <div class="model-vis">
+          <div class="model-box user">
+            <div class="mb-label">USER SPACE</div>
+            <div class="model-threads">
+              <div class="model-thread user">T1</div>
+              <div class="model-thread user">T2</div>
+              <div class="model-thread user">T3</div>
+              <div class="model-thread user">T4</div>
+            </div>
+          </div>
+          <div class="model-arrow down">▼</div>
+          <div class="model-box kernel">
+            <div class="mb-label">KERNEL SPACE</div>
+            <div class="model-threads">
+              <div class="model-thread kernel">K1</div>
+              <div class="model-thread kernel">K2</div>
+              <div class="model-thread kernel">K3</div>
+              <div class="model-thread kernel">K4</div>
+            </div>
+          </div>
+          <div class="model-arrow">▼</div>
+          <div class="model-threads">
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 1</div>
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 2</div>
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 3</div>
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 4</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Model · Many-to-Many">
+  <div class="slide-inner">
+    <span class="badge amber">1️⃣ Many-to-Many — M user threads mapped to N kernel threads</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">hybrid compromise</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">M user threads → N kernel threads (M &gt; N)</div>
+        <div class="model-vis">
+          <div class="model-box user">
+            <div class="mb-label">USER SPACE</div>
+            <div class="model-threads six">
+              <div class="model-thread user">T1</div>
+              <div class="model-thread user">T2</div>
+              <div class="model-thread user">T3</div>
+              <div class="model-thread user">T4</div>
+              <div class="model-thread user">T5</div>
+              <div class="model-thread user">T6</div>
+            </div>
+          </div>
+          <div class="model-arrow down">▼ multiplexed</div>
+          <div class="model-box kernel">
+            <div class="mb-label">KERNEL SPACE</div>
+            <div class="model-threads two">
+              <div class="model-thread kernel">K1</div>
+              <div class="model-thread kernel">K2</div>
+              <div class="model-thread kernel">K3</div>
+            </div>
+          </div>
+          <div class="model-arrow">▼</div>
+          <div class="model-threads">
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 1</div>
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 2</div>
+            <div class="model-thread" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.14);color:#ffd18a">CPU 3</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The structure</span>
+          <p>Multiple user threads are multiplexed onto a smaller number of kernel threads. The user library schedules user threads onto kernel threads. The kernel schedules kernel threads onto CPUs.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The upside</span>
+          <p>Best of both worlds: if one user thread blocks, the user library can schedule a sibling on the same kernel thread. And you can still get true parallelism up to N cores.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The complexity</span>
+          <p>Two-level scheduling is <strong>genuinely hard to implement correctly</strong>. The user library must coordinate with the kernel about when to add/remove kernel threads, handle blocking syscalls, and not starve user threads. Very few production systems use this.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Solaris used this for years.</b> The old Sun Solaris "M:N" thread library was famous for its complexity — and famously replaced by 1:1 in later versions.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Model Comparison">
+  <div class="slide-inner">
+    <span class="badge violet">📊 Head-to-Head Comparison of the Three Models</span>
+    <h2 style="margin-bottom:20px;">Which model wins on which dimension?</h2>
+    <div class="cmp-table">
+      <div class="cmp-cell cmp-corner">Dimension</div>
+      <div class="cmp-cell cmp-head m2o">Many-to-One</div>
+      <div class="cmp-cell cmp-head o2o">One-to-One</div>
+      <div class="cmp-cell cmp-head m2m">Many-to-Many</div>
+
+      <div class="cmp-cell cmp-label">Thread creation cost</div>
+      <div class="cmp-cell cmp-val good">Cheapest</div>
+      <div class="cmp-cell cmp-val warn">Moderate</div>
+      <div class="cmp-cell cmp-val warn">Moderate</div>
+
+      <div class="cmp-cell cmp-label">Thread switch cost</div>
+      <div class="cmp-cell cmp-val good">Fastest</div>
+      <div class="cmp-cell cmp-val warn">Moderate</div>
+      <div class="cmp-cell cmp-val good">Fast (user-level)</div>
+
+      <div class="cmp-cell cmp-label">True parallelism</div>
+      <div class="cmp-cell cmp-val bad">No</div>
+      <div class="cmp-cell cmp-val good">Yes</div>
+      <div class="cmp-cell cmp-val good">Yes (up to N)</div>
+
+      <div class="cmp-cell cmp-label">Blocking cascade</div>
+      <div class="cmp-cell cmp-val bad">Yes — fatal</div>
+      <div class="cmp-cell cmp-val good">No</div>
+      <div class="cmp-cell cmp-val good">No</div>
+
+      <div class="cmp-cell cmp-label">Kernel awareness</div>
+      <div class="cmp-cell cmp-val bad">None</div>
+      <div class="cmp-cell cmp-val good">Full</div>
+      <div class="cmp-cell cmp-val warn">Partial</div>
+
+      <div class="cmp-cell cmp-label">Implementation complexity</div>
+      <div class="cmp-cell cmp-val good">Simple</div>
+      <div class="cmp-cell cmp-val good">Simple</div>
+      <div class="cmp-cell cmp-val bad">Very complex</div>
+
+      <div class="cmp-cell cmp-label">Real-world use</div>
+      <div class="cmp-cell cmp-val">Historical (green threads)</div>
+      <div class="cmp-cell cmp-val good">Linux · Windows · macOS</div>
+      <div class="cmp-cell cmp-val">Solaris (deprecated)</div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The industry has converged on 1:1.</b> The simplicity of mapping one user thread to one kernel thread is worth the slight extra cost. Everything else has been tried and mostly abandoned.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Threads vs Processes">
+  <div class="slide-inner">
+    <span class="badge">🔬 Threads vs. Processes — The Full Comparison</span>
+    <h2 style="margin-bottom:20px;">Two isolation models, side by side</h2>
+    <div class="cmp-table">
+      <div class="cmp-cell cmp-corner">Dimension</div>
+      <div class="cmp-cell cmp-head m2o">Processes</div>
+      <div class="cmp-cell cmp-head o2o">Threads</div>
+      <div class="cmp-cell cmp-head m2m">Notes</div>
+
+      <div class="cmp-cell cmp-label">Address space</div>
+      <div class="cmp-cell cmp-val">Separate</div>
+      <div class="cmp-cell cmp-val">Shared</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">Core difference</div>
+
+      <div class="cmp-cell cmp-label">Creation cost</div>
+      <div class="cmp-cell cmp-val bad">High (fork)</div>
+      <div class="cmp-cell cmp-val good">Low (pthread_create)</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">~ms vs ~µs</div>
+
+      <div class="cmp-cell cmp-label">Switch cost</div>
+      <div class="cmp-cell cmp-val bad">High (TLB flush)</div>
+      <div class="cmp-cell cmp-val good">Low</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">~10µs vs ~1µs</div>
+
+      <div class="cmp-cell cmp-label">IPC</div>
+      <div class="cmp-cell cmp-val bad">Explicit (pipes, sockets)</div>
+      <div class="cmp-cell cmp-val good">Direct (shared memory)</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">One of the biggest wins</div>
+
+      <div class="cmp-cell cmp-label">Crash isolation</div>
+      <div class="cmp-cell cmp-val good">Full — one crash, others survive</div>
+      <div class="cmp-cell cmp-val bad">None — one crash, all die</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">The other big tradeoff</div>
+
+      <div class="cmp-cell cmp-label">Debugging</div>
+      <div class="cmp-cell cmp-val good">Straightforward</div>
+      <div class="cmp-cell cmp-val bad">Race conditions, deadlocks</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">Why threads have a bad rep</div>
+
+      <div class="cmp-cell cmp-label">Memory overhead</div>
+      <div class="cmp-cell cmp-val bad">High (own page tables)</div>
+      <div class="cmp-cell cmp-val good">Low (just a stack)</div>
+      <div class="cmp-cell cmp-val" style="font-size:10.5px">MB vs KB</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Code · pthreads" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Code — POSIX pthreads</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">canonical</span> thread example</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>pthreads_demo.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// Function that each thread will run</span></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">thread_runner_routine</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Hello from Thread ID: %ld\n"</span>,</span><span class="code-line">           (<span class="c-type">long</span>) <span class="c-name">pthread_self</span>());</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">pthread_t</span> <span class="c-var">worker_thread_id</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Create a thread · runs thread_runner_routine in parallel</span></span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">worker_thread_id</span>, <span class="c-num">NULL</span>,</span><span class="code-line">                   <span class="c-var">thread_runner_routine</span>, <span class="c-num">NULL</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Wait for the worker thread to finish</span></span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">worker_thread_id</span>, <span class="c-num">NULL</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Worker finished. Main thread exits.\n"</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The three key calls</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <code style="font-family:var(--mono);color:#88ffd8">pthread_create</code> — spins up a new thread running the given function<br>
+            <code style="font-family:var(--mono);color:#88ffd8">pthread_join</code> — waits for the thread to complete<br>
+            <code style="font-family:var(--mono);color:#88ffd8">pthread_self</code> — returns the current thread's ID
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What pthread_create actually does</span>
+          <p>On Linux, this calls <code style="font-family:var(--mono);color:#b9d0ff">clone()</code> with flags that say "share memory but create a new stack and new task." The kernel creates a new <code style="font-family:var(--mono);color:#b9d0ff">task_struct</code> (that's the "1:1" model we saw) — the user library just wraps it in the pthread abstraction.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The compile step</span>
+          <p>You must link with <code style="font-family:var(--mono);color:#ffd18a">-pthread</code>: <code style="font-family:var(--mono);color:#ffd18a">gcc -pthread threads.c -o threads</code>. Without it, pthread_create returns an error and the program behaves unexpectedly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Code · Sharing Data">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">💻 Code — Sharing Data Between Threads (and Why It's Dangerous)</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-crimson">same variable</span>, two threads, one result you didn't expect</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>shared_counter.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// SHARED — both threads will see and modify this</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-var">shared_counter</span> = <span class="c-num">0</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">bump_counter</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-num">100000</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-var">shared_counter</span>++;  <span class="c-com">// NOT atomic — race condition!</span></span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">pthread_t</span> <span class="c-var">t1</span>, <span class="c-var">t2</span>;</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t1</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t2</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t1</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t2</span>, <span class="c-num">NULL</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Expect 200000. Often get something like 143287.</span></span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Final counter: %d\n"</span>, <span class="c-var">shared_counter</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What's actually happening</span>
+          <p><code style="font-family:var(--mono);color:#ff9fb1">shared_counter++</code> is <strong>not one instruction</strong>. It's three: load counter into a register, add 1, write back. If both threads run those three steps interleaved, one increment can overwrite the other.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is the whole point of Module 4</span>
+          <p>Sharing memory by default is <em>fast</em> but <em>unsafe</em>. The whole subject of process synchronization is: how do we get the speed of shared memory without the data races? That's L14 and L15.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The preview fix</span>
+          <p>Wrap the increment in a mutex lock: <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_lock(&amp;m); counter++; pthread_mutex_unlock(&m);</code>. The result becomes deterministic (200000, every time) — but the mutex itself is expensive.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Live Demo" data-anim="threaddemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — Watching the Race Condition</span>
+    <h2 style="margin-bottom:16px;">Run the same program 5 times. <span class="grad-amber">Get 5 different answers.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Same binary, different results each run</div>
+        <div class="terminal" id="raceTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./shared_counter</span>
+          </div>
+          <div class="term-body" id="raceBody">
+            <span class="term-line dim">Expected: 200000</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're watching</span>
+          <p>Each "run" is the same binary with the same two threads doing 100,000 increments each. Because of the race condition, the final result is <strong>nondeterministic</strong>.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The observation that scares people</span>
+          <p>Every run is <strong>different</strong>. Sometimes it's 189,204. Sometimes 156,782. Sometimes 199,999. Rarely (if you're unlucky with timing) it's actually 200,000 — but you can't rely on it.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is a "heisenbug"</span>
+          <p>Adding print statements changes the timing, which can make the bug appear or disappear. Attaching a debugger changes timing. The compiler's optimization level changes timing. Threads are the original "it works on my machine" generator.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Real World · Linux">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — How Linux Actually Implements Threads</span>
+    <h2 style="margin-bottom:16px;">Linux has <span class="grad-emerald">no separate thread concept</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The key insight</span>
+          <p>Linux doesn't have a distinct "thread" abstraction. Both processes and threads are implemented via the same <code style="font-family:var(--mono);color:#88ffd8">clone()</code> syscall — with different flags controlling what gets shared.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The flags that matter</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <code style="font-family:var(--mono);color:#b9d0ff">CLONE_VM</code> — share address space<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">CLONE_FILES</code> — share file descriptor table<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">CLONE_FS</code> — share filesystem info<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">CLONE_THREAD</code> — share signal handlers, put in same thread group
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The result</span>
+          <p><strong>fork()</strong> = clone(SIGCHLD). <strong>pthread_create()</strong> = clone(CLONE_VM | CLONE_FILES | CLONE_FS | CLONE_THREAD | ...). Same syscall, different flags.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why this is elegant:</b> the kernel scheduler doesn't care whether a "task" is a process or a thread — it just schedules task_structs. The distinction lives entirely in userspace (via the pthread library).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">One syscall, two behaviors</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="40" y="14" width="260" height="46" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="36" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">clone(flags)</text>
+          <text x="170" y="52" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">the only kernel primitive</text>
+
+          <line x1="120" y1="60" x2="80" y2="130" stroke="rgba(255,77,109,.7)" stroke-width="1.6" class="svg-flow"/>
+          <line x1="220" y1="60" x2="260" y2="130" stroke="rgba(46,230,168,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="130" width="140" height="120" rx="12" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="90" y="154" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">fork()</text>
+          <text x="90" y="176" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">flags = SIGCHLD</text>
+          <text x="90" y="200" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">separate memory</text>
+          <text x="90" y="216" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">separate FDs</text>
+          <text x="90" y="232" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">= new PROCESS</text>
+
+          <rect x="180" y="130" width="140" height="120" rx="12" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.5)" stroke-width="1.4"/>
+          <text x="250" y="154" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">pthread_create()</text>
+          <text x="250" y="176" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">CLONE_VM | FILES | ...</text>
+          <text x="250" y="200" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">shared memory</text>
+          <text x="250" y="216" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">shared FDs</text>
+          <text x="250" y="232" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">= new THREAD</text>
+
+          <text x="170" y="288" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">same syscall · same task_struct</text>
+          <text x="170" y="306" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.55)" font-family="JetBrains Mono">the difference is entirely in the flags</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Benefits & Costs Recap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">📋 The Full Tradeoff — When to Use Which</span>
+    <h2 style="margin-bottom:20px;">A practical decision guide</h2>
+    <div class="split">
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">Use THREADS when</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13.5px">
+          ✓ Tasks share substantial data (image convolution, matrix math)<br>
+          ✓ You need true CPU parallelism on multi-core<br>
+          ✓ You want responsive UI while background work continues<br>
+          ✓ You have short-lived tasks (thread creation is cheap)<br>
+          ✓ All tasks are cooperative and well-tested
+        </p>
+      </div>
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">Use PROCESSES when</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13.5px">
+          ✓ Tasks have separate security domains (browser tabs, per-user services)<br>
+          ✓ You need crash isolation (one bad plugin shouldn't kill everything)<br>
+          ✓ Tasks are truly independent (microservices)<br>
+          ✓ You're running untrusted code<br>
+          ✓ Debug time is more valuable than switch time
+        </p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The pragmatic middle:</b> modern systems use <strong>process pools</strong> with <strong>threads inside each process</strong>. Chrome does this — each tab is a process (isolation), and inside each tab multiple threads render and execute JavaScript (performance). Best of both.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Thread Fundamentals</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Thread</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A lightweight concurrent sequence of instructions executing within the shared ecosystem context of a parent process.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( An independent execution stream that shares its parent's memory. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Key property</span>
+          <p>Shares code, data, heap, file descriptors with sibling threads. Has its own stack, PC, and registers.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">User-Level Thread</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A thread managed completely in user space by an application library without the underlying kernel core being aware of its boundaries.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A thread the OS doesn't know exists — it's just a data structure the app manages. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Trade-off</span>
+          <p>Faster to create and switch (userspace only), but the kernel can't schedule them independently — one blocked thread blocks all siblings.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🏷️ System Lexicon — Kernel Threads &amp; Concurrency</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Kernel-Level Thread</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A thread maintained, tracked, and scheduled natively by the operating system core within Ring 0.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A thread the kernel knows about and schedules itself. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Trade-off</span>
+          <p>Slower to create (syscall), but the kernel can schedule each thread independently — true parallelism, no blocking cascades.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Concurrency</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Enabling multiple execution paths to make progress over overlapping blocks of time (via fast time-slicing or true parallel cores).</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Multiple threads of work making progress — not necessarily simultaneously, but overlapping in time. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">vs. parallelism</span>
+          <p>Concurrency = managing multiple tasks (can be on one core via time-slicing). Parallelism = actually running them simultaneously (needs multiple cores).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Common Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about threads</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Threads are just lightweight processes"</div>
+        <div class="pc-desc">They share the <em>address space</em> — that's not a lightweight version of anything. It's a fundamentally different model. A process has its own memory; a thread shares its parent's. That single difference cascades into every other property: crash isolation, IPC, debugging, everything.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"More threads = more performance"</div>
+        <div class="pc-desc">False. On an 8-core machine, 8 threads can run in parallel. 800 threads still run 8 at a time — plus you pay scheduler overhead, cache thrashing, and lock contention. Optimal thread count is usually near the number of cores for CPU-bound work, or higher for I/O-bound work (so other threads run while waiting).</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"Threads are automatically faster than processes"</div>
+        <div class="pc-desc">Only if the workload benefits from shared state. If two tasks <strong>don't share any data</strong>, running them as threads vs processes has near-identical throughput — but processes give you crash isolation for free. Threads only win when the shared state saves real work (e.g., no serialization, no IPC round-trips).</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Task Manager Thread Inspection Hunt</span>
+    <h2 style="margin-bottom:16px;">Find one process with many threads. <span class="grad-violet">Explain why.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Have all students pull up their laptops. Instruct Windows users to open <strong>Task Manager</strong> and turn on the "Threads" column. Mac/Linux users run <code style="font-family:var(--mono);color:#c9a7ff">htop</code> or Activity Monitor.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The hunt</span>
+          <p>Have them locate a heavy app instance — a web browser, communication client, or IDE. Ask them to note: <strong>how many core processes</strong> it shows, and <strong>how many threads</strong> are running inside that single process.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The expected observation</span>
+          <p>Most heavy apps show 1–3 processes but <strong>30–100 threads</strong> per process. Chrome shows multiple processes (one per tab, plus a browser process). VS Code shows one process with 40+ threads. Slack shows one process with 20+ threads.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The debrief:</b> <em>"Why so many threads in one process?"</em> Answer: rendering, network I/O, disk I/O, UI events, JavaScript execution, garbage collection — all need to run concurrently without blocking each other. Threads are the natural model for this.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · What you'll see (simulated)</div>
+        <div class="activity-tb">
+          <div class="tb-row head">
+            <span>PID</span>
+            <span>NAME</span>
+            <span>THREADS</span>
+            <span>MEM</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">4821</span>
+            <span class="tb-name">chrome</span>
+            <span class="tb-threads">47</span>
+            <span class="tb-mem">342 MB</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">4822</span>
+            <span class="tb-name">chrome (tab 1)</span>
+            <span class="tb-threads">12</span>
+            <span class="tb-mem">156 MB</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">4823</span>
+            <span class="tb-name">chrome (tab 2)</span>
+            <span class="tb-threads">8</span>
+            <span class="tb-mem">98 MB</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">5102</span>
+            <span class="tb-name">code (VS Code)</span>
+            <span class="tb-threads">43</span>
+            <span class="tb-mem">587 MB</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">5233</span>
+            <span class="tb-name">slack</span>
+            <span class="tb-threads">28</span>
+            <span class="tb-mem">245 MB</span>
+          </div>
+          <div class="tb-row">
+            <span class="tb-t">5401</span>
+            <span class="tb-name">spotify</span>
+            <span class="tb-threads">31</span>
+            <span class="tb-mem">168 MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🧭 System Cohesion — Where L09 Sits</span>
+    <h2 style="margin-bottom:20px;">The bridge from <span class="grad-violet">processes to synchronization</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L05 (Process Anatomy)</h4>
+            <p>Threads reuse the parent process's Data, Text, and Heap boundaries while requiring their own independent Stack frames. Without L05's memory model, threads don't exist as a concept.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 4 (Process Synchronization)</h4>
+            <p>Shared memory models mean threads directly point to overlapping virtual page addresses — which serves as the essential core driver for the race conditions and locking we'll cover in L14 and L15.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Module 2 complete</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>L05</strong> — what a process is<br>
+            <strong>L06</strong> — how a process starts, replaces, and switches<br>
+            <strong>L07</strong> — which process runs next (basic policies)<br>
+            <strong>L08</strong> — how priority complicates that decision<br>
+            <strong>L09</strong> — why a process might contain multiple execution streams
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Looking forward:</b> Module 3 (Memory Management) is next — but the thread model you just learned will come back in Module 4 with a vengeance. Race conditions only exist because threads share memory. No threads = no race conditions.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L05 · Process Anatomy</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">memory model</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L06 · Execution</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">context switch</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L09 · THREADS</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">1:1 · M:1 · M:N</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">race conditions</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">shared page tables</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🌿 Mindmap — Where L09 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 2: Process Management</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L05: Process Anatomy</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L06: Execution Mechanics</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L07: Scheduling I</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L08: Scheduling II</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L09: Threads &amp; Concurrency 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf blue">Shared Spaces (Heap/Data)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Private Spaces (Stacks)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf emerald">1:1 Mapping (Linux, Windows)</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Where this leads</h2>
+        <div class="panel blue">
+          <span class="panel-label">Next — Module 3: Memory Management</span>
+          <p>We've been assuming memory just "exists" and threads share it. But <strong>how</strong> does the OS actually manage that shared memory? Module 3 opens the box: virtual addresses, page tables, TLB, and the machinery that makes "shared heap" possible.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Then — Module 4: Synchronization</span>
+          <p>Back to threads — but now with the synchronization primitives needed to make shared memory safe. Mutexes, semaphores, condition variables, and the deadlocks that come with them.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The full course arc</span>
+          <p>L01 → L04: how a kernel is structured and starts<br>L05 → L09: how processes and threads work<br>L10 → L13: how they get memory<br>L14 → L15: how they share it safely<br>L16 → L21: how they use storage and I/O<br>L22 → L28: how they stay secure</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Pitfalls · Advanced">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🔬 Advanced — Things You'll Learn to Hate About Threads</span>
+    <h2 style="margin-bottom:16px;">Three traps that will bite you in real code</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Trap 1 · Thread-unsafe library functions</span>
+          <p>Not every libc function is thread-safe. <code style="font-family:var(--mono);color:#ffd18a">strtok</code>, <code style="font-family:var(--mono);color:#ffd18a">ctime</code>, and <code style="font-family:var(--mono);color:#ffd18a">localtime</code> all use static internal buffers — call them from two threads simultaneously and they'll corrupt each other's return values. The <code style="font-family:var(--mono);color:#ffd18a">_r</code> suffix (strtok_r, localtime_r) denotes the thread-safe version.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Trap 2 · Fork + threads don't mix</span>
+          <p>If you call <code style="font-family:var(--mono);color:#ffd18a">fork()</code> from a multithreaded program, only the calling thread survives in the child. Any locks held by other threads stay held — <strong>forever</strong> — because their owners don't exist in the child. This is a real source of deadlocks in production.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Trap 3 · Thread cancellation is hard</span>
+          <p>Cancelling a thread mid-execution can leave shared state inconsistent. If a thread is cancelled while holding a mutex, the mutex stays locked forever. This is why most guidelines say <strong>never use pthread_cancel</strong> — use a cooperative shutdown flag instead.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The rule of thumb</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="290" rx="14" fill="rgba(255,182,72,.04)" stroke="rgba(255,182,72,.35)" stroke-width="1.5"/>
+          <text x="170" y="44" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">THE PRAGMATIC RULES</text>
+
+          <text x="30" y="86" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">1.  Assume every global is shared.</text>
+          <text x="30" y="114" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">2.  Lock around every write.</text>
+          <text x="30" y="142" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">3.  Prefer immutability when possible.</text>
+          <text x="30" y="170" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">4.  Don't call fork() if threads are running.</text>
+          <text x="30" y="198" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">5.  Don't cancel threads — signal them.</text>
+          <text x="30" y="226" font-size="11" fill="rgba(255,209,138,.9)" font-family="JetBrains Mono">6.  Verify every library is thread-safe.</text>
+
+          <line x1="30" y1="256" x2="310" y2="256" stroke="rgba(255,182,72,.30)" stroke-width="1" stroke-dasharray="3 4"/>
+          <text x="170" y="282" text-anchor="middle" font-size="10" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono" font-weight="700">Follow these and you'll avoid 90% of thread bugs.</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L09 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p><strong>Threads are execution streams inside a process</strong>. They share the code segment, data segment, heap, and file descriptors — but each has its own stack, program counter, and registers.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>Threads are <strong>cheaper than processes</strong> — faster to create, faster to switch, and they share memory so no explicit IPC is needed. That's why they're the foundation of all concurrent programming.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>There are three concurrency models: <strong>Many-to-One</strong> (fast but blocking cascades), <strong>One-to-One</strong> (full kernel awareness, what Linux/Windows/macOS use), and <strong>Many-to-Many</strong> (hybrid, historically complex, mostly abandoned).</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>Shared memory makes threads fast but makes them dangerous. <strong>Race conditions and deadlocks</strong> are the price of admission — and that's exactly what Module 4 is about.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next module</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">Module 3 — Memory Management (starts with L10: Relocation &amp; Base-Bound Isolation)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What's ahead</span>
+          <p>We've been assuming memory "just works" and threads "share" it. But how does the OS actually provide that illusion? Module 3 covers base-and-bound registers, paging, the TLB, virtual memory, and demand paging — the machinery that makes everything so far possible.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L10: Relocation Models &amp; Base-Bound Isolation &nbsp;|&nbsp; [L10.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad9" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad9)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad9)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : thread canvas ---------- */
+reg('threadcanvas', function(){
+  const c = document.getElementById('threadCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  // Four thread stacks around a shared heap
+  const threads = [
+    {x: W*0.20, y: 80, color:'#8fb4ff', label:'T1'},
+    {x: W*0.80, y: 80, color:'#2ee6a8', label:'T2'},
+    {x: W*0.20, y: 360, color:'#ffb648', label:'T3'},
+    {x: W*0.80, y: 360, color:'#a06bff', label:'T4'}
+  ];
+
+  const sharedItems = [
+    {name:'.text', y: 200, color:'#2ee6a8'},
+    {name:'.data', y: 234, color:'#2ee6a8'},
+    {name:'heap', y: 268, color:'#2ee6a8'},
+    {name:'fds', y: 302, color:'#2ee6a8'}
+  ];
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('ONE PROCESS · FOUR THREADS · SHARED HEAP', W/2, 16);
+
+    // draw connection lines to shared center
+    const cx = W/2, cy = H/2;
+    threads.forEach(th => {
+      const pulse = 0.3 + 0.3 * Math.sin(t / 25 + th.x * 0.01);
+      ctx.strokeStyle = th.color + Math.round(pulse * 255).toString(16).padStart(2, '0');
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(th.x, th.y + 30);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    });
+
+    // draw thread stacks
+    threads.forEach(th => {
+      // stack
+      ctx.fillStyle = th.color + '20';
+      ctx.fillRect(th.x - 30, th.y - 30, 60, 60);
+      ctx.strokeStyle = th.color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(th.x - 30, th.y - 30, 60, 60);
+
+      // label
+      ctx.fillStyle = th.color;
+      ctx.font = '800 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(th.label, th.x, th.y);
+
+      // small stack indicator
+      ctx.fillStyle = th.color + '60';
+      ctx.fillRect(th.x - 24, th.y - 24, 48, 4);
+      ctx.fillRect(th.x - 24, th.y - 16, 32, 4);
+      ctx.fillRect(th.x - 24, th.y - 8, 40, 4);
+    });
+
+    // draw shared center
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 120);
+    grad.addColorStop(0, 'rgba(46,230,168,0.20)');
+    grad.addColorStop(1, 'rgba(46,230,168,0.05)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 110, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(46,230,168,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 110, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // shared segments
+    sharedItems.forEach(item => {
+      const sw = 100;
+      const sx = cx - sw/2;
+      ctx.fillStyle = 'rgba(46,230,168,0.15)';
+      ctx.fillRect(sx, item.y, sw, 26);
+      ctx.strokeStyle = 'rgba(46,230,168,0.55)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sx, item.y, sw, 26);
+
+      ctx.fillStyle = '#88ffd8';
+      ctx.font = '700 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.name, cx, item.y + 13);
+    });
+
+    // shared label
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('SHARED', cx, 174);
+    ctx.fillStyle = 'rgba(136,255,216,0.6)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.fillText('all four threads see this', cx, 336);
+
+    // bottom hint
+    ctx.fillStyle = 'rgba(132,148,180,0.6)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('private stacks · shared everything else', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 14 : pthreads code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,5,6,7,8,10,11,13,14,15,16,18,19,21,22,23,24];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    if(lines[seq[i % seq.length]]) lines[seq[i % seq.length]].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 800);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 16 : race condition terminal ---------- */
+reg('threaddemo', function(){
+  const body = document.getElementById('raceBody');
+  if(!body) return { stop(){} };
+
+  const results = [];
+  function randomResult(){
+    // Occasionally 200000 (rare), usually less due to race
+    if (Math.random() < 0.05) return 200000;
+    return 140000 + Math.floor(Math.random() * 60000);
+  }
+
+  let step = 0;
+  let cycleCount = 0;
+  function tick(){
+    if (step === 0) {
+      body.innerHTML = '<span class="term-line dim">Expected: 200000</span>';
+      step = 1;
+      return;
+    }
+    // Add a new run line
+    const result = randomResult();
+    cycleCount++;
+    const isExpected = result === 200000;
+    const cls = isExpected ? 'ok' : 'err';
+    const label = isExpected ? '(rare — got lucky)' : '(RACE CONDITION)';
+    body.insertAdjacentHTML('beforeend',
+      `<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./shared_counter</span></span>` +
+      `<span class="term-line ${cls}">Final counter: ${result} ${label}</span>`
+    );
+
+    if (cycleCount >= 5) {
+      // reset
+      setTimeout(() => {
+        if(!body.isConnected) return;
+        body.innerHTML = '<span class="term-line dim">Expected: 200000</span>';
+        step = 0;
+        cycleCount = 0;
+      }, 4000);
+    }
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); body.innerHTML = '<span class="term-line dim">Expected: 200000</span>'; } };
+});
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s) => {
+    if (s.querySelector('#raceBody') && !s.dataset.anim) s.dataset.anim = 'threaddemo';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
