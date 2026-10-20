@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L04 — The Boot Process</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Slide 1 canvas */
+#bootCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Slide 2 - paradox */
+.paradox-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.paradox-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.paradox-card.can{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.paradox-card.cannot{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.paradox-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.paradox-card.can h4{color:#88ffd8;}
+.paradox-card.cannot h4{color:#ff9fb1;}
+.paradox-card ul{list-style:none;font-size:12.5px;line-height:1.9;color:var(--ink-2);}
+.paradox-card.can ul li::before{content:'✓ ';color:#88ffd8;font-weight:800;}
+.paradox-card.cannot ul li::before{content:'✕ ';color:#ff9fb1;font-weight:800;}
+
+/* Slide 3 - relay race */
+.relay-track{position:relative;padding:16px 8px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end;min-height:240px;}
+.relay-lane{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.relay-runner{
+  width:60px;height:60px;border-radius:50%;
+  display:grid;place-items:center;font-size:28px;
+  border:2px solid var(--stroke);background:rgba(255,255,255,.04);
+  position:relative;z-index:2;
+}
+.relay-runner.r1{border-color:rgba(91,141,255,.7);background:rgba(91,141,255,.15);animation:relayRun1 4s ease-in-out infinite;}
+.relay-runner.r2{border-color:rgba(255,182,72,.7);background:rgba(255,182,72,.15);animation:relayRun2 4s ease-in-out infinite;}
+.relay-runner.r3{border-color:rgba(255,77,109,.7);background:rgba(255,77,109,.15);animation:relayRun3 4s ease-in-out infinite;}
+.relay-runner.r4{border-color:rgba(46,230,168,.7);background:rgba(46,230,168,.15);animation:relayRun4 4s ease-in-out infinite;}
+@keyframes relayRun1{0%,22%{transform:scale(1);box-shadow:0 0 0 rgba(91,141,255,0);}23%,100%{transform:scale(.85);opacity:.4;box-shadow:none;}}
+@keyframes relayRun2{0%,22%{transform:scale(.85);opacity:.4;}23%,45%{transform:scale(1);opacity:1;box-shadow:0 0 30px rgba(255,182,72,.7);}46%,100%{transform:scale(.85);opacity:.4;box-shadow:none;}}
+@keyframes relayRun3{0%,45%{transform:scale(.85);opacity:.4;}46%,68%{transform:scale(1);opacity:1;box-shadow:0 0 30px rgba(255,77,109,.7);}69%,100%{transform:scale(.85);opacity:.4;box-shadow:none;}}
+@keyframes relayRun4{0%,68%{transform:scale(.85);opacity:.4;}69%,96%{transform:scale(1);opacity:1;box-shadow:0 0 30px rgba(46,230,168,.7);}97%,100%{transform:scale(.85);opacity:.4;box-shadow:none;}}
+.relay-label{font-size:11px;font-weight:800;letter-spacing:.06em;text-align:center;color:var(--muted);line-height:1.35;}
+.relay-lane:nth-child(1) .relay-label{color:#b9d0ff;}
+.relay-lane:nth-child(2) .relay-label{color:#ffd18a;}
+.relay-lane:nth-child(3) .relay-label{color:#ff9fb1;}
+.relay-lane:nth-child(4) .relay-label{color:#88ffd8;}
+.relay-lane small{display:block;font-size:9.5px;color:var(--muted);font-weight:700;letter-spacing:.1em;margin-top:2px;text-transform:uppercase;}
+
+/* Slide 4 - compiler pipeline */
+.pipeline-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 4px;align-items:stretch;position:relative;}
+.pipeline-stage{padding:14px 10px;border-radius:12px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid var(--stroke);background:rgba(255,255,255,.035);position:relative;}
+.pipeline-stage .num{display:block;font-family:var(--mono);font-size:16px;font-weight:900;margin-bottom:6px;color:var(--blue-2);}
+.pipeline-stage:nth-child(1){border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.pipeline-stage:nth-child(2){border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.pipeline-stage:nth-child(3){border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.pipeline-stage:nth-child(4){border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.pipeline-stage small{display:block;font-size:9px;color:var(--muted);letter-spacing:.06em;font-weight:700;margin-top:4px;text-transform:uppercase;}
+.pipeline-connector{
+  position:absolute;top:50%;height:2px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0 4px,transparent 4px 8px);
+  z-index:0;
+}
+
+/* Slide 6 - timeline */
+.boot-timeline{position:relative;display:flex;padding:8px 0 24px;margin-bottom:20px;}
+.bt-track{position:absolute;top:24px;left:6%;right:6%;height:2px;background:rgba(255,255,255,.10);}
+.bt-node{flex:1;text-align:center;position:relative;z-index:2;}
+.bt-node i{display:block;width:14px;height:14px;border-radius:50%;margin:0 auto 14px;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.18);transition:.3s;}
+.bt-node b{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--muted);}
+.bt-node span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(132,148,180,.55);margin-top:3px;font-weight:700;}
+.bt-node.on i{background:var(--acc);border-color:var(--acc);box-shadow:0 0 20px var(--acc);transform:scale(1.35);}
+.bt-node.on b{color:var(--ink);}
+.bt-node.on span{color:var(--acc);}
+.bt-node.done i{background:rgba(255,255,255,.4);border-color:rgba(255,255,255,.4);}
+
+/* Slide 7 - POST */
+.post-vis{padding:14px;border-radius:14px;background:rgba(91,141,255,.05);border:1px solid rgba(91,141,255,.32);}
+.post-check-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:6px;border-radius:8px;border:1px solid var(--stroke);background:rgba(0,0,0,.22);font-family:var(--mono);font-size:11.5px;transition:.4s;}
+.post-check-row.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.10);color:#88ffd8;}
+.post-check-row.done::after{content:'✓ OK';color:#88ffd8;font-weight:900;font-size:10.5px;letter-spacing:.05em;}
+.post-check-row:not(.done)::after{content:'…';color:var(--muted);font-weight:900;animation:dotsPulse 1s ease-in-out infinite;}
+@keyframes dotsPulse{0%,100%{opacity:.4}50%{opacity:1}}
+.post-check-row .pc-label{color:inherit;}
+
+/* Slide 9 - GRUB seek */
+.disk-vis{position:relative;width:100%;aspect-ratio:2/.9;padding:14px;border-radius:14px;background:rgba(0,0,0,.32);border:1px solid var(--stroke);overflow:hidden;}
+.disk-platter{
+  position:absolute;inset:14px;border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(91,141,255,.10), transparent 40%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.05) 0 2px, transparent 2px 20px);
+  border:1px solid rgba(255,255,255,.10);
+  animation:diskSpin 6s linear infinite;
+}
+@keyframes diskSpin{to{transform:rotate(360deg);}}
+.disk-arm{
+  position:absolute;top:50%;left:50%;width:40%;height:3px;
+  background:linear-gradient(90deg,rgba(255,77,109,.9),rgba(255,77,109,.3));
+  transform-origin:0% 50%;
+  transform:rotate(-45deg);
+  border-radius:3px;
+  box-shadow:0 0 16px rgba(255,77,109,.6);
+  animation:armSweep 4s ease-in-out infinite;
+  z-index:2;
+}
+@keyframes armSweep{
+  0%,10%{transform:rotate(-45deg);}
+  35%{transform:rotate(-15deg);}
+  60%{transform:rotate(20deg);}
+  85%{transform:rotate(-30deg);}
+  100%{transform:rotate(-45deg);}
+}
+.disk-center{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:16px;height:16px;border-radius:50%;
+  background:var(--blue-2);box-shadow:0 0 24px var(--blue-2);
+  z-index:3;
+}
+.disk-label{
+  position:absolute;bottom:10px;left:14px;right:14px;
+  font-family:var(--mono);font-size:10.5px;color:#ffd18a;font-weight:700;
+  text-align:center;z-index:4;
+  padding:6px 10px;border-radius:6px;
+  background:rgba(0,0,0,.65);border:1px solid rgba(255,182,72,.4);
+}
+
+/* Slide 11 - kernel init tree */
+.kinit-tree{padding:12px;border-radius:14px;background:rgba(255,77,109,.04);border:1px solid rgba(255,77,109,.28);}
+.kinit-branch{display:flex;align-items:flex-start;gap:12px;padding:9px 0;position:relative;}
+.kinit-dot{
+  flex:none;width:14px;height:14px;border-radius:50%;
+  background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.20);
+  margin-top:2px;transition:.3s;
+}
+.kinit-branch.done .kinit-dot{background:var(--emerald);border-color:var(--emerald);box-shadow:0 0 14px var(--emerald);}
+.kinit-body{flex:1;min-width:0;}
+.kinit-title{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:2px;}
+.kinit-desc{font-size:11px;color:var(--muted);line-height:1.4;}
+
+/* Slide 13 - systemd tree */
+.systemd-tree{padding:14px;border-radius:14px;background:rgba(46,230,168,.04);border:1px solid rgba(46,230,168,.28);}
+.sd-root{padding:12px;border-radius:10px;text-align:center;border:1.5px solid rgba(46,230,168,.7);background:rgba(46,230,168,.12);color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;margin-bottom:14px;}
+.sd-children{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.sd-child{padding:10px 8px;border-radius:8px;text-align:center;border:1px solid rgba(91,141,255,.45);background:rgba(91,141,255,.08);font-family:var(--mono);font-size:10px;font-weight:700;color:#b9d0ff;letter-spacing:.03em;opacity:0;transform:scale(.85);transition:.4s cubic-bezier(.34,1.56,.64,1);}
+.sd-child.active{opacity:1;transform:scale(1);box-shadow:0 0 16px -4px rgba(91,141,255,.6);}
+.sd-child .ic{display:block;font-size:18px;margin-bottom:4px;}
+.sd-child small{display:block;font-size:9px;color:var(--muted);letter-spacing:.06em;margin-top:2px;font-weight:700;}
+
+/* Slide 15 - handoff */
+.handoff-track{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 4px;}
+.handoff-stage{
+  padding:14px 10px;border-radius:12px;position:relative;
+  text-align:center;border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  font-size:11px;font-weight:800;letter-spacing:.05em;
+  transition:.6s cubic-bezier(.4,0,.2,1);
+}
+.handoff-stage:nth-child(1){border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;animation:handoffOut1 5s ease-in-out infinite;}
+.handoff-stage:nth-child(2){border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;animation:handoffOut2 5s ease-in-out infinite;}
+.handoff-stage:nth-child(3){border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);color:#ff9fb1;animation:handoffOut3 5s ease-in-out infinite;}
+.handoff-stage:nth-child(4){border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+@keyframes handoffOut1{0%,18%{opacity:1;transform:translateY(0);}30%,100%{opacity:.25;transform:translateY(-10px);filter:grayscale(1);}}
+@keyframes handoffOut2{0%,25%{opacity:1;transform:translateY(0);}55%,100%{opacity:.25;transform:translateY(-10px);filter:grayscale(1);}}
+@keyframes handoffOut3{0%,55%{opacity:1;transform:translateY(0);}80%,100%{opacity:.25;transform:translateY(-10px);filter:grayscale(1);}}
+.handoff-stage .stage-num{display:block;font-family:var(--mono);font-size:18px;font-weight:900;margin-bottom:4px;}
+.handoff-stage small{display:block;font-size:9px;color:var(--muted);letter-spacing:.08em;margin-top:3px;font-weight:700;text-transform:uppercase;}
+
+/* Slide 18 - GRUB terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:200px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Slide 19 - boot time */
+.boottime{display:flex;flex-direction:column;gap:14px;padding:8px 0;}
+.bt-row{display:flex;flex-direction:column;gap:6px;}
+.bt-head{display:flex;justify-content:space-between;align-items:baseline;}
+.bt-name{font-size:11.5px;font-weight:800;letter-spacing:.05em;}
+.bt-val{font-family:var(--mono);font-size:13px;font-weight:800;}
+.bt-bar{height:16px;border-radius:6px;background:rgba(255,255,255,.05);position:relative;overflow:hidden;}
+.bt-fill{position:absolute;top:0;left:0;bottom:0;border-radius:6px;transform-origin:left center;transform:scaleX(0);transition:transform 1.2s cubic-bezier(.4,0,.2,1);}
+.bt-row.loaded .bt-fill{transform:scaleX(1);}
+.bt-row:nth-child(1) .bt-fill{background:linear-gradient(90deg,#5b8dff,#8fb4ff);width:12%;}
+.bt-row:nth-child(2) .bt-fill{background:linear-gradient(90deg,#ffb648,#ffd18a);width:8%;}
+.bt-row:nth-child(3) .bt-fill{background:linear-gradient(90deg,#ff4d6d,#ff9fb1);width:22%;}
+.bt-row:nth-child(4) .bt-fill{background:linear-gradient(90deg,#2ee6a8,#88ffd8);width:58%;}
+
+/* Slide 20 - failures */
+.fail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fail-card{padding:14px 16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.fail-card.crit{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.fail-card.warn{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.fail-tag{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:8px;display:block;}
+.fail-card.crit .fail-tag{color:#ff9fb1;}
+.fail-card.warn .fail-tag{color:#ffd18a;}
+.fail-card h4{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--ink);}
+.fail-card p{font-size:11.5px;line-height:1.55;color:var(--muted);}
+
+/* Slide 21 - secure boot */
+.sb-chain{display:flex;flex-direction:column;gap:8px;padding:8px 0;}
+.sb-link{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.06);}
+.sb-link .sb-icon{font-size:22px;flex:none;}
+.sb-link .sb-body{flex:1;}
+.sb-link .sb-title{font-size:12px;font-weight:800;color:#88ffd8;letter-spacing:.04em;}
+.sb-link .sb-desc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;}
+.sb-link .sb-key{font-family:var(--mono);font-size:10px;color:#88ffd8;background:rgba(46,230,168,.14);padding:3px 8px;border-radius:5px;border:1px solid rgba(46,230,168,.4);}
+
+/* Slide 22 - activity */
+.challenge-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px 0;}
+.challenge-stage{padding:14px 12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);font-size:11.5px;line-height:1.4;position:relative;}
+.challenge-stage .cs-num{display:block;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.1em;margin-bottom:6px;}
+.challenge-stage .cs-title{font-weight:800;margin-bottom:4px;color:var(--ink);font-size:12.5px;}
+.challenge-stage .cs-body{color:var(--muted);font-size:11px;}
+.challenge-stage:nth-child(1){border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);}
+.challenge-stage:nth-child(1) .cs-num{color:var(--blue-2);}
+.challenge-stage:nth-child(2){border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);}
+.challenge-stage:nth-child(2) .cs-num{color:var(--amber);}
+.challenge-stage:nth-child(3){border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);}
+.challenge-stage:nth-child(3) .cs-num{color:var(--crimson);}
+.challenge-stage:nth-child(4){border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);}
+.challenge-stage:nth-child(4) .cs-num{color:var(--emerald);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.em{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.am{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.paradox-grid,.two-lex{grid-template-columns:1fr;}
+  .fail-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .relay-track,.pipeline-grid,.challenge-grid,.handoff-track{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .bt-node span{display:none;}
+  .sd-children{grid-template-columns:repeat(2,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L04 The Boot Process</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L04 · Overview" data-anim="bootfield">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L04 · The Boot Process</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Four stages between pressing power and <span class="grad-blue">reaching the login prompt</span></h1>
+        <p class="lead">Chronologically sequence the four structural stages that occur between a user pressing a computer's physical power-on switch and the arrival of a user-space login prompt.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L04</span>
+          <p>At the instant power hits the CPU, <strong>no operating system exists in RAM</strong>. There is no file system reader, no driver, no scheduler. How does the machine bootstrap itself from cold silicon into a fully running multi-process system?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the boot cascade on the right. Ask the class: <em>"If the CPU can only execute instructions already in memory — and RAM is empty — where does the first instruction come from?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The four-stage cascade from power-on to login</div>
+        <canvas id="bootCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Boot Paradox">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Boot Paradox — Why Booting Is Not Trivial</span>
+    <div class="split wide-left">
+      <div class="stack">
+        <h2>The CPU cannot read a file system. <span class="grad-crimson">That's the whole problem.</span></h2>
+        <div class="panel crimson">
+          <span class="panel-label">What the CPU can do the instant power hits</span>
+          <p>Fetch the next instruction from a fixed physical memory address. That's it. No file reading, no disk I/O, no device initialization — <strong>nothing but "read the next instruction."</strong></p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What it needs to do</span>
+          <p>Load the kernel binary from disk, initialize the memory manager, mount a root file system, and hand off to user space. But all of that <strong>requires code that isn't loaded yet</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution — a bootstrap chain</span>
+          <p>Each stage is a small, simple program whose <strong>only job</strong> is to load the next, more complex stage. Stage 1 doesn't need to understand file systems — it just needs to know how to read the boot sector of a disk. Stage 2 doesn't need to understand memory paging — it just needs to load the kernel image and jump to its entry point.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is why it's called "bootstrapping"</b> — literally "pulling yourself up by your bootstraps". Each stage has just enough capability to load the next stage, no more.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Cold-start capability</div>
+        <div class="paradox-grid">
+          <div class="paradox-card can">
+            <h4>CPU CAN DO</h4>
+            <ul>
+              <li>Fetch instruction from a fixed ROM address</li>
+              <li>Execute simple machine code</li>
+              <li>Jump to a hardcoded memory address</li>
+              <li>Read/write specific I/O ports</li>
+            </ul>
+          </div>
+          <div class="paradox-card cannot">
+            <h4>CPU CANNOT DO (yet)</h4>
+            <ul>
+              <li>Read files from disk</li>
+              <li>Understand a file system</li>
+              <li>Initialize device drivers</li>
+              <li>Set up virtual memory</li>
+            </ul>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Every stage in the boot chain adds capability the CPU didn't have the instant before. Stage 1 → knows disk sectors. Stage 3 → knows file systems. Stage 4 → knows user-space.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Relay Race">
+  <div class="slide-inner">
+    <span class="badge amber">🏃 Analogy 1 · The Multi-Stage Relay Race</span>
+    <h2 style="margin-bottom:16px;">Four runners, four very different <span class="grad-amber">athletic builds</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Runner 1 · UEFI/BIOS</span>
+          <p>Tiny and fast. <strong>Only job: check the track is clear and pass the baton.</strong> Physically very small amount of code — a few KB in motherboard flash.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Runner 2 · Bootloader</span>
+          <p>Grabs the baton, <strong>sprints out to find the heavyweight champion sleeping in the locker room</strong> (the kernel) and wakes them up. Can read file systems — unlike Runner 1.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Runner 3 · Kernel Core</span>
+          <p>Takes over the track, <strong>sets up the entire stadium infrastructure</strong> — memory, drivers, devices. The biggest and slowest runner.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Runner 4 · User Space / Init</span>
+          <p>Finally <strong>opens the stadium doors for the spectators</strong> (the users). Draws the login prompt, spawns services.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Crucial detail:</b> <strong>Each runner drops out completely once their handoff finishes.</strong> UEFI code doesn't keep running after the bootloader takes over — its memory gets reclaimed. Same for the bootloader after the kernel starts.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The baton passes forward, each runner drops out</div>
+        <div class="relay-track">
+          <div class="relay-lane">
+            <div class="relay-runner r1">🏃</div>
+            <div class="relay-label">UEFI / BIOS<small>Stage 1</small></div>
+          </div>
+          <div class="relay-lane">
+            <div class="relay-runner r2">🏃‍♂️</div>
+            <div class="relay-label">Bootloader<small>Stage 2</small></div>
+          </div>
+          <div class="relay-lane">
+            <div class="relay-runner r3">🏃‍♀️</div>
+            <div class="relay-label">Kernel Core<small>Stage 3</small></div>
+          </div>
+          <div class="relay-lane">
+            <div class="relay-runner r4">🏃</div>
+            <div class="relay-label">init / systemd<small>Stage 4</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 2 · Compiler Pipeline">
+  <div class="slide-inner">
+    <span class="badge">⚙️ Analogy 2 · The Compiler Toolchain Pipeline</span>
+    <h2 style="margin-bottom:16px;">Deterministic sequence. Each stage hands off <span class="grad-blue">a more capable artifact</span>.</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>The boot process is a deterministic sequence of bootstrap execution transitions where <strong>each loader routine has just enough hardcoded primitives</strong> to read, verify, map, and jump into the entry-point memory address of the next, more complex software layer.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The compiler comparison</span>
+          <p>Just like <code style="font-family:var(--mono);color:#ffd18a">gcc</code> pipes source → preprocessor → compiler → assembler → linker → executable, the boot process pipes ROM → UEFI → bootloader → kernel → user space.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What both share</span>
+          <p>Each stage's output is more usable than its input. Each stage is a complete, standalone program. Each transition involves <strong>verifying the input</strong> (checksum, magic number, signature) before proceeding.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> If you've ever debugged a compiler error, the boot process will feel familiar. Each stage has a clear failure mode: "error loading stage 2" = bootloader problem; "kernel panic" = stage 3 problem.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Same shape, different pipeline</div>
+        <div class="pipeline-grid">
+          <div class="pipeline-stage"><span class="num">01</span>UEFI / BIOS<small>cold silicon</small></div>
+          <div class="pipeline-stage"><span class="num">02</span>Bootloader<small>GRUB</small></div>
+          <div class="pipeline-stage"><span class="num">03</span>Kernel<small>vmlinuz</small></div>
+          <div class="pipeline-stage"><span class="num">04</span>init / systemd<small>PID 1</small></div>
+        </div>
+        <div class="mini-label" style="margin-top:18px">And as a compiler pipeline:</div>
+        <div class="pipeline-grid">
+          <div class="pipeline-stage" style="border-color:rgba(91,141,255,.35);background:rgba(91,141,255,.05);color:var(--muted)"><span class="num" style="color:var(--blue-2)">01</span>preprocessor<small>.c → .i</small></div>
+          <div class="pipeline-stage" style="border-color:rgba(255,182,72,.35);background:rgba(255,182,72,.05);color:var(--muted)"><span class="num" style="color:var(--amber)">02</span>compiler<small>.i → .s</small></div>
+          <div class="pipeline-stage" style="border-color:rgba(255,77,109,.35);background:rgba(255,77,109,.05);color:var(--muted)"><span class="num" style="color:var(--crimson)">03</span>assembler<small>.s → .o</small></div>
+          <div class="pipeline-stage" style="border-color:rgba(46,230,168,.35);background:rgba(46,230,168,.05);color:var(--muted)"><span class="num" style="color:var(--emerald)">04</span>linker<small>.o → exe</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where the Boot Process Sits</span>
+    <h2 style="margin-bottom:20px;">The chain that starts everything else</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Motherboard Firmware ROM</h4>
+            <p>Requires hardware-level permanent instructions to initiate execution at a specific fixed memory vector upon power delivery.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 2 (Process Management)</h4>
+            <p>Concludes by spinning up <strong>Process ID 1</strong> (<code style="font-family:var(--mono);color:#88ffd8">init</code> or <code style="font-family:var(--mono);color:#88ffd8">systemd</code>), which serves as the <strong>direct genetic ancestor</strong> of every process ever created during that uptime cycle.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The interlocking view</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>L01</strong> — kernel architecture decides what runs in Ring 0<br>
+            <strong>L02</strong> — Ring 0 / Ring 3 barrier built by hardware<br>
+            <strong>L03</strong> — the syscall is the only legal way to cross it<br>
+            <strong>L04</strong> — the bootstrap chain gets the whole system into that steady state
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Every process you'll ever study in Module 2</b> traces its ancestry back to PID 1, and PID 1 was launched by the kernel during boot. So the boot process isn't just "one lecture" — it's the origin point for the entire rest of the course.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="90" y="120" width="160" height="60" rx="12" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.75)" stroke-width="1.8"/>
+          <text x="170" y="146" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">L04 · BOOT</text>
+          <text x="170" y="164" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">power → login</text>
+
+          <rect x="20" y="30" width="130" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="85" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">ROM firmware</text>
+          <text x="85" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">flash chip</text>
+
+          <rect x="190" y="30" width="130" height="48" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="255" y="50" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">L01-L03</text>
+          <text x="255" y="66" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">kernel context</text>
+
+          <rect x="20" y="230" width="300" height="48" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="250" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="700">FEEDS INTO · ALL FUTURE PROCESSES</text>
+          <text x="170" y="266" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">PID 1 → every user-space process</text>
+
+          <line x1="85" y1="78" x2="130" y2="120" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="255" y1="78" x2="210" y2="120" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="170" y1="180" x2="170" y2="230" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Core Breakdown · Overview">
+  <div class="slide-inner">
+    <div class="boot-timeline" style="--acc:var(--blue)">
+      <div class="bt-track"></div>
+      <div class="bt-node on"><i></i><b>Stage 1</b><span>UEFI/BIOS</span></div>
+      <div class="bt-node"><i></i><b>Stage 2</b><span>Bootloader</span></div>
+      <div class="bt-node"><i></i><b>Stage 3</b><span>Kernel Init</span></div>
+      <div class="bt-node"><i></i><b>Stage 4</b><span>Init System</span></div>
+    </div>
+    <span class="badge">📖 Core Breakdown — The Four Stages, One Overview</span>
+    <h2 style="margin-bottom:16px;">Each stage hands the baton to a <span class="grad-blue">more capable successor</span></h2>
+    <div class="split">
+      <div class="panel blue" style="padding:16px">
+        <span class="panel-label">Stage 1 · UEFI / BIOS</span>
+        <p>Code executes from a read-only flash chip on the motherboard. Runs a Power-On Self-Test (POST) to verify physical RAM and hardware integrity.</p>
+      </div>
+      <div class="panel amber" style="padding:16px">
+        <span class="panel-label">Stage 2 · Bootloader</span>
+        <p>UEFI locates a designated boot sector on a storage drive and loads a small program (like GRUB) into RAM. This bootloader's sole job is to locate the compiled kernel binary image on the disk.</p>
+      </div>
+      <div class="panel crimson" style="padding:16px">
+        <span class="panel-label">Stage 3 · Kernel Initialization</span>
+        <p>The bootloader loads the kernel into memory and jumps to its entry address. The kernel initializes device drivers, constructs virtual memory page tables, and mounts the root file system.</p>
+      </div>
+      <div class="panel emerald" style="padding:16px">
+        <span class="panel-label">Stage 4 · Init System</span>
+        <p>The kernel launches the very first user-space process (<code style="font-family:var(--mono);color:#88ffd8">/sbin/init</code> or <code style="font-family:var(--mono);color:#88ffd8">systemd</code>), which spins up background services and draws the login prompt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Stage 1 · POST" data-anim="post">
+  <div class="slide-inner">
+    <span class="badge blue">🔬 Stage 1 — UEFI/BIOS · The Power-On Self-Test</span>
+    <h2 style="margin-bottom:16px;">Verify the hardware before trusting anything to run on it</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What POST actually does</span>
+          <p>Before it hands control to the bootloader, UEFI/BIOS runs a <strong>hardware diagnostic</strong> on the machine. It walks through the CPU, RAM, storage controllers, and input devices in order, verifying each one is present and functional.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The interesting part — RAM verification</span>
+          <p>POST writes test patterns to every RAM cell, reads them back, and compares. If a cell doesn't match, the machine <strong>beeps</strong> (the classic "memory error beep code") rather than proceeding to load the OS.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">If POST fails</span>
+          <p>The machine halts before any OS code runs. The famous beep sequences are the failure codes — long/short patterns that indicate which hardware failed. <strong>Modern UEFI shows a graphical error screen instead.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The misconception:</b> POST does <em>not</em> initialize drivers or load files. It only checks hardware presence and basic health. The OS hasn't started yet.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · POST hardware verification sequence</div>
+        <div class="post-vis">
+          <div class="post-check-row" data-idx="0"><span class="pc-label">CPU · present · running</span></div>
+          <div class="post-check-row" data-idx="1"><span class="pc-label">RAM · 16 GB · pattern test</span></div>
+          <div class="post-check-row" data-idx="2"><span class="pc-label">Storage controller · detected</span></div>
+          <div class="post-check-row" data-idx="3"><span class="pc-label">Boot device · found</span></div>
+          <div class="post-check-row" data-idx="4"><span class="pc-label">Keyboard · connected</span></div>
+          <div class="post-check-row" data-idx="5"><span class="pc-label">Display adapter · initialized</span></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Each check marks <strong style="color:#88ffd8">✓ OK</strong> as it completes. Once all pass, UEFI proceeds to Stage 2.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Stage 1 · Firmware">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Stage 1 — Where the Code Physically Lives</span>
+    <h2 style="margin-bottom:16px;">Firmware is <span class="grad-amber">permanent, unprivileged by the OS</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The physical substrate</span>
+          <p>UEFI/BIOS lives in a <strong>flash memory chip on the motherboard</strong> — a small chip that retains its contents even when the machine is fully powered off. On modern systems it holds roughly 16–32 MB of code.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it must be non-volatile</span>
+          <p>Because on the first power-on there is no OS, no loaded driver, no file system — the only code the CPU can run is what's already physically wired into the address space via that flash chip.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Where the CPU looks</span>
+          <p>On x86, the CPU's reset vector points to physical address <code style="font-family:var(--mono);color:#ff9fb1">0xFFFFFFF0</code> at power-on. That address is mapped to the firmware chip. <strong>The first instruction always comes from firmware — no exceptions.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> "UEFI" (modern) vs. "BIOS" (legacy) — the mechanism is the same, but UEFI supports larger disks (GPT), Secure Boot, and a much richer pre-boot environment.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The reset vector → firmware entry</div>
+        <svg viewBox="0 0 340 280" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="60" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.5)" stroke-width="1.4"/>
+          <text x="170" y="36" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">POWER BUTTON PRESSED</text>
+          <text x="170" y="54" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">CPU voltage stabilizes · clock starts</text>
+
+          <line x1="170" y1="74" x2="170" y2="102" stroke="rgba(255,182,72,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="14" y="102" width="312" height="60" rx="10" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="124" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">CPU RESETS · fetches instruction from</text>
+          <text x="170" y="146" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">0xFFFFFFF0</text>
+
+          <line x1="170" y1="162" x2="170" y2="190" stroke="rgba(91,141,255,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="14" y="190" width="312" height="76" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="212" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">MOTHERBOARD FLASH CHIP</text>
+          <text x="170" y="232" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">holds UEFI/BIOS code</text>
+          <text x="170" y="252" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">non-volatile · survives power-off</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Stage 2 · Bootloader">
+  <div class="slide-inner">
+    <span class="badge amber">🔬 Stage 2 — The Bootloader (GRUB)</span>
+    <h2 style="margin-bottom:16px;">The disk-seek stage — <span class="grad-amber">finding the kernel on storage</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What the bootloader does</span>
+          <p>UEFI locates a designated <strong>boot sector on a storage drive</strong> and loads a small program (like GRUB) into RAM. This bootloader's sole job is to <strong>locate the compiled kernel binary image on the disk</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it can do more than UEFI</span>
+          <p>GRUB is a real program with filesystem drivers built in. It can read <code style="font-family:var(--mono);color:#b9d0ff">/boot/vmlinuz-linux</code> — a file on an ext4 partition. UEFI cannot. That's the entire capability jump.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The choreography</span>
+          <p>GRUB parses its config file (<code style="font-family:var(--mono);color:#ff9fb1">/boot/grub/grub.cfg</code>), presents a boot menu, reads the selected kernel image and initramfs into memory, and jumps to the kernel's entry point.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>On modern UEFI systems:</b> the bootloader is itself loaded from an EFI System Partition (ESP) as an <code style="font-family:var(--mono);color:#ffd18a">.efi</code> executable. On legacy BIOS, it comes from the first 512-byte sector of the disk (the MBR).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The arm seeking the kernel on disk</div>
+        <div class="disk-vis">
+          <div class="disk-platter"></div>
+          <div class="disk-arm"></div>
+          <div class="disk-center"></div>
+          <div class="disk-label" id="diskLabel">seeking /boot/vmlinuz-linux…</div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">GRUB physically reads disk sectors — something UEFI/BIOS is incapable of doing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Stage 2 · What It Reads">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Stage 2 — What GRUB Actually Loads</span>
+    <h2 style="margin-bottom:16px;">Two files enter memory. <span class="grad-blue">One starts running.</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The two-file handoff</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="30" y="20" width="280" height="60" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.6)" stroke-width="1.4"/>
+          <text x="170" y="42" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">/boot/vmlinuz-linux</text>
+          <text x="170" y="60" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">the compiled kernel binary</text>
+          <text x="170" y="74" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">~10 MB · stripped ELF</text>
+
+          <rect x="30" y="96" width="280" height="60" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.6)" stroke-width="1.4"/>
+          <text x="170" y="118" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">/boot/initramfs-linux.img</text>
+          <text x="170" y="136" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">initial RAM disk filesystem</text>
+          <text x="170" y="150" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">~30 MB · gzipped cpio</text>
+
+          <line x1="170" y1="156" x2="170" y2="186" stroke="rgba(91,141,255,.75)" stroke-width="1.8" class="svg-flow"/>
+
+          <rect x="30" y="186" width="280" height="46" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.6"/>
+          <text x="170" y="204" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">LOADED INTO PHYSICAL RAM</text>
+          <text x="170" y="220" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">at the address GRUB picks</text>
+
+          <line x1="170" y1="232" x2="170" y2="258" stroke="rgba(46,230,168,.75)" stroke-width="1.8" class="svg-flow"/>
+
+          <rect x="30" y="258" width="280" height="32" rx="8" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.7)" stroke-width="1.4"/>
+          <text x="170" y="279" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">JUMP TO KERNEL ENTRY POINT ⚡</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Why two files, not one?</span>
+          <p>The <strong>initramfs</strong> is a tiny in-memory file system that contains just enough drivers to mount the real root filesystem. Chicken-and-egg: to load the ext4 driver from disk, you need a filesystem reader — but the filesystem reader lives on that same disk.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The chicken-and-egg resolution</span>
+          <p>The kernel ships with the initramfs already in RAM. It uses it as a temporary root, loads the real drivers, mounts the actual root filesystem, and then "switches root" (pivot_root) to the real one.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The kernel command line</span>
+          <p>GRUB also passes <strong>command-line arguments</strong> to the kernel — things like <code style="font-family:var(--mono);color:#88ffd8">root=/dev/sda2</code> that tell it which partition to mount as the real root.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Stage 3 · Kernel Init" data-anim="kinit">
+  <div class="slide-inner">
+    <span class="badge crimson">🔬 Stage 3 — Kernel Initialization</span>
+    <h2 style="margin-bottom:16px;">The biggest stage — <span class="grad-crimson">turning the machine into a real OS</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the kernel does on entry</span>
+          <p>The bootloader has jumped to the kernel's entry point. The CPU is now executing kernel code with full privilege. The kernel does an enormous amount of work here — this is the longest boot stage on most systems.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The work list (roughly ordered)</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>1.</strong> Set up protected-mode / long-mode segments<br>
+            <strong>2.</strong> Initialize the memory manager · build page tables<br>
+            <strong>3.</strong> Unpack the initramfs<br>
+            <strong>4.</strong> Probe and initialize device drivers<br>
+            <strong>5.</strong> Mount the real root filesystem<br>
+            <strong>6.</strong> Launch the init process
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The observable proof</span>
+          <p>Every line printed on your screen during boot (the "wall of text") is a <strong>printk()</strong> call from within this stage. When you see "kernel panic", it happened here.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Kernel init tasks completing in sequence</div>
+        <div class="kinit-tree">
+          <div class="kinit-branch" data-idx="0">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">Protected mode setup</div><div class="kinit-desc">GDT, IDT, segment registers initialized</div></div>
+          </div>
+          <div class="kinit-branch" data-idx="1">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">Memory manager</div><div class="kinit-desc">page tables · slab allocator · virtual address space</div></div>
+          </div>
+          <div class="kinit-branch" data-idx="2">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">initramfs unpacked</div><div class="kinit-desc">temporary root filesystem available in RAM</div></div>
+          </div>
+          <div class="kinit-branch" data-idx="3">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">Device drivers initialized</div><div class="kinit-desc">storage · network · input · GPU probing</div></div>
+          </div>
+          <div class="kinit-branch" data-idx="4">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">Real root mounted</div><div class="kinit-desc">pivot_root from initramfs to actual storage</div></div>
+          </div>
+          <div class="kinit-branch" data-idx="5">
+            <div class="kinit-dot"></div>
+            <div class="kinit-body"><div class="kinit-title">Ready for PID 1</div><div class="kinit-desc">execve(/sbin/init) — hand off to user space</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Stage 3 · The Transition">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Stage 3 — The Ring 0 → Ring 3 Handoff</span>
+    <h2 style="margin-bottom:16px;">This is the one moment the boundary gets <span class="grad-amber">crossed downward</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The transition, precisely</span>
+          <p>The kernel calls <code style="font-family:var(--mono);color:#ffd18a">execve("/sbin/init", ...)</code>. Because <code style="font-family:var(--mono);color:#ffd18a">init</code> is a normal ELF binary, the kernel must drop <strong>out of Ring 0</strong> to run it. The CPU's CPL bits flip to 3, and user-space execution begins.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is unusual</span>
+          <p>Every syscall in L03 involved Ring 3 → Ring 0. Boot's final act is the reverse — Ring 0 → Ring 3, taking user-space code into existence for the first time on this machine.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The state at this moment</span>
+          <p style="line-height:1.85;margin-top:4px">
+            ✓ Virtual memory mapped<br>
+            ✓ Device drivers ready<br>
+            ✓ Real filesystem mounted<br>
+            ✓ Kernel scheduler running<br>
+            ✓ Exactly one user process — PID 1
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Notice what's <em>missing</em>:</b> there are no other user processes, no shell, no login prompt, no desktop. Those come from PID 1 in Stage 4.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The one downward transition</div>
+        <svg viewBox="0 0 340 280" style="width:100%;height:auto">
+          <rect x="20" y="16" width="300" height="90" rx="12" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.5"/>
+          <text x="170" y="42" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800" letter-spacing="1.4">RING 0 · KERNEL SPACE</text>
+          <text x="170" y="66" text-anchor="middle" font-size="10" fill="rgba(136,255,216,.8)" font-family="JetBrains Mono">execve("/sbin/init", argv, envp)</text>
+          <text x="170" y="86" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.6)" font-family="JetBrains Mono">the very last kernel instruction of stage 3</text>
+
+          <line x1="170" y1="106" x2="170" y2="160" stroke="rgba(255,182,72,.85)" stroke-width="2.5" class="svg-flow"/>
+          <text x="170" y="138" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">CPL 0 → CPL 3</text>
+
+          <rect x="20" y="160" width="300" height="90" rx="12" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1.5"/>
+          <text x="170" y="186" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800" letter-spacing="1.4">RING 3 · USER SPACE</text>
+          <text x="170" y="210" text-anchor="middle" font-size="10" fill="rgba(185,208,255,.8)" font-family="JetBrains Mono">PID 1 · /sbin/init (systemd)</text>
+          <text x="170" y="230" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.6)" font-family="JetBrains Mono">first user process on the system</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Stage 4 · PID 1" data-anim="systemd">
+  <div class="slide-inner">
+    <span class="badge emerald">🔬 Stage 4 — The Init System (PID 1)</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">genetic ancestor</span> of every process that will ever exist</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What PID 1 is</span>
+          <p>The kernel launches the very first user-space process — <code style="font-family:var(--mono);color:#88ffd8">/sbin/init</code> or its modern replacement <code style="font-family:var(--mono);color:#88ffd8">systemd</code>. This process gets <strong>PID 1 by definition</strong> — the first PID ever assigned on this boot.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Its responsibilities</span>
+          <p>Spawn all other system services, handle orphaned child processes, and present the login interface. Every other process on the system is either a direct or indirect descendant of PID 1.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why "systemd" replaced "init"</span>
+          <p>Traditional SysV init ran services strictly sequentially. systemd runs them <strong>in parallel with dependency tracking</strong> — a huge reduction in boot time (from minutes to seconds).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>If PID 1 dies, the kernel panics.</b> That is the only process whose death is guaranteed to halt the entire machine — a direct consequence of the "no process above it to adopt children" rule.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · systemd spawning services in parallel</div>
+        <div class="systemd-tree">
+          <div class="sd-root">PID 1 · systemd</div>
+          <div class="sd-children">
+            <div class="sd-child" data-idx="0"><span class="ic">🔐</span>sshd<small>remote login</small></div>
+            <div class="sd-child" data-idx="1"><span class="ic">🌐</span>networkd<small>network setup</small></div>
+            <div class="sd-child" data-idx="2"><span class="ic">📝</span>getty<small>login prompt</small></div>
+            <div class="sd-child" data-idx="3"><span class="ic">🕐</span>timesyncd<small>clock sync</small></div>
+            <div class="sd-child" data-idx="4"><span class="ic">📊</span>journald<small>logging</small></div>
+            <div class="sd-child" data-idx="5"><span class="ic">🎨</span>gdm<small>display manager</small></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Once services are running, the login prompt appears. <strong>The boot process is complete.</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Stage 4 · Details">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Stage 4 — The Full Service Cascade</span>
+    <h2 style="margin-bottom:16px;">From "PID 1 exists" to <span class="grad-blue">"you can log in"</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The service dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="120" y="14" width="100" height="40" rx="10" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+          <text x="170" y="32" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">systemd</text>
+          <text x="170" y="46" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">PID 1</text>
+
+          <line x1="145" y1="54" x2="70" y2="94" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="170" y1="54" x2="170" y2="94" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="195" y1="54" x2="270" y2="94" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+
+          <rect x="20" y="94" width="100" height="40" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.6)" stroke-width="1.3"/>
+          <text x="70" y="112" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">udev</text>
+          <text x="70" y="126" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">device mgmt</text>
+
+          <rect x="120" y="94" width="100" height="40" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.6)" stroke-width="1.3"/>
+          <text x="170" y="112" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">journald</text>
+          <text x="170" y="126" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">logging</text>
+
+          <rect x="220" y="94" width="100" height="40" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.6)" stroke-width="1.3"/>
+          <text x="270" y="112" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">networkd</text>
+          <text x="270" y="126" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">network</text>
+
+          <line x1="70" y1="134" x2="120" y2="174" stroke="rgba(91,141,255,.6)" stroke-width="1.3" class="svg-flow-slow"/>
+          <line x1="170" y1="134" x2="170" y2="174" stroke="rgba(91,141,255,.6)" stroke-width="1.3" class="svg-flow-slow"/>
+          <line x1="270" y1="134" x2="220" y2="174" stroke="rgba(91,141,255,.6)" stroke-width="1.3" class="svg-flow-slow"/>
+
+          <rect x="70" y="174" width="200" height="40" rx="8" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.65)" stroke-width="1.3"/>
+          <text x="170" y="192" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">getty / display-manager</text>
+          <text x="170" y="206" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">login prompt appears</text>
+
+          <line x1="170" y1="214" x2="170" y2="250" stroke="rgba(255,182,72,.75)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="70" y="250" width="200" height="46" rx="10" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.85)" stroke-width="1.6"/>
+          <text x="170" y="270" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">BOOT COMPLETE ✓</text>
+          <text x="170" y="286" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">user space fully available</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The dependency order</span>
+          <p>Notice the order matters: <strong>udev</strong> must be up before it can create device nodes; <strong>networkd</strong> must be up before SSH can listen on a socket. systemd tracks these dependencies as a graph and starts independent services in parallel.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What you actually see</span>
+          <p>On a modern Linux desktop, this all happens in about 2–8 seconds after Stage 3 completes. Traditional SysV-init took 30–60 seconds for the same work because it ran everything sequentially.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Targets, not runlevels</span>
+          <p>systemd uses "targets" (<code style="font-family:var(--mono);color:#b9d0ff">multi-user.target</code>, <code style="font-family:var(--mono);color:#b9d0ff">graphical.target</code>) instead of SysV runlevels. Each target is a set of services that must be active for it to be considered "reached".</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="The Handoff Chain">
+  <div class="slide-inner">
+    <span class="badge violet">🔗 The Handoff Chain — Every Stage Drops Out</span>
+    <h2 style="margin-bottom:16px;">Only the last stage <span class="grad-violet">survives its handoff</span></h2>
+    <div class="vis-frame" style="margin-bottom:20px">
+      <div class="vis-cap">Live · Stage exits as successor takes over</div>
+      <div class="handoff-track">
+        <div class="handoff-stage"><span class="stage-num">01</span>UEFI / BIOS<small>drops out</small></div>
+        <div class="handoff-stage"><span class="stage-num">02</span>Bootloader<small>drops out</small></div>
+        <div class="handoff-stage"><span class="stage-num">03</span>Kernel<small>drops out</small></div>
+        <div class="handoff-stage"><span class="stage-num">04</span>init / systemd<small>runs forever</small></div>
+      </div>
+    </div>
+    <div class="split">
+      <div class="panel blue">
+        <span class="panel-label">What "drops out" actually means</span>
+        <p>After UEFI hands off to the bootloader, UEFI code is no longer executing. Its memory may still be reserved (some firmware tables live on for ACPI), but its <strong>job is complete</strong>. Same for the bootloader once the kernel starts.</p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">Why this pattern is elegant</span>
+        <p>Each stage's design can be perfectly minimal. UEFI doesn't need filesystem drivers because it never has to read a file. The bootloader doesn't need to manage processes because it never has to schedule anything. <strong>Each stage does exactly one thing.</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Firmware &amp; Loader</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">UEFI</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Unified Extensible Firmware Interface — modern motherboard software that initializes hardware and bootstraps the operating system bootloader.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The permanent code burned into the motherboard that wakes up the hardware and points the way to the OS loader. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Replaces</span>
+          <p>Legacy BIOS — same role, but supports GPT disks, Secure Boot, and a richer pre-boot environment.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Bootloader</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A lightweight intermediate utility (e.g., GRUB) responsible for loading the core operating system kernel into memory.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The middleman whose entire job is: find the kernel file on disk, load it into RAM, and jump to it. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p>GRUB (Linux) · systemd-boot · Windows Boot Manager · rEFInd</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Process &amp; Diagnostics</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">systemd / init</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The primordial user-space process (PID 1) responsible for spawning and managing all system daemons and shell interfaces.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The very first user-space program to run. Everything else on the machine is its child, grandchild, or further descendant. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why "PID 1" is special</span>
+          <p>If PID 1 dies, the kernel panics — there's no higher process to adopt orphans. This is why systemd restarting itself is a critical operation.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">POST</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Power-On Self-Test — the initial hardware diagnostic routine run by motherboard firmware to verify system readiness.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The "is everything plugged in?" check the firmware does before it trusts the machine to run an OS. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">If it fails</span>
+          <p>Beep codes (legacy BIOS) or on-screen error (UEFI). The machine halts before any OS code executes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Practical · GRUB" data-anim="grubdemo">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Practical Example — The GRUB Config Walkthrough</span>
+    <h2 style="margin-bottom:16px;">What the bootloader <span class="grad-amber">actually reads</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · /boot/grub/grub.cfg parsing</div>
+        <div class="terminal" id="grubTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">cat /boot/grub/grub.cfg</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line dim"># Auto-generated by grub-mkconfig</span>
+            <span class="term-line warn">menuentry 'Arch Linux' {</span>
+            <span class="term-line strace">    linux  /boot/vmlinuz-linux root=/dev/sda2 rw</span>
+            <span class="term-line strace">    initrd /boot/initramfs-linux.img</span>
+            <span class="term-line warn">}</span>
+            <span class="term-line dim"># ... other boot options ...</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">Four lines of config. Two files loaded. One jump. That's Stage 2.</p>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Line 1 · menuentry</span>
+          <p>Declares a boot option. On a multi-boot machine, this shows up in the GRUB menu as a selectable entry.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Line 2 · linux</span>
+          <p>Points to the <strong>compiled kernel image</strong> (<code style="font-family:var(--mono);color:#b9d0ff">vmlinuz-linux</code>) and passes the kernel command line: <code style="font-family:var(--mono);color:#b9d0ff">root=/dev/sda2 rw</code>.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Line 3 · initrd</span>
+          <p>Points to the <strong>initial RAM disk</strong> (<code style="font-family:var(--mono);color:#c9a7ff">initramfs-linux.img</code>). GRUB loads both files into memory before jumping.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Reality check:</b> On a modern UEFI system with <code style="font-family:var(--mono);color:#ffd18a">systemd-boot</code>, this config is much simpler — just a text file listing kernel + initrd paths, with no scripting language at all.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Timing" data-anim="boottime">
+  <div class="slide-inner">
+    <span class="badge">⏱️ Real Numbers — Where the Time Actually Goes</span>
+    <h2 style="margin-bottom:16px;">The boot time is <span class="grad-blue">dominated by stage 4</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The distribution is not what you'd expect</span>
+          <p>Most people assume the kernel is the slow part. It isn't. On modern systems, <strong>the vast majority of boot time is spent in user space</strong>, waiting for services to spawn and be ready.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why systemd shortened it</span>
+          <p>Traditional init ran services sequentially: "wait for network, then start SSH, then start the desktop". systemd runs them in parallel and tracks dependencies as a graph — an order-of-magnitude improvement.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What you can optimize</span>
+          <p>Disabling unused services (Bluetooth on a desktop, print services on a laptop) is often the single biggest boot-time win available to a user.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Typical boot time distribution</div>
+        <div class="boottime" id="boottimeRig">
+          <div class="bt-row">
+            <div class="bt-head"><span class="bt-name" style="color:#b9d0ff">Stage 1 · UEFI/BIOS POST</span><span class="bt-val" style="color:#b9d0ff">~2.0 s</span></div>
+            <div class="bt-bar"><div class="bt-fill"></div></div>
+          </div>
+          <div class="bt-row">
+            <div class="bt-head"><span class="bt-name" style="color:#ffd18a">Stage 2 · Bootloader</span><span class="bt-val" style="color:#ffd18a">~1.0 s</span></div>
+            <div class="bt-bar"><div class="bt-fill"></div></div>
+          </div>
+          <div class="bt-row">
+            <div class="bt-head"><span class="bt-name" style="color:#ff9fb1">Stage 3 · Kernel init</span><span class="bt-val" style="color:#ff9fb1">~3.5 s</span></div>
+            <div class="bt-bar"><div class="bt-fill"></div></div>
+          </div>
+          <div class="bt-row">
+            <div class="bt-head"><span class="bt-name" style="color:#88ffd8">Stage 4 · systemd services</span><span class="bt-val" style="color:#88ffd8">~9.5 s</span></div>
+            <div class="bt-bar"><div class="bt-fill"></div></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Rough numbers for a typical modern laptop. Exact figures vary enormously by hardware and enabled services.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Failure Modes">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Where Boots Actually Fail</span>
+    <h2 style="margin-bottom:16px;">Four failure modes, four different <span class="grad-crimson">error signatures</span></h2>
+    <div class="fail-grid">
+      <div class="fail-card crit">
+        <span class="fail-tag">Stage 1 Failure</span>
+        <h4>Firmware / POST failure</h4>
+        <p>Machine beeps (or shows a firmware error screen) before any OS code runs. Causes: bad RAM, disconnected boot disk, dead CMOS battery. <strong>The OS never even begins to load.</strong></p>
+      </div>
+      <div class="fail-card warn">
+        <span class="fail-tag">Stage 2 Failure</span>
+        <h4>Bootloader error</h4>
+        <p>"GRUB rescue>" prompt or "no such device" message. Causes: kernel image deleted, grub.cfg corrupted, disk ID changed. <strong>The bootloader can't find the kernel.</strong></p>
+      </div>
+      <div class="fail-card crit">
+        <span class="fail-tag">Stage 3 Failure</span>
+        <h4>Kernel panic</h4>
+        <p>Wall of kernel messages ending in "Kernel panic - not syncing". Causes: missing initramfs, incompatible driver, corrupted root filesystem. <strong>The kernel initialized but couldn't proceed.</strong></p>
+      </div>
+      <div class="fail-card warn">
+        <span class="fail-tag">Stage 4 Failure</span>
+        <h4>Degraded boot</h4>
+        <p>Machine boots but services fail to start. "Failed to start X service" in journalctl. Causes: missing binaries, config errors, permission issues. <strong>The OS runs but incompletely.</strong></p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Diagnostic rule of thumb:</b> if the screen is black and the machine beeps, it's Stage 1. If you see "GRUB" text, Stage 2. If you see kernel messages, Stage 3. If you get a login prompt but services fail, Stage 4.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Secure Boot">
+  <div class="slide-inner">
+    <span class="badge emerald">🛡️ Secure Boot — The Modern Chain-of-Trust Extension</span>
+    <h2 style="margin-bottom:16px;">Every stage now <span class="grad-emerald">cryptographically verifies</span> the next</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The chain of trust</span>
+          <p>UEFI Secure Boot adds a verification step at each handoff. Before Stage 2 is allowed to execute, UEFI checks its <strong>cryptographic signature</strong> against a list of trusted public keys stored in firmware. If the signature doesn't match, the boot is refused.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What this blocks</span>
+          <p>Bootkits and rootkits — malware that tries to insert itself into the boot chain before the OS runs. Without Secure Boot, a compromised bootloader can hide from every antivirus on the running system.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Linux complication</span>
+          <p>Most Linux distributions ship a <strong>signed shim</strong> — a tiny signed bootloader that then loads the (potentially unsigned) main kernel. This lets Linux boot on Secure Boot machines without every kernel being signed by Microsoft.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> Secure Boot is why "unsigned driver" installation is harder on modern Windows — the driver has to be signed by a key Windows trusts, or the system refuses to load it.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The signed chain</div>
+        <div class="sb-chain">
+          <div class="sb-link">
+            <div class="sb-icon">🔒</div>
+            <div class="sb-body">
+              <div class="sb-title">UEFI firmware key</div>
+              <div class="sb-desc">Root of trust · stored in NVRAM · cannot be changed without physical access</div>
+            </div>
+            <div class="sb-key">PK</div>
+          </div>
+          <div class="sb-link">
+            <div class="sb-icon">📝</div>
+            <div class="sb-body">
+              <div class="sb-title">Signed bootloader</div>
+              <div class="sb-desc">Verified before execution · signature must match a KEK entry</div>
+            </div>
+            <div class="sb-key">KEK</div>
+          </div>
+          <div class="sb-link">
+            <div class="sb-icon">🐧</div>
+            <div class="sb-body">
+              <div class="sb-title">Signed shim / kernel</div>
+              <div class="sb-desc">Verified by the bootloader · shim then loads unsigned kernels</div>
+            </div>
+            <div class="sb-key">db</div>
+          </div>
+          <div class="sb-link">
+            <div class="sb-icon">✅</div>
+            <div class="sb-body">
+              <div class="sb-title">User space runs</div>
+              <div class="sb-desc">Boot chain is verifiably unmodified</div>
+            </div>
+            <div class="sb-key">ok</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Boot Time Synchronization Challenge</span>
+    <h2 style="margin-bottom:16px;">Every student reboots. <span class="grad-violet">All timers start together.</span></h2>
+    <div class="split wide-left">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Have every student <strong>close their laptop and shut it down completely</strong>. Prepare a stopwatch app on their mobile phones. On the count of three, everyone presses their power button <em>simultaneously</em>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The measurement</span>
+          <p>Instruct them to <strong>stop the timer the exact millisecond</strong> their graphical login screen or desktop draws. Record each student's total time on the board.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The analysis</span>
+          <p>Compare the times. Ask: <em>"Where did the time go?"</em> Look for correlations — SSD vs. HDD, few enabled services vs. many, minimal desktop environment vs. heavy GUI. The variance is enormous.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> Ask which stage dominated each student's time. The answer is almost always Stage 4. This is the whole reason systemd was invented.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four-stage breakdown</div>
+        <div class="challenge-grid">
+          <div class="challenge-stage"><span class="cs-num">01</span><div class="cs-title">POST</div><div class="cs-body">Hardware verification — usually 1–5 seconds</div></div>
+          <div class="challenge-stage"><span class="cs-num">02</span><div class="cs-title">Bootloader</div><div class="cs-body">GRUB + kernel load — usually 0.5–2 seconds</div></div>
+          <div class="challenge-stage"><span class="cs-num">03</span><div class="cs-title">Kernel init</div><div class="cs-body">Drivers + root mount — usually 2–5 seconds</div></div>
+          <div class="challenge-stage"><span class="cs-num">04</span><div class="cs-title">systemd</div><div class="cs-body">Service startup — usually 3–15 seconds</div></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Modern SSD laptops typically total 8–15 seconds. Older HDD systems can exceed 60 seconds — all in Stage 4.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="badge violet">🌿 Mindmap — Where L04 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 1: OS Structure &amp; Design</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L01: The Architecture Matrix</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L02: The Dual-Mode Barrier</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L03: The Gatekeeper Mechanism</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L04: The Boot Process 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf am">Hardware POST</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf blue">Bootloader (GRUB)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Kernel Init</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf em">PID 1 (systemd)</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Where this leads</h2>
+        <div class="panel blue">
+          <span class="panel-label">Module 1 is complete</span>
+          <p>L01 gave us the architectural options. L02 showed us how hardware enforces isolation. L03 gave us the only legal path across. L04 showed us how we get into that steady state from cold silicon.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture — L05: Process Anatomy</span>
+          <p>Now that we have PID 1 running, what <em>is</em> a process? We'll diagram the internal memory layout and the PCB (Process Control Block) kernel ledger that tracks every running task.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L04 Key Takeaways</span>
+    <h2 style="margin-bottom:20px;">Four things to walk out with</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>Booting is a <strong>bootstrap chain</strong>: each stage has just enough capability to load the next. No single stage understands the whole picture — that's the design.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>The four stages are: <strong>UEFI/BIOS POST → Bootloader (GRUB) → Kernel Init → Init System (systemd)</strong>. Each hands off control and drops out except the last.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>Boot failures are <strong>diagnosable by stage</strong>: beeps = Stage 1, GRUB errors = Stage 2, kernel panic = Stage 3, service failures = Stage 4.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>PID 1 is the genetic ancestor</strong> of every user process. The boot process concludes with its launch; everything in Module 2 onwards branches from that moment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="dmesg">
+  <div class="slide-inner">
+    <span class="badge amber">🔍 What You Actually See — The dmesg Log</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">wall of text</span> during boot is Stage 3 printing its progress</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Real dmesg output from a Linux boot (excerpt)</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">dmesg | head -20</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line dim">[    0.000000] Linux version 6.5.0-generic (buildd@lcy02)</span>
+            <span class="term-line dim">[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz root=/dev/sda2</span>
+            <span class="term-line">[    0.000000] x86/fpu: xstate_offset[2]: 576</span>
+            <span class="term-line">[    0.000000] BIOS-provided physical RAM map:</span>
+            <span class="term-line dim">[    0.000000]   usable: 0x0000000000000000 - 0x000000000009ffff</span>
+            <span class="term-line">[    0.000000] Memory: 16044MB available</span>
+            <span class="term-line ok">[    0.342521] ACPI: Core revision 20230331</span>
+            <span class="term-line ok">[    0.412331] Memory: 16128000K/16777216K available</span>
+            <span class="term-line ok">[    1.201456] EXT4-fs (sda2): mounted filesystem with ordered data mode</span>
+            <span class="term-line ok">[    2.104523] systemd[1]: systemd 253.5-1ubuntu1 running in system mode</span>
+            <span class="term-line warn">[    2.204891] systemd[1]: Reached target multi-user.target</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">Timestamps on the left are <strong>seconds since kernel started</strong>.</p>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Reading dmesg</span>
+          <p>The first few lines are the kernel greeting (<strong>Stage 3 entry</strong>). "ACPI" lines are driver init. "EXT4-fs mounted" is the root filesystem mount. "systemd[1]" is the moment <strong>Stage 4 begins</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The timestamps</span>
+          <p>Seconds since kernel start. If you see gaps (e.g., <code style="font-family:var(--mono);color:#ffd18a">[ 5.2 ]</code> then <code style="font-family:var(--mono);color:#ffd18a">[ 12.8 ]</code>), something took 7.6 seconds — that's your bottleneck.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Where to look first</span>
+          <p>If boot is slow, <code style="font-family:var(--mono);color:#88ffd8">systemd-analyze blame</code> tells you which services took longest. It's almost always the GUI or network services.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🚀 Next Gateway — L05 · Process Anatomy &amp; the PCB Ledger</span>
+    <div class="gateway">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What we just learned</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">The bootstrap chain ends with PID 1 running. Now we have user processes.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What comes next — L05: Process Anatomy</span>
+          <p>We'll diagram the internal memory layout of a process (Text / Data / Heap / Stack) and define every tracking metric inside the <strong>Process Control Block (PCB)</strong> — the kernel's ledger entry for a running task. This is where Module 2 begins.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L05: Process Anatomy &amp; the PCB Ledger &nbsp;|&nbsp; [L5.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad4" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad4)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad4)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : boot cascade canvas ---------- */
+reg('bootfield', function(){
+  const c = document.getElementById('bootCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const stages = [
+    {label:'UEFI/BIOS', color:'#8fb4ff', y:80},
+    {label:'Bootloader', color:'#ffb648', y:170},
+    {label:'Kernel', color:'#ff4d6d', y:260},
+    {label:'init/systemd', color:'#2ee6a8', y:350}
+  ];
+  let active = true, raf = null, t = 0;
+
+  const packets = [];
+  for(let i = 0; i < 12; i++){
+    packets.push({
+      x: Math.random() * W,
+      y: 40,
+      speed: 0.6 + Math.random() * 0.9,
+      stage: 0
+    });
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    // draw stage bands
+    stages.forEach((s, i) => {
+      const active = (Math.floor(t / 60) % 4) === i;
+      ctx.fillStyle = active ? s.color + '22' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(20, s.y - 26, W - 40, 52);
+      ctx.strokeStyle = active ? s.color + '99' : 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = active ? 2 : 1;
+      ctx.strokeRect(20, s.y - 26, W - 40, 52);
+
+      ctx.fillStyle = active ? s.color : 'rgba(255,255,255,0.35)';
+      ctx.font = '700 13px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STAGE ' + (i+1), 36, s.y);
+      ctx.fillStyle = active ? '#eaf0fc' : 'rgba(255,255,255,0.5)';
+      ctx.font = '600 14px Inter, sans-serif';
+      ctx.fillText(s.label, 120, s.y);
+    });
+
+    // draw packets
+    for(const p of packets){
+      p.y += p.speed;
+      if(p.y > H - 20){
+        p.y = 40;
+        p.x = Math.random() * W;
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,182,72,0.9)';
+      ctx.shadowColor = '#ffb648';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('POWER-ON  →  LOGIN PROMPT', W/2, H - 8);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 7 : POST checks ---------- */
+reg('post', function(){
+  const rows = document.querySelectorAll('.slide[data-anim="post"] .post-check-row');
+  if(!rows.length) return { stop(){} };
+  let step = 0;
+  function reset(){ rows.forEach(r => r.classList.remove('done')); step = 0; }
+  function tick(){
+    if(step < rows.length){
+      rows[step].classList.add('done');
+      step++;
+    } else {
+      setTimeout(() => { if(!rows[0].isConnected) return; reset(); setTimeout(tick, 400); }, 1800);
+      step = rows.length + 1;
+    }
+  }
+  reset();
+  const timer = setInterval(() => { if(step <= rows.length) tick(); }, 400);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 11 : kernel init ---------- */
+reg('kinit', function(){
+  const branches = document.querySelectorAll('.slide[data-anim="kinit"] .kinit-branch');
+  if(!branches.length) return { stop(){} };
+  let step = 0;
+  function reset(){ branches.forEach(b => b.classList.remove('done')); step = 0; }
+  function tick(){
+    if(step < branches.length){
+      branches[step].classList.add('done');
+      step++;
+    } else {
+      setTimeout(() => { if(!branches[0].isConnected) return; reset(); setTimeout(tick, 500); }, 2000);
+      step = branches.length + 1;
+    }
+  }
+  reset();
+  const timer = setInterval(() => { if(step <= branches.length) tick(); }, 500);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 13 : systemd tree ---------- */
+reg('systemd', function(){
+  const children = document.querySelectorAll('.slide[data-anim="systemd"] .sd-child');
+  if(!children.length) return { stop(){} };
+  let step = 0;
+  function reset(){ children.forEach(c => c.classList.remove('active')); step = 0; }
+  function tick(){
+    if(step < children.length){
+      children[step].classList.add('active');
+      step++;
+    } else {
+      setTimeout(() => { if(!children[0].isConnected) return; reset(); setTimeout(tick, 500); }, 1800);
+      step = children.length + 1;
+    }
+  }
+  reset();
+  const timer = setInterval(() => { if(step <= children.length) tick(); }, 420);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 19 : boot time bars ---------- */
+reg('boottime', function(){
+  const rig = document.getElementById('boottimeRig');
+  if(!rig) return { stop(){} };
+  const rows = rig.querySelectorAll('.bt-row');
+  function reset(){ rows.forEach(r => r.classList.remove('loaded')); }
+  function run(){
+    reset();
+    requestAnimationFrame(() => {
+      rows.forEach((r, i) => setTimeout(() => r.classList.add('loaded'), 100 + i * 220));
+    });
+  }
+  run();
+  const timer = setInterval(run, 4200);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 18 : GRUB demo ---------- */
+reg('grubdemo', function(){
+  // CSS handles the presentation; nothing dynamic required, but register the lifecycle.
+  return { stop(){} };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
