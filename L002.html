@@ -1,0 +1,1939 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L02 — The Dual-Mode Barrier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Slide 1 barrier canvas */
+#barrierCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Slide 2 trust */
+.trust-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.trust-card{border-radius:14px;padding:16px;text-align:center;border:1px solid var(--stroke);background:rgba(255,255,255,.035);position:relative;overflow:hidden;}
+.trust-card.good{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.trust-card.bad{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.trust-card h3{font-size:13px;letter-spacing:.06em;margin-bottom:10px;}
+.trust-card.good h3{color:#88ffd8;}
+.trust-card.bad h3{color:#ff9fb1;}
+.trust-card .demo-stage{position:relative;height:120px;display:grid;place-items:center;margin-bottom:8px;}
+.trust-card .mini-app{width:44px;height:44px;border-radius:10px;border:1.5px solid rgba(91,141,255,.6);background:rgba(91,141,255,.15);display:grid;place-items:center;font-size:20px;position:relative;z-index:2;}
+.trust-card.good .mini-app{animation:trustPulseGood 3.2s ease-in-out infinite;}
+.trust-card.bad .mini-app{animation:trustPulseBad 3.2s ease-in-out infinite;}
+@keyframes trustPulseGood{0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(46,230,168,0);}50%{transform:scale(1.08);box-shadow:0 0 30px rgba(46,230,168,.7);}}
+@keyframes trustPulseBad{0%,45%{transform:scale(1);}55%,100%{transform:scale(1.15);border-color:#ff4d6d;background:rgba(255,77,109,.35);box-shadow:0 0 30px rgba(255,77,109,.8);}}
+.trust-card .ripple{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;border:1.5px solid rgba(46,230,168,.7);animation:rippleExpand 3.2s ease-out infinite;pointer-events:none;}
+.trust-card.bad .ripple{border-color:rgba(255,77,109,.7);animation-delay:1.6s;}
+@keyframes rippleExpand{0%{width:50px;height:50px;opacity:1;}100%{width:200px;height:200px;opacity:0;}}
+.trust-card small{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+
+/* Campus analogies */
+.campus-vis{padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);position:relative;overflow:hidden;min-height:260px;}
+.campus-floor{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:14px;border-radius:12px;background:rgba(255,77,109,.05);border:1px solid rgba(255,77,109,.4);animation:campusFloorCrash 4.4s ease-in-out infinite;}
+@keyframes campusFloorCrash{0%,18%{background:rgba(255,77,109,.05);border-color:rgba(255,77,109,.4);}26%,82%{background:rgba(255,77,109,.28);border-color:rgba(255,77,109,.9);}94%,100%{background:rgba(255,77,109,.05);border-color:rgba(255,77,109,.4);}}
+.campus-floor .worker{aspect-ratio:1;border-radius:50%;background:rgba(46,230,168,.28);border:1px solid rgba(46,230,168,.5);animation:campusInfect 4.4s ease-in-out infinite;}
+.campus-floor .worker:nth-child(2n){animation-delay:.1s}
+.campus-floor .worker:nth-child(3n){animation-delay:.25s}
+.campus-floor .worker:nth-child(5n){animation-delay:.4s}
+@keyframes campusInfect{0%,18%{background:rgba(46,230,168,.28);border-color:rgba(46,230,168,.5);}26%,82%{background:rgba(255,77,109,.9);border-color:#ff4d6d;box-shadow:0 0 20px rgba(255,77,109,.9);}94%,100%{background:rgba(46,230,168,.28);border-color:rgba(46,230,168,.5);}}
+
+.micro-campus{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 0;}
+.micro-campus .hub{padding:18px 14px;border-radius:12px;text-align:center;border:1.5px solid rgba(46,230,168,.7);background:rgba(46,230,168,.14);font-size:10.5px;font-weight:800;color:#88ffd8;letter-spacing:.06em;animation:hubGlow 3s ease-in-out infinite;min-width:100px;}
+@keyframes hubGlow{0%,100%{box-shadow:0 0 18px rgba(46,230,168,.5);}50%{box-shadow:0 0 34px rgba(46,230,168,1);}}
+.micro-campus .pod-col{display:flex;flex-direction:column;gap:6px;}
+.micro-campus .pod{padding:8px 10px;border-radius:8px;text-align:center;border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.10);font-size:9.5px;font-weight:700;color:#b9d0ff;letter-spacing:.04em;min-width:80px;}
+.micro-campus .pod.doomed{border-color:rgba(255,77,109,.75);animation:podDie 4.5s ease-in-out infinite;}
+@keyframes podDie{0%,42%{background:rgba(91,141,255,.10);color:#b9d0ff;box-shadow:none;}52%,82%{background:rgba(255,77,109,.35);color:#fff;box-shadow:0 0 24px rgba(255,77,109,.9);}92%,100%{background:rgba(91,141,255,.10);color:#b9d0ff;box-shadow:none;}}
+.micro-campus .wall{width:4px;height:110px;border-radius:2px;background:var(--crimson);box-shadow:0 0 16px var(--crimson);animation:wallBreath 2.4s ease-in-out infinite;}
+@keyframes wallBreath{0%,100%{opacity:.7}50%{opacity:1}}
+
+.layered-campus{display:flex;flex-direction:column;gap:8px;padding:14px 0;}
+.lc-floor{padding:11px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;}
+.lc-floor.f3{color:#b9d0ff;border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.06);animation:lcFreeze3 5s ease-in-out infinite;}
+.lc-floor.f2{color:#ffd18a;border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);animation:lcFreeze2 5s ease-in-out infinite;}
+.lc-floor.f1{color:#88ffd8;border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);animation:lcStarved 5s ease-in-out infinite;}
+@keyframes lcFreeze3{0%,32%{background:rgba(91,141,255,.06);color:#b9d0ff;}45%,92%{background:rgba(255,77,109,.22);color:#ff9fb1;border-color:rgba(255,77,109,.7);}100%{background:rgba(91,141,255,.06);color:#b9d0ff;}}
+@keyframes lcFreeze2{0%,32%{background:rgba(255,182,72,.06);color:#ffd18a;}45%,92%{background:rgba(255,77,109,.32);color:#fff;border-color:rgba(255,77,109,.95);}100%{background:rgba(255,182,72,.06);color:#ffd18a;}}
+@keyframes lcStarved{0%,32%{background:rgba(46,230,168,.06);color:#88ffd8;}45%,92%{background:rgba(255,255,255,.02);color:var(--muted);border-color:var(--stroke);}100%{background:rgba(46,230,168,.06);color:#88ffd8;}}
+.lc-arrow{text-align:center;font-family:var(--mono);font-size:14px;color:var(--amber);opacity:.75;animation:lcArrowFlow 1.4s linear infinite;}
+@keyframes lcArrowFlow{0%,100%{opacity:.3;transform:translateY(-2px)}50%{opacity:.9;transform:translateY(0)}}
+
+.modular-campus{position:relative;padding:14px;border-radius:12px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.4);min-height:200px;overflow:hidden;}
+.modular-campus .core{padding:14px;border-radius:10px;border:1px dashed rgba(91,141,255,.6);background:rgba(12,20,38,.6);text-align:center;font-size:11px;font-weight:800;color:#b9d0ff;letter-spacing:.06em;}
+.modular-campus .docks{display:flex;gap:6px;justify-content:center;margin-top:10px;}
+.modular-campus .dock{width:44px;height:10px;border-radius:3px;border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.12);}
+.modular-campus .contractor{position:absolute;right:-150px;top:50%;transform:translateY(-50%);padding:9px 13px;border-radius:8px;border:1px solid rgba(46,230,168,.7);background:rgba(46,230,168,.16);color:#88ffd8;font-family:var(--mono);font-size:10px;font-weight:800;box-shadow:0 0 22px rgba(46,230,168,.5);animation:contractorArrive 4.2s ease-in-out infinite;white-space:nowrap;}
+@keyframes contractorArrive{0%,20%{right:-150px;opacity:0;}32%,82%{right:16px;opacity:1;}94%,100%{right:-150px;opacity:0;}}
+
+.hybrid-campus{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px;padding:14px;border-radius:12px;background:rgba(160,107,255,.04);border:1px solid rgba(160,107,255,.3);align-items:center;min-height:200px;}
+.hybrid-campus .outbld{padding:12px 8px;border-radius:10px;text-align:center;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.07);font-size:10px;font-weight:800;color:#b9d0ff;letter-spacing:.05em;}
+.hybrid-campus .outbld.fire{animation:hcFire 4.2s ease-in-out infinite;}
+@keyframes hcFire{0%,22%{background:rgba(91,141,255,.07);color:#b9d0ff;border-color:rgba(91,141,255,.4);}32%,82%{background:rgba(255,77,109,.35);color:#fff;border-color:rgba(255,77,109,.9);box-shadow:0 0 22px rgba(255,77,109,.8);}100%{background:rgba(91,141,255,.07);color:#b9d0ff;border-color:rgba(91,141,255,.4);}}
+.hybrid-campus .core-room{padding:20px 12px;border-radius:12px;text-align:center;border:1.5px solid rgba(46,230,168,.7);background:rgba(46,230,168,.12);font-size:11px;font-weight:800;color:#88ffd8;letter-spacing:.06em;animation:hcCoreAlive 4.2s ease-in-out infinite;}
+@keyframes hcCoreAlive{0%,100%{box-shadow:0 0 18px rgba(46,230,168,.5);}50%{box-shadow:0 0 36px rgba(46,230,168,1);}}
+
+/* Ring visualization */
+.ring-vis{display:grid;grid-template-columns:1fr;gap:14px;padding:14px;}
+.ring-zone{padding:14px;border-radius:12px;display:flex;flex-direction:column;gap:8px;}
+.ring-zone.user{border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.06);}
+.ring-zone.kernel{border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.ring-zone-tag{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;}
+.ring-zone.user .ring-zone-tag{color:#b9d0ff;}
+.ring-zone.kernel .ring-zone-tag{color:#88ffd8;}
+
+.ring-restrict-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.ring-restrict-bar span{padding:8px 4px;text-align:center;border-radius:6px;font-size:9.5px;font-weight:800;letter-spacing:.04em;border:1px solid var(--stroke);background:rgba(255,255,255,.03);color:var(--muted);position:relative;}
+.ring-zone.user .ring-restrict-bar span{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.ring-zone.user .ring-restrict-bar span::after{content:'✕';position:absolute;top:-6px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ff4d6d;color:#fff;font-size:9px;font-weight:900;display:grid;place-items:center;}
+.ring-zone.kernel .ring-restrict-bar span{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.08);color:#88ffd8;}
+.ring-zone.kernel .ring-restrict-bar span::after{content:'✓';position:absolute;top:-6px;right:-4px;width:14px;height:14px;border-radius:50%;background:#2ee6a8;color:#0a1017;font-size:9px;font-weight:900;display:grid;place-items:center;}
+
+.ring-cpu{display:flex;align-items:center;gap:14px;padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);margin-bottom:6px;}
+.ring-cpu .cpu-chip{width:64px;height:64px;border-radius:12px;flex:none;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.05em;}
+.ring-cpu.user .cpu-chip{border:1.5px solid rgba(91,141,255,.85);background:rgba(91,141,255,.14);color:#b9d0ff;box-shadow:0 0 24px rgba(91,141,255,.4);}
+.ring-cpu.kernel .cpu-chip{border:1.5px solid rgba(46,230,168,.85);background:rgba(46,230,168,.14);color:#88ffd8;box-shadow:0 0 24px rgba(46,230,168,.4);}
+.ring-cpu .cpu-meta{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10.5px;color:var(--muted);}
+.ring-cpu .cpu-meta b{font-size:13px;font-weight:800;}
+.ring-cpu.user .cpu-meta b{color:#b9d0ff;}
+.ring-cpu.kernel .cpu-meta b{color:#88ffd8;}
+
+/* CPL bits */
+.cpl-vis{padding:16px;border-radius:14px;background:rgba(0,0,0,.28);border:1px solid var(--stroke);}
+.cpl-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:12px;}
+.cpl-register{display:flex;gap:4px;justify-content:center;align-items:center;font-family:var(--mono);}
+.cpl-bit{width:42px;height:56px;border-radius:8px;display:grid;place-items:center;border:1.5px solid var(--stroke);background:rgba(255,255,255,.04);font-size:20px;font-weight:900;color:var(--ink);transition:.35s cubic-bezier(.34,1.56,.64,1);}
+.cpl-bit.lit{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.20);color:#ffd18a;box-shadow:0 0 22px rgba(255,182,72,.6);transform:scale(1.05);}
+.cpl-bit.dim{opacity:.5;color:var(--muted);}
+.cpl-sep{font-family:var(--mono);font-size:16px;color:var(--muted);margin:0 6px;}
+.cpl-result{margin-top:16px;padding:12px 16px;border-radius:10px;font-family:var(--mono);font-size:12.5px;font-weight:800;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--stroke);background:rgba(255,255,255,.04);color:var(--ink);transition:.35s;}
+.cpl-result.r3{border-color:rgba(91,141,255,.7);background:rgba(91,141,255,.12);color:#b9d0ff;}
+.cpl-result.r0{border-color:rgba(46,230,168,.7);background:rgba(46,230,168,.12);color:#88ffd8;}
+
+/* Architecture comparison */
+.arch-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.arch-col{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.03);}
+.arch-col.x86{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.05);}
+.arch-col.arm{border-color:rgba(160,107,255,.4);background:rgba(160,107,255,.05);}
+.arch-col h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.arch-col.x86 h4{color:var(--blue-2);}
+.arch-col.arm h4{color:var(--violet);}
+.arch-ring{display:flex;justify-content:space-between;gap:6px;margin-bottom:8px;padding:9px 11px;border-radius:8px;font-family:var(--mono);font-size:10px;font-weight:700;border:1px solid var(--stroke);background:rgba(255,255,255,.03);}
+.arch-ring.highlight{border-color:rgba(46,230,168,.75);background:rgba(46,230,168,.10);color:#88ffd8;font-weight:900;}
+.arch-ring.dim{opacity:.55;color:var(--muted);}
+.arch-ring b{color:var(--ink);}
+
+/* Distribution table */
+.dist-table{display:grid;grid-template-columns:150px 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:16px;overflow:hidden;}
+.dt-cell{background:#0a0f1c;padding:13px 12px;font-size:12px;line-height:1.45;}
+.dt-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.dt-head{background:#0d1425;font-size:11.5px;font-weight:800;letter-spacing:-.01em;text-align:center;}
+.dt-head.r0{color:#88ffd8;}
+.dt-head.r3{color:#b9d0ff;}
+.dt-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:900;display:flex;align-items:center;}
+.dt-label.mono{color:#ff9fb1;}
+.dt-label.micro{color:#88ffd8;}
+.dt-label.lay{color:#ffd18a;}
+.dt-label.mod{color:#b9d0ff;}
+.dt-label.hyb{color:#c9a7ff;}
+.dt-cell.val{color:var(--ink-2);font-size:11.5px;}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.user{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.kernel{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-illegal{color:#ff4d6d;font-weight:800;text-decoration:underline wavy #ff4d6d;text-underline-offset:4px;}
+.c-legal{color:#88ffd8;font-weight:800;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.20);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Violation flow */
+.violation-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px;}
+.vf-stage{padding:14px 12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);font-size:11.5px;line-height:1.5;position:relative;transition:.3s;}
+.vf-stage:nth-child(1){border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.06);}
+.vf-stage:nth-child(2){border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.vf-stage:nth-child(3){border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.vf-stage:nth-child(4){border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.vf-stage .vf-num{font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.1em;display:block;margin-bottom:6px;}
+.vf-stage:nth-child(1) .vf-num{color:var(--blue-2);}
+.vf-stage:nth-child(2) .vf-num{color:var(--amber);}
+.vf-stage:nth-child(3) .vf-num{color:var(--crimson);}
+.vf-stage:nth-child(4) .vf-num{color:var(--emerald);}
+.vf-stage .vf-title{font-weight:800;margin-bottom:4px;color:var(--ink);font-size:12.5px;}
+.vf-stage .vf-body{color:var(--muted);font-size:11px;}
+.vf-stage.pulsing{animation:vfPulse .8s ease-out;}
+@keyframes vfPulse{0%{transform:scale(1);}50%{transform:scale(1.03);box-shadow:0 0 30px rgba(255,182,72,.5);}100%{transform:scale(1);}}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);transition:.3s;}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.big{font-size:1.25em;font-weight:800;letter-spacing:.15em;margin:8px 0;color:#fff;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+.apps-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.app-chip{padding:11px 10px;border-radius:10px;text-align:center;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);font-size:11px;font-weight:800;color:#88ffd8;letter-spacing:.04em;animation:appAlive 3s ease-in-out infinite;}
+.app-chip:nth-child(2){animation-delay:.5s;}
+.app-chip:nth-child(3){animation-delay:1s;}
+@keyframes appAlive{0%,100%{box-shadow:0 0 12px rgba(46,230,168,.3);}50%{box-shadow:0 0 22px rgba(46,230,168,.7);}}
+.app-chip .ic{font-size:18px;display:block;margin-bottom:4px;}
+.app-chip small{display:block;font-size:9px;color:var(--muted);letter-spacing:.08em;margin-top:2px;font-weight:700;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.three-lex{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.trust-grid,.two-lex,.arch-cmp{grid-template-columns:1fr;}
+  .three-lex{grid-template-columns:1fr;}
+  .violation-flow{grid-template-columns:1fr 1fr;}
+  .dist-table{grid-template-columns:120px 1fr 1fr;font-size:11px;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .violation-flow{grid-template-columns:1fr;}
+  .apps-strip{grid-template-columns:1fr;}
+  .ring-restrict-bar{grid-template-columns:repeat(2,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L02 The Dual-Mode Barrier</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L02 · Overview" data-anim="barrierfield">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L02 · The Dual-Mode Barrier</span>
+    <div class="split">
+      <div class="stack">
+        <h1>How does the CPU hardware <span class="grad-blue">physically enforce</span> isolation between code and hardware?</h1>
+        <p class="lead">Explain how the CPU hardware enforces isolation using privilege states, and analyze how monolithic, microkernel, hybrid, layered, and modular architectures distribute their software components across this boundary line.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L02</span>
+          <p>In L01 we compared <em>where</em> each architecture puts its components. Now we ask: <strong>what actually stops</strong> a user-space process from reaching the kernel's memory — and why is this not just convention?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the barrier canvas on the right. Let the room watch the particles probing the wall for 15 seconds before saying anything.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Probes from Ring 3 hitting the hardware wall</div>
+        <canvas id="barrierCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Why Software Cannot Be Trusted</span>
+    <div class="split wide-left">
+      <div class="stack">
+        <h2>Two ways to run programs. <span class="grad-crimson">Only one survives reality.</span></h2>
+        <div class="panel emerald">
+          <span class="panel-label">The "cooperative" hypothesis (wrong)</span>
+          <p>Trust every program to respect memory boundaries by convention. No hardware enforcement needed. This works perfectly — <strong>until one line of buggy or malicious code is written.</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The reality (that motivated dual-mode)</span>
+          <p>A single <code style="font-family:var(--mono);color:#ff9fb1">int *p = (int*)0x1000; *p = 42;</code> in a bad driver can overwrite the scheduler. The OS cannot trust software — <strong>the CPU chip itself must refuse the operation.</strong></p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The solution: hardware-enforced privilege</span>
+          <p>The CPU has physical status bits (CPL, or ARM's EL) that mark the current privilege level. <strong>Hardware refuses to execute instructions the current level cannot perform.</strong> Not a software simulation — silicon.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is not a suggestion. It is a physical trap.</b> The CPU cannot be talked out of refusing a privileged instruction in Ring 3, because the check is done at decode time, before the instruction executes.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Cooperative assumption vs. hardware enforcement</div>
+        <div class="trust-grid">
+          <div class="trust-card good">
+            <h3>ASSUMED TRUST</h3>
+            <div class="demo-stage">
+              <div class="ripple"></div>
+              <div class="mini-app">💻</div>
+            </div>
+            <small>Works — until it doesn't</small>
+          </div>
+          <div class="trust-card bad">
+            <h3>ONE BAD WRITE</h3>
+            <div class="demo-stage">
+              <div class="ripple"></div>
+              <div class="mini-app">💥</div>
+            </div>
+            <small>Corrupts shared memory</small>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">The left column is the naive model. The right column is what actually happens. The dual-mode barrier exists because the right column is unacceptable.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Monolithic Campus">
+  <div class="slide-inner">
+    <span class="badge crimson">🏢 Analogy 1 · Secured Campus — Monolithic Barrier</span>
+    <h2 style="margin-bottom:16px;">One massive open room — <span class="grad-crimson">maximum efficiency, zero containment</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The layout</span>
+          <p>CEO, tech team, and cleaning staff all work in one single open room. <strong>Anyone can touch any filing cabinet instantly</strong> — communication is at maximum speed.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The failure mode</span>
+          <p>If an entry-level worker makes a mistake — even an honest one — <strong>the entire company state can be corrupted</strong>. There is no wall between the intern's desk and the CEO's vault.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Technical map:</b> This is a monolithic kernel. All subsystems in Ring 0 with no internal privilege boundary. Fastest possible — but a driver bug can take down the entire machine.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One mistake, whole room corrupted</div>
+        <div class="campus-vis">
+          <div class="campus-floor">
+            <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+            <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+            <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+            <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+            <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+            <div class="worker"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy · Microkernel Campus">
+  <div class="slide-inner">
+    <span class="badge emerald">🏢 Analogy 1 · Secured Campus — Microkernel Barrier</span>
+    <h2 style="margin-bottom:16px;">A massive concrete wall splits the campus <span class="grad-emerald">into two worlds</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Inside the wall · Ring 0 building</span>
+          <p>Only a skeleton management crew — the absolute minimum needed to keep the company alive. <strong>Nothing else gets in.</strong></p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Outside the wall · Ring 3 pods</span>
+          <p>File cabinets, network desks, printer rooms — all kicked out to regular, unprivileged <strong>office pods across the courtyard</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The coordination cost</span>
+          <p>Pods and the inside crew must pass messages through a <strong>secure, slow pneumatic tube system</strong> — the IPC tax from L01, now visible as real physical infrastructure.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One pod dies, skeleton crew survives</div>
+        <div class="campus-vis">
+          <div class="micro-campus">
+            <div class="pod-col">
+              <div class="pod">📁 FS</div>
+              <div class="pod doomed">🌐 NET</div>
+              <div class="pod">🖨️ DRV</div>
+            </div>
+            <div class="wall"></div>
+            <div class="hub">🏛️ RING 0<br><small style="color:rgba(136,255,216,.7);font-weight:400;font-size:9px">IPC · sched · mmap</small></div>
+            <div class="wall"></div>
+            <div class="pod-col">
+              <div class="pod">🎵 AUDIO</div>
+              <div class="pod">📦 STORAGE</div>
+              <div class="pod">🖥️ DISPLAY</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy · Layered Campus">
+  <div class="slide-inner">
+    <span class="badge amber">🏢 Analogy 1 · Secured Campus — Layered Barrier</span>
+    <h2 style="margin-bottom:16px;">A multi-story tower with <span class="grad-amber">strict clearance badges</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The layout</span>
+          <p>Floor 3 workers can <strong>only talk to Floor 2</strong>. Floor 2 processes the request and passes it down to Floor 1. Each floor is a hard physical boundary.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The failure mode</span>
+          <p>If any single floor <strong>locks its doors</strong>, the entire chain of command freezes. Upper floors become stranded — no way to reach the ground.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Technical map:</b> This is the layered kernel. Perfect hierarchy, but a frozen layer-2 cascades into all layers above it. No redundancy, no fallback.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Middle floor freezes, upper floors starve</div>
+        <div class="campus-vis">
+          <div class="layered-campus">
+            <div class="lc-floor f3"><span>FLOOR 3 · User App Layer</span><span>blocked</span></div>
+            <div class="lc-arrow">▼</div>
+            <div class="lc-floor f2"><span>FLOOR 2 · File Subsystem</span><span>FROZEN</span></div>
+            <div class="lc-arrow">▼</div>
+            <div class="lc-floor f1"><span>FLOOR 1 · Device Driver Layer</span><span>starved</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Analogy · Modular Campus">
+  <div class="slide-inner">
+    <span class="badge">🏢 Analogy 1 · Secured Campus — Modular Barrier</span>
+    <h2 style="margin-bottom:16px;">Secure hot-swappable desk docks <span class="grad-blue">on the open floor</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The layout</span>
+          <p>The fast open-office headquarters — but with <strong>secure hot-swappable desk docks</strong> along the outer wall. External contractors can plug their equipment in while the company is running.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The benefit</span>
+          <p>Communication with the new contractor is <strong>instant</strong> — no pneumatic tube, no wall. Same speed as any existing desk.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The residual risk</span>
+          <p>But <strong>a mistake by a contractor can still take down the entire corporate office</strong>. The dock gives fast attachment, not isolation. This is the LKM trade-off made physical.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · New .ko module docks into Ring 0</div>
+        <div class="campus-vis">
+          <div class="modular-campus">
+            <div class="core">KERNEL CORE · RING 0<br><small style="color:var(--muted);font-weight:400;font-size:10px">open floor · shared address space</small></div>
+            <div class="docks">
+              <div class="dock"></div><div class="dock"></div><div class="dock"></div><div class="dock"></div><div class="dock"></div>
+            </div>
+            <div class="contractor">📦 new_driver.ko</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Analogy · Hybrid Campus">
+  <div class="slide-inner">
+    <span class="badge violet">🏢 Analogy 1 · Secured Campus — Hybrid Barrier</span>
+    <h2 style="margin-bottom:16px;">The modern <span class="grad-violet">compromise campus</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Inside the Ring 0 center room</span>
+          <p>Core executives, memory planners, and high-speed storage teams — <strong>the things that must run fast</strong>. Direct communication, no pneumatic tube.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Outside in Ring 3 outbuildings</span>
+          <p>The risky multimedia team and external printer drivers. <strong>Contained in detached courtyard offices</strong> — safe from the executives, and the executives safe from them.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The guarantee</span>
+          <p>If an outbuilding crashes, <strong>the center room stays alive and running at maximum speed</strong>. This is the real architectural promise of the hybrid kernel.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Outbuilding burns, core unaffected</div>
+        <div class="campus-vis">
+          <div class="hybrid-campus">
+            <div class="outbld fire">🖨️<br>PRINTER<br>DRIVER<br><small style="font-size:9px">CRASHED</small></div>
+            <div class="core-room">🏛️ CORE ROOM<br><small style="color:rgba(136,255,216,.75);font-weight:400;font-size:10px">VMM · FS · NET · SCHED<br>100% ALIVE</small></div>
+            <div class="outbld">🎨<br>GUI<br>RENDER<br><small style="font-size:9px">OK</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Technical · User Space">
+  <div class="slide-inner">
+    <span class="badge">💻 Analogy 2 · Technical — User Space (Ring 3)</span>
+    <h2 style="margin-bottom:16px;">A hardware-enforced sandbox the CPU <span class="grad-blue">physically refuses to break</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">What CPL=3 physically blocks</div>
+        <div class="ring-vis">
+          <div class="ring-cpu user">
+            <div class="cpu-chip">CPU</div>
+            <div class="cpu-meta">
+              <b>CPL = 3</b>
+              <span>User Mode · restricted</span>
+              <span style="color:#ff9fb1">privileged instr → hardware trap</span>
+            </div>
+          </div>
+          <div class="ring-zone user">
+            <span class="ring-zone-tag">Ring 3 sandbox</span>
+            <div class="ring-restrict-bar">
+              <span>device I/O</span>
+              <span>page tables</span>
+              <span>interrupts</span>
+              <span>mode bit</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What "restricted execution" actually means</span>
+          <p>A hardware-enforced sandbox state where the CPU sets its internal status bits to restrict execution. If an app tries to run an instruction that <strong>directly modifies hardware registers</strong> or <strong>touches protected memory segments</strong>, the hardware halts it instantly.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The physical mechanism</span>
+          <p>Every instruction decode checks the CPL. If the instruction requires privilege greater than the current CPL, the CPU <strong>does not execute it</strong> — it fires a hardware exception instead.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The critical insight</span>
+          <p>The CPU doesn't just <em>suggest</em> the boundary. It <strong>refuses the instruction at the silicon level</strong>. No software cleverness can override this — that would require executing a privileged instruction first, which is exactly what the CPU forbids.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Technical · Kernel Space">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Analogy 2 · Technical — Kernel Space (Ring 0)</span>
+    <h2 style="margin-bottom:16px;">The unrestricted supervisor state — <span class="grad-emerald">absolute hardware authority</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What CPL=0 permits</span>
+          <p>The unrestricted supervisor state where the CPU allows the executing code to <strong>fire any assembly instruction</strong>, <strong>read or write any physical memory wire</strong>, and <strong>control hardware clocks directly</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The critical insight</span>
+          <p>This isn't a "special" mode with extra features bolted on. It is the <strong>absence of restriction</strong>. Ring 0 code can do anything Ring 3 can, and everything else besides.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why this matters</span>
+          <p>Because Ring 0 is unconstrained, <strong>nothing at a higher privilege level exists to catch its mistakes</strong>. This is exactly why the architecture question from L01 — what stays in Ring 0 — is so consequential.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The same CPU, now unrestricted</div>
+        <div class="ring-vis">
+          <div class="ring-cpu kernel">
+            <div class="cpu-chip">CPU</div>
+            <div class="cpu-meta">
+              <b>CPL = 0</b>
+              <span>Kernel Mode · supervisor</span>
+              <span style="color:#88ffd8">all instructions permitted</span>
+            </div>
+          </div>
+          <div class="ring-zone kernel">
+            <span class="ring-zone-tag">Ring 0 supervisor space</span>
+            <div class="ring-restrict-bar">
+              <span>device I/O</span>
+              <span>page tables</span>
+              <span>interrupts</span>
+              <span>mode bit</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core Breakdown · CPL" data-anim="cpl">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Hardware Enforcer &amp; CPL Bits</span>
+    <h2 style="margin-bottom:16px;">Two bits in a CPU register <span class="grad-amber">decide everything</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The dual-mode mechanism is silicon</span>
+          <p>Built into the physical silicon of the CPU (such as the <strong>Current Privilege Level (CPL)</strong> bits in an x86 processor). It is <strong>not a software simulation</strong>; the chip itself evaluates every instruction against its current privilege ring.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What CPL actually is</span>
+          <p>Two bits in the <code style="font-family:var(--mono);color:#b9d0ff">CS</code> (code segment) register. Values 0, 1, 2, 3. On x86_64 the OS typically only uses <strong>0 and 3</strong> — Ring 1 and Ring 2 are unused legacy levels.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Privileged instructions</span>
+          <p>The CPU uses a lookup table (in microcode) that marks each instruction as privileged or not. Instructions like <code style="font-family:var(--mono);color:#ff9fb1">cli</code>, <code style="font-family:var(--mono);color:#ff9fb1">hlt</code>, <code style="font-family:var(--mono);color:#ff9fb1">mov cr3</code>, and <code style="font-family:var(--mono);color:#ff9fb1">lgdt</code> are marked privileged and <strong>refuse to execute</strong> when CPL &gt; 0.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> This is the foundational protection bit that Module 4 (Memory Management) builds on — every page table entry is checked against CPL to decide whether the caller may touch that page.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · CPL bits flipping between Ring 0 and Ring 3</div>
+        <div class="cpl-vis">
+          <div class="cpl-label">CPU · CS register · privilege field</div>
+          <div class="cpl-register" id="cplRegister">
+            <div class="cpl-bit" data-bit="1">1</div>
+            <div class="cpl-bit" data-bit="0">1</div>
+            <div class="cpl-sep">=</div>
+            <div class="cpl-bit dim" data-bit="ring">3</div>
+          </div>
+          <div class="cpl-result r3" id="cplResult">
+            <span>CPL = 3 → RING 3 · USER MODE</span>
+            <span style="font-family:var(--font);font-size:11px;letter-spacing:.08em">restricted</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">CPL = 3 means the current instruction stream is executing in user mode. Every instruction is checked against this.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core Breakdown · Architectures">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Core Breakdown — x86 CPL vs. ARM Exception Levels</span>
+    <h2 style="margin-bottom:16px;">Two architectures, same principle, <span class="grad-violet">different labels</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">x86-64 · Privilege Rings</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>Ring 0</strong> — Kernel Mode (supervisor)<br>
+            <strong>Ring 1, 2</strong> — unused legacy levels<br>
+            <strong>Ring 3</strong> — User Mode (applications)<br>
+            <span style="color:var(--muted);font-size:12px">Hardware check: CPL bits (2 bits)</span>
+          </p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">ARMv8-A · Exception Levels</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>EL3</strong> — Secure Monitor (TrustZone)<br>
+            <strong>EL2</strong> — Hypervisor<br>
+            <strong>EL1</strong> — Kernel (Linux, iOS)<br>
+            <strong>EL0</strong> — Applications<br>
+            <span style="color:var(--muted);font-size:12px">Hardware check: PSTATE.EL bits (2 bits)</span>
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Same principle:</b> both architectures use 2 hardware bits to track privilege level, both check every instruction at decode time, both route privilege violations to a trap handler in the kernel.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Side-by-side privilege hierarchy</div>
+        <div class="arch-cmp">
+          <div class="arch-col x86">
+            <h4>X86-64</h4>
+            <div class="arch-ring highlight"><span>Ring 0</span><b>Kernel</b></div>
+            <div class="arch-ring dim"><span>Ring 1</span><b>— unused —</b></div>
+            <div class="arch-ring dim"><span>Ring 2</span><b>— unused —</b></div>
+            <div class="arch-ring highlight"><span>Ring 3</span><b>Apps</b></div>
+          </div>
+          <div class="arch-col arm">
+            <h4>ARMv8-A</h4>
+            <div class="arch-ring dim"><span>EL3</span><b>Secure</b></div>
+            <div class="arch-ring dim"><span>EL2</span><b>Hypervisor</b></div>
+            <div class="arch-ring highlight"><span>EL1</span><b>Kernel</b></div>
+            <div class="arch-ring highlight"><span>EL0</span><b>Apps</b></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Both highlight the two levels that matter for day-to-day operation: kernel and apps. The "dim" rows are either unused (x86) or reserved for specialised contexts (ARM).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Core Breakdown · Distributions">
+  <div class="slide-inner">
+    <span class="badge">📊 The Five Distributions — Where Each Paradigm Puts Its Components</span>
+    <h2 style="margin-bottom:20px;">Same barrier. Five placement strategies.</h2>
+    <div class="dist-table">
+      <div class="dt-cell dt-corner">Paradigm</div>
+      <div class="dt-cell dt-head r0">What goes in Ring 0</div>
+      <div class="dt-cell dt-head r3">What goes in Ring 3</div>
+
+      <div class="dt-cell dt-label mono">Monolithic</div>
+      <div class="dt-cell val">VMM · scheduler · FS · network stack · all drivers</div>
+      <div class="dt-cell val">Applications only</div>
+
+      <div class="dt-cell dt-label micro">Microkernel</div>
+      <div class="dt-cell val">IPC · basic thread scheduling · low-level memory mapping</div>
+      <div class="dt-cell val">File system · network stack · drivers · applications</div>
+
+      <div class="dt-cell dt-label lay">Layered</div>
+      <div class="dt-cell val">Hardware abstractions at Layer 0; ascending tiers</div>
+      <div class="dt-cell val">Application layer at the top; strict down-stack only</div>
+
+      <div class="dt-cell dt-label mod">Modular</div>
+      <div class="dt-cell val">Core kernel plus dynamically linked <code style="font-family:var(--mono);color:#b9d0ff">.ko</code> modules</div>
+      <div class="dt-cell val">Applications only — but modules can add Ring 0 code at runtime</div>
+
+      <div class="dt-cell dt-label hyb">Hybrid</div>
+      <div class="dt-cell val">VMM · FS · network · scheduler — the speed-critical set</div>
+      <div class="dt-cell val">GUI renderers · third-party drivers · diagnostics</div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>Read this as a placement question:</b> for each architecture, what's the minimum set that must live inside Ring 0 to work correctly? Everything else can — in principle — be pushed out to Ring 3.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Distribution · Monolithic">
+  <div class="slide-inner">
+    <span class="badge crimson">🔬 Distribution Deep-Dive — Monolithic</span>
+    <h2 style="margin-bottom:16px;">Everything in Ring 0. <span class="grad-crimson">One trusted zone.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The monolithic barrier, visualized</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="190" rx="14" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.6)" stroke-width="1.6"/>
+          <text x="170" y="38" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800" letter-spacing="1.4">RING 0 · KERNEL SPACE</text>
+          <rect x="30" y="52" width="132" height="34" rx="7" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="96" y="73" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">VMM</text>
+          <rect x="178" y="52" width="132" height="34" rx="7" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="244" y="73" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">Scheduler</text>
+          <rect x="30" y="94" width="132" height="34" rx="7" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="96" y="115" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">VFS</text>
+          <rect x="178" y="94" width="132" height="34" rx="7" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="244" y="115" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">Network Stack</text>
+          <rect x="30" y="136" width="280" height="34" rx="7" fill="rgba(255,77,109,.22)" stroke="rgba(255,77,109,.85)" stroke-width="1.3" class="svg-pulse"/>
+          <text x="170" y="157" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">All Device Drivers</text>
+          <text x="170" y="186" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">no internal privilege boundary</text>
+
+          <rect x="14" y="220" width="312" height="66" rx="14" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.55)" stroke-width="1.5"/>
+          <text x="170" y="244" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">RING 3 · USER SPACE</text>
+          <text x="170" y="264" text-anchor="middle" font-size="10" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">applications only</text>
+
+          <text x="170" y="292" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.9)" font-family="JetBrains Mono">✕ any Ring 0 crash = kernel panic</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The placement</span>
+          <p>Virtual memory manager, scheduler, file system, network stack, and <strong>all device drivers</strong> — together inside the highly privileged Ring 0 zone.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it persists</span>
+          <p>Every subsystem can call every other subsystem as a plain function — the fastest possible design. Linux, FreeBSD, and classic UNIX all still use it.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The blast radius</span>
+          <p>One driver bug = total machine crash. That's why a faulty USB driver can bring down your entire desktop.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Distribution · Microkernel">
+  <div class="slide-inner">
+    <span class="badge emerald">🔬 Distribution Deep-Dive — Microkernel</span>
+    <h2 style="margin-bottom:16px;">Bare minimum in Ring 0. <span class="grad-emerald">Everything else moves out.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The placement</span>
+          <p>Ring 0 is stripped down to the absolute bare minimum: <strong>IPC, basic thread scheduling, low-level memory mapping</strong>. That's it.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What moves to Ring 3</span>
+          <p>The file system, network stack, and <strong>all device drivers</strong> become unprivileged user-space servers.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>Every cross-boundary action pays the IPC tax — packaging, queueing, context switching to the server, then returning. Roughly 10,000× the cost of a direct function call in the worst case.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The payoff</span>
+          <p>A crashed FS server can be restarted without rebooting. The kernel's minimum code is small enough to formally verify (seL4).</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The microkernel barrier, visualized</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <rect x="60" y="120" width="220" height="100" rx="14" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="146" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">RING 0 · MICROKERNEL</text>
+          <rect x="78" y="156" width="184" height="20" rx="5" fill="rgba(46,230,168,.22)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="170" y="171" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">IPC primitives</text>
+          <rect x="78" y="180" width="184" height="20" rx="5" fill="rgba(46,230,168,.22)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="170" y="195" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">thread scheduling · low-level mmap</text>
+
+          <rect x="20" y="14" width="90" height="70" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="65" y="38" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">FS</text>
+          <text x="65" y="54" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">SERVER</text>
+          <text x="65" y="70" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="230" y="14" width="90" height="70" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="275" y="38" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">NET</text>
+          <text x="275" y="54" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">SERVER</text>
+          <text x="275" y="70" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="20" y="256" width="90" height="70" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="65" y="280" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">DRIVER A</text>
+          <text x="65" y="294" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="230" y="256" width="90" height="70" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="275" y="280" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">DRIVER B</text>
+          <text x="275" y="294" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <line x1="110" y1="84" x2="130" y2="120" stroke="rgba(46,230,168,.85)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="230" y1="84" x2="210" y2="120" stroke="rgba(46,230,168,.85)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="110" y1="256" x2="130" y2="220" stroke="rgba(46,230,168,.85)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="230" y1="256" x2="210" y2="220" stroke="rgba(46,230,168,.85)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Distribution · Layered">
+  <div class="slide-inner">
+    <span class="badge amber">🔬 Distribution Deep-Dive — Layered</span>
+    <h2 style="margin-bottom:16px;">Absolute hierarchy. <span class="grad-amber">Hardware at the deepest level.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Layer 0 = deepest privilege</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="26" y="20" width="288" height="54" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="44" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">LAYER 3 · USER PROGRAM</text>
+          <text x="170" y="62" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3 · top tier · least privilege</text>
+
+          <rect x="26" y="86" width="288" height="54" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="110" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">LAYER 2 · FILE ABSTRACTION</text>
+          <text x="170" y="128" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">Ring 0 · mid tier</text>
+
+          <rect x="26" y="152" width="288" height="54" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="176" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">LAYER 1 · MEMORY ABSTRACTION</text>
+          <text x="170" y="194" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">Ring 0 · base tier</text>
+
+          <rect x="26" y="218" width="288" height="54" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="242" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">LAYER 0 · PHYSICAL HARDWARE</text>
+          <text x="170" y="260" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">silicon · deepest privilege</text>
+
+          <line x1="170" y1="74" x2="170" y2="86" stroke="rgba(255,182,72,.85)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="170" y1="140" x2="170" y2="152" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="170" y1="206" x2="170" y2="218" stroke="rgba(160,107,255,.85)" stroke-width="1.8" class="svg-flow"/>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The placement</span>
+          <p>Components are stacked in absolute hierarchy. <strong>Hardware sits at Layer 0</strong> (deepest Ring 0 privilege), while components ascend through layers, each communicating only with the one immediately below.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The discipline</span>
+          <p>Layer N can only invoke functions belonging to layer N−1. No skipping — no shortcuts. This rigid purity is the defining feature.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The fragility</span>
+          <p>If any layer freezes, all layers above it become stranded. Beautiful in theory, brittle in practice — which is why real kernels blend the layered discipline with faster cross-layer shortcuts.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Distribution · Modular">
+  <div class="slide-inner">
+    <span class="badge">🔬 Distribution Deep-Dive — Modular</span>
+    <h2 style="margin-bottom:16px;">Monolithic core <span class="grad-blue">+ runtime gateway</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The placement</span>
+          <p>A monolithic core sits in Ring 0, but it provides a <strong>dynamic execution gateway</strong> allowing compiled driver binaries (<code style="font-family:var(--mono);color:#b9d0ff">.ko</code> files) to link directly into the privileged Ring 0 address space at runtime on demand.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this exists</span>
+          <p>You can ship a kernel with just the core, then load exactly the drivers the hardware needs at boot — no recompilation, no custom build per device.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The residual boundary</span>
+          <p>Once loaded, the module is <strong>inside Ring 0</strong>. It is trusted. This is why a bad LKM (as we'll see in the demo) takes down the entire machine.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Key distinction from pure microkernel:</b> the modular approach doesn't move code to Ring 3 — it moves code <em>into</em> Ring 0 at runtime. That's the opposite of microkernel isolation.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Modules cross from disk into Ring 0 at runtime</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <rect x="14" y="14" width="200" height="232" rx="12" fill="rgba(91,141,255,.05)" stroke="rgba(91,141,255,.55)" stroke-width="1.5"/>
+          <text x="114" y="38" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">RING 0 · MONOLITHIC CORE</text>
+
+          <rect x="30" y="56" width="168" height="24" rx="5" fill="rgba(91,141,255,.16)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+          <text x="114" y="72" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">scheduler · VFS · NET · VMM</text>
+
+          <text x="114" y="100" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.9)" font-family="JetBrains Mono">symbol table</text>
+          <rect x="30" y="106" width="168" height="20" rx="4" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="114" y="120" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">kmalloc · printk · register_dev</text>
+
+          <rect x="30" y="146" width="168" height="64" rx="8" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.18)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="114" y="168" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">📦 newly_loaded.ko</text>
+          <text x="114" y="182" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">linked live at runtime</text>
+          <text x="114" y="196" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">full Ring 0 trust</text>
+
+          <line x1="214" y1="130" x2="284" y2="130" stroke="rgba(46,230,168,.85)" stroke-width="2" class="svg-flow"/>
+          <text x="248" y="122" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.85)" font-family="JetBrains Mono">insmod</text>
+
+          <rect x="284" y="94" width="52" height="72" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="310" y="118" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">/lib/</text>
+          <text x="310" y="132" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">modules</text>
+          <text x="310" y="150" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.6)" font-family="JetBrains Mono">*.ko</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Distribution · Hybrid">
+  <div class="slide-inner">
+    <span class="badge violet">🔬 Distribution Deep-Dive — Hybrid</span>
+    <h2 style="margin-bottom:16px;">Critical in Ring 0. <span class="grad-violet">Non-critical in Ring 3.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The hybrid split</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="156" height="272" rx="12" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.6)" stroke-width="1.5"/>
+          <text x="92" y="38" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">RING 0</text>
+          <text x="92" y="54" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">speed-critical</text>
+
+          <rect x="28" y="70" width="128" height="34" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="92" y="91" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Virtual Memory Mgr</text>
+
+          <rect x="28" y="110" width="128" height="34" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="92" y="131" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">File System</text>
+
+          <rect x="28" y="150" width="128" height="34" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="92" y="171" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Network Stack</text>
+
+          <rect x="28" y="190" width="128" height="34" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="92" y="211" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Scheduler</text>
+
+          <rect x="28" y="230" width="128" height="34" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="92" y="251" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">IPC Core</text>
+
+          <rect x="170" y="14" width="156" height="272" rx="12" fill="rgba(160,107,255,.06)" stroke="rgba(160,107,255,.6)" stroke-width="1.5"/>
+          <text x="248" y="38" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">RING 3</text>
+          <text x="248" y="54" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">volatile · third-party</text>
+
+          <rect x="184" y="70" width="128" height="34" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.65)" stroke-width="1.2"/>
+          <text x="248" y="91" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">GUI Renderers</text>
+
+          <rect x="184" y="110" width="128" height="34" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.65)" stroke-width="1.2"/>
+          <text x="248" y="131" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">Third-party Drivers</text>
+
+          <rect x="184" y="150" width="128" height="34" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.65)" stroke-width="1.2"/>
+          <text x="248" y="171" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">Media Codecs</text>
+
+          <rect x="184" y="190" width="128" height="34" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.65)" stroke-width="1.2"/>
+          <text x="248" y="211" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">Diagnostics</text>
+
+          <rect x="184" y="230" width="128" height="34" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.65)" stroke-width="1.2"/>
+          <text x="248" y="251" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">User-space Services</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The placement</span>
+          <p>Keeps performance-critical components (VMM, filesystem, network, scheduler) inside Ring 0 for speed, but <strong>actively pushes non-critical services</strong> (GUI renderers, third-party drivers, diagnostics) into the Ring 3 sandbox.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The decision rule</span>
+          <p>Two questions per component: <strong>(1) Is it on the hot path?</strong> If yes → Ring 0. <strong>(2) Is it third-party or volatile?</strong> If yes → Ring 3.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The guarantee</span>
+          <p>A buggy GPU driver crashes its own user-space server — the desktop compositor stays up, the system keeps running. That's the entire reason macOS and Windows NT use this.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Windows NT / macOS are the canonical examples:</b> the kernel proper is monolithic for speed, but graphics drivers and some subsystems run as user-space servers.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Core Terms (Part 1)</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">CPL</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Current Privilege Level — the actual hardware bits inside the CPU register that track whether the system is executing in Ring 0 or Ring 3.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Two bits that say "you are currently an admin" or "you are currently a guest". )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>Bits 0–1 of the CS (code segment) register on x86. On ARM, the equivalent is PSTATE.EL.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">User Space</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 02 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Ring 3 — the restricted execution territory assigned to normal software applications to prevent direct physical device manipulation.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The sandbox where your apps run. They can compute freely but cannot touch the hardware. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p>Chrome · Spotify · VS Code · Discord · every app you've ever installed</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Core Terms (Part 2)</span>
+    <div class="three-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Kernel Space</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Ring 0 — the unrestricted supervisor memory territory where the core operating system software holds absolute hardware authority.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The vault where the OS itself runs. Nothing is off limits here. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Priv. Instr.</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 04 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Privileged Instruction — an assembly instruction (like <code style="font-family:var(--mono);color:#ffd18a">cli</code> to clear interrupts or <code style="font-family:var(--mono);color:#ffd18a">hlt</code> to halt the processor) that can only be executed when the CPU is running in Ring 0.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Commands that only the supervisor is allowed to issue. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">HW Exception</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 05 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The immediate electronic trap fired by the CPU when an application in Ring 3 attempts to execute a privileged instruction, forcing a context switch to the kernel handler.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The CPU's automatic alarm when a user-space program tries something forbidden. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Code · User" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="badge crimson">💻 Code Dissection — The Illegal Attempt from Ring 3</span>
+    <h2 style="margin-bottom:16px;">What happens when user code tries to <span class="grad-crimson">clear interrupts</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head user"><span>user_application.c · Ring 3</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Running inside Google Chrome or Spotify (User Space / Ring 3)</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">user_application_code</span>() {</span><span class="code-line">    <span class="c-type">int</span> <span class="c-var">x</span> = <span class="c-num">5</span>;</span><span class="code-line">    <span class="c-type">int</span> <span class="c-var">y</span> = <span class="c-num">10</span>;</span><span class="code-line">    <span class="c-type">int</span> <span class="c-var">sum</span> = <span class="c-var">x</span> + <span class="c-var">y</span>;    <span class="c-com">// Legal: standard math inside Ring 3</span></span><span class="code-line"></span><span class="code-line">    <span class="c-com">// ILLEGAL DIRECT HARDWARE MANIPULATION ATTEMPT:</span></span><span class="code-line">    <span class="c-com">// Attempting to turn off the CPU interrupt line directly</span></span><span class="code-line">    __asm__ <span class="c-kw">volatile</span>(<span class="c-illegal">"cli"</span>);  <span class="c-illegal">// 🚫 CPL=3 · PRIVILEGED</span></span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the CPU does at `cli`</span>
+          <p>The instruction decoder checks CPL = 3. The `cli` instruction requires CPL = 0. <strong>The CPU refuses to execute it.</strong> Instead, it raises a General Protection Fault (#GP).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What happens next</span>
+          <p>Because the fault occurred in Ring 3, the CPU switches to Ring 0 and jumps to the kernel's General Protection Fault handler. That handler sees the offender is user-space code and <strong>terminates the offending process</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The proof</span>
+          <p>The app dies. Chrome, Spotify, and the rest of the system keep running. <strong>This is the entire point of the dual-mode barrier.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Code · Kernel" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Code Dissection — The Legal Execution from Ring 0</span>
+    <h2 style="margin-bottom:16px;">The same instruction, now <span class="grad-emerald">executing successfully</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head kernel"><span>kernel_referee.c · Ring 0</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Running inside the Core Kernel referee (Kernel Space / Ring 0)</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">kernel_referee_code</span>() {</span><span class="code-line">    <span class="c-com">// Perfectly legal execution inside Ring 0 supervisor space</span></span><span class="code-line">    <span class="c-com">// The OS safely disables hardware interrupts to perform a critical context switch</span></span><span class="code-line">    __asm__ <span class="c-kw">volatile</span>(<span class="c-legal">"cli"</span>);  <span class="c-legal">// ✅ CPL=0 · PERMITTED</span></span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Perform memory and task re-allocation securely...</span></span><span class="code-line"></span><span class="code-line">    __asm__ <span class="c-kw">volatile</span>(<span class="c-legal">"sti"</span>);  <span class="c-legal">// ✅ Re-enable interrupts safely</span></span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What the CPU does at `cli`</span>
+          <p>The instruction decoder checks CPL = 0. The `cli` instruction requires CPL = 0. <strong>The CPU executes it without complaint.</strong> No trap, no error.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is legitimate</span>
+          <p>The kernel may need to briefly disable interrupts during a critical context switch — e.g., while updating a shared data structure that an interrupt handler might also touch.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The discipline</span>
+          <p>The `cli` must be paired with `sti` shortly after, or the machine will hang. This is why kernel code is audited so carefully — <strong>no referee above it if it goes wrong</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Live Demo · GPF" data-anim="gpf">
+  <div class="slide-inner">
+    <span class="badge crimson">🧪 Live Demo — The General Protection Fault</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-crimson">exact sequence</span> the CPU walks through</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The four-step trap sequence</div>
+        <div class="terminal" id="gpfTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./cli_test</span>
+          </div>
+          <div class="term-body" id="gpfBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./cli_test</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="violation-flow" style="grid-template-columns:1fr">
+          <div class="vf-stage" data-idx="0">
+            <span class="vf-num">STEP 01</span>
+            <div class="vf-title">Instruction decode</div>
+            <div class="vf-body">The CPU sees <code style="font-family:var(--mono);color:#b9d0ff">cli</code> and checks its privilege requirement — needs CPL = 0.</div>
+          </div>
+          <div class="vf-stage" data-idx="1">
+            <span class="vf-num">STEP 02</span>
+            <div class="vf-title">CPL check fails</div>
+            <div class="vf-body">The CPU reads CPL = 3 (current), compares against required CPL = 0 → <strong>mismatch</strong>.</div>
+          </div>
+          <div class="vf-stage" data-idx="2">
+            <span class="vf-num">STEP 03</span>
+            <div class="vf-title">Hardware trap fires</div>
+            <div class="vf-body">The CPU does NOT execute the instruction. Instead it raises a General Protection Fault (#GP) exception.</div>
+          </div>
+          <div class="vf-stage" data-idx="3">
+            <span class="vf-num">STEP 04</span>
+            <div class="vf-title">Kernel handles, kills app</div>
+            <div class="vf-body">The kernel's #GP handler sees the offender is a user-space process → sends SIGSEGV/SIGILL → terminates it.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Live Demo · SIGSEGV" data-anim="sigsegv">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Live Demo — The Boundary Violation Lab (SIGSEGV)</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">privilege boundary violation</span>, in a real terminal</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The setup</span>
+          <p>Open VS Code or a terminal. Write a tiny, deliberately broken C program that attempts to <strong>dereference a null pointer or touch a protected memory page</strong>. Run it live.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What the class will see</span>
+          <p>The terminal prints <code style="font-family:var(--mono);color:#b9d0ff">Segmentation fault (core dumped)</code>. That single line is the entire cascade: MMU raise → kernel trap → kernel kills app.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The crucial proof</span>
+          <p>Discord, Spotify, and the terminal are still running. <strong>Only the offending process died.</strong> That's the boundary working exactly as designed.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Trace it live:</b> point at each part of the terminal output and map it to the trap path. The message is not magic — it's a kernel-generated notification after catching a hardware exception.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live simulation · SIGSEGV catch + system survival</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./crash_test</span>
+          </div>
+          <div class="term-body" id="sigsegvBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./crash_test</span></span>
+            <span class="term-line dim">[    0.001] starting user program...</span>
+            <span class="term-line warn">[    0.012] attempting dereference of NULL pointer...</span>
+            <span class="term-line err">[    0.013] Segmentation fault (core dumped)</span>
+            <span class="term-line dim">— process terminated —</span>
+            <span class="term-line ok">[    0.014] kernel: system integrity preserved</span>
+          </div>
+        </div>
+        <div class="mini-label" style="margin-top:14px">Other apps · still running</div>
+        <div class="apps-strip">
+          <div class="app-chip"><span class="ic">🌐</span>Chrome<small>active</small></div>
+          <div class="app-chip"><span class="ic">🎵</span>Spotify<small>active</small></div>
+          <div class="app-chip"><span class="ic">💬</span>Discord<small>active</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L02 Sits</span>
+    <h2 style="margin-bottom:20px;">The barrier that everything else depends on</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · CPU Hardware Design</h4>
+            <p>Utilizes physical mode registers embedded natively inside modern x86_64 and ARM chips. The barrier is silicon, not software.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 3 (Memory Management)</h4>
+            <p>Base-and-bound sandboxing and virtual page tables completely depend on the dual-mode bit to prevent user apps from editing their own memory access flags.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Additional downstream impact</span>
+          <p><strong>Module 2 (Process Management):</strong> a context switch between user processes requires saving a restricted CPU state, and the scheduler itself must transition between Ring 3 and Ring 0.<br><br>
+          <strong>Module 4 (Process Synchronization):</strong> kernel mutexes and semaphores must live in protected memory so user-space cannot corrupt them.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Everything after L02 depends on this barrier.</b> Remove it and every isolation guarantee in the rest of the course collapses.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="80" y="130" width="180" height="60" rx="12" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">L02 · DUAL-MODE</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">Ring 0 / Ring 3 barrier</text>
+
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">CPU hardware</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">CPL bits · silicon</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">L01 · Architecture</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">where components go</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 2</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">process mgmt</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">memory mgmt</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(255,182,72,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Privilege Boundary Violation Lab</span>
+    <h2 style="margin-bottom:16px;">Run it live. <span class="grad-violet">Watch it happen.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The exact steps</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>1.</strong> Open VS Code or any terminal<br>
+            <strong>2.</strong> Write a deliberately broken C file (null deref or protected page touch)<br>
+            <strong>3.</strong> Compile with <code style="font-family:var(--mono);color:#c9a7ff">gcc -o crash crash.c</code><br>
+            <strong>4.</strong> Run: <code style="font-family:var(--mono);color:#c9a7ff">./crash</code><br>
+            <strong>5.</strong> Watch the terminal print <code style="font-family:var(--mono);color:#ff9fb1">Segmentation fault</code>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The class trace-along</span>
+          <p>As the terminal prints the fault, trace out <strong>exactly what the CPU did</strong>: caught the software step, locked down the boundary, dropped execution control into the Kernel Mode referee, and safely terminated that single application.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief question</span>
+          <p><em>"Why did Discord and Spotify keep running?"</em> Because their address spaces were untouched. The kernel didn't reboot the machine — it just killed the one process that crossed a line.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four-step demonstration</div>
+        <div class="violation-flow" style="grid-template-columns:1fr">
+          <div class="vf-stage" data-idx="0">
+            <span class="vf-num">STEP 01</span>
+            <div class="vf-title">User code attempts forbidden access</div>
+            <div class="vf-body">Writing to an unmapped address, or executing a privileged instruction.</div>
+          </div>
+          <div class="vf-stage" data-idx="1">
+            <span class="vf-num">STEP 02</span>
+            <div class="vf-title">Hardware exception fires</div>
+            <div class="vf-body">MMU raises a page fault, or CPU raises a General Protection Fault. Either way, an electronic trap.</div>
+          </div>
+          <div class="vf-stage" data-idx="2">
+            <span class="vf-num">STEP 03</span>
+            <div class="vf-title">Kernel handler receives control</div>
+            <div class="vf-body">The CPU switches to Ring 0 and jumps to the exception handler. The kernel examines the fault.</div>
+          </div>
+          <div class="vf-stage" data-idx="3">
+            <span class="vf-num">STEP 04</span>
+            <div class="vf-title">Offending process dies</div>
+            <div class="vf-body">Kernel sends SIGSEGV. That process terminates. Everything else keeps running.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L02 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>The dual-mode barrier is <strong>hardware-enforced</strong> — the CPU itself refuses to execute privileged instructions when CPL > 0. This is not a software convention.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>All five kernel architectures (monolithic, microkernel, layered, modular, hybrid) place their components on the same barrier — they just differ in <strong>what goes on each side</strong>.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>The barrier's primary benefit is <strong>fault containment</strong>. A user-space violation kills one process; a Ring 0 violation kills the machine.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Hardware exceptions</strong> (GPF, page fault) are the mechanism by which the barrier is enforced. They trigger automatically, not cooperatively.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L03 — The Gatekeeper Mechanism (System Calls &amp; Traps)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We've established <em>why</em> the barrier exists and <em>how</em> the hardware enforces it. L03 shows the <strong>one legal way</strong> to cross it: the system call interface — registers, trap instruction, and the interrupt vector table.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L03: The Gatekeeper Mechanism &nbsp;|&nbsp; [L3.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad2" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad2)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad2)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : Barrier canvas ---------- */
+reg('barrierfield', function(){
+  const c = document.getElementById('barrierCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const wallX = W * 0.5;
+  let active = true, raf = null, t = 0;
+
+  const particles = [];
+  for(let i = 0; i < 40; i++){
+    particles.push({
+      x: Math.random() * wallX * 0.9 + 20,
+      y: Math.random() * H,
+      vx: 0.6 + Math.random() * 1.2,
+      vy: (Math.random() - 0.5) * 0.6,
+      size: 2 + Math.random() * 2.5,
+      state: 'user'
+    });
+  }
+  const blocked = [];
+  for(let i = 0; i < 8; i++){
+    blocked.push({ x: wallX + 20 + Math.random() * (W - wallX - 40), y: Math.random() * H, life: 0 });
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    // Ring 3 zone (left)
+    ctx.fillStyle = 'rgba(91,141,255,0.05)';
+    ctx.fillRect(0, 0, wallX - 3, H);
+    // Ring 0 zone (right)
+    ctx.fillStyle = 'rgba(46,230,168,0.05)';
+    ctx.fillRect(wallX + 3, 0, W - wallX - 3, H);
+
+    // The wall
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(255,77,109,0.5)');
+    grad.addColorStop(0.5, 'rgba(255,77,109,1)');
+    grad.addColorStop(1, 'rgba(255,77,109,0.5)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(wallX, 0);
+    ctx.lineTo(wallX, H);
+    ctx.stroke();
+
+    // Wall pulse
+    ctx.strokeStyle = 'rgba(255,77,109,' + (0.3 + 0.3 * Math.sin(t / 20)) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(wallX, 0);
+    ctx.lineTo(wallX, H);
+    ctx.stroke();
+
+    // Draw labels
+    ctx.fillStyle = 'rgba(185,208,255,0.85)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('RING 3 · USER SPACE', wallX / 2, 12);
+    ctx.fillStyle = 'rgba(136,255,216,0.85)';
+    ctx.fillText('RING 0 · KERNEL SPACE', wallX + (W - wallX) / 2, 12);
+
+    // Move particles
+    for(const p of particles){
+      if(p.state === 'user'){
+        p.x += p.vx;
+        p.y += p.vy;
+        if(p.y < 30 || p.y > H - 30) p.vy *= -1;
+        if(p.x >= wallX - 6){
+          // Bounce and give a "blocked" flash
+          p.x = wallX - 6;
+          p.vx = -(0.6 + Math.random() * 0.6);
+          blocked[Math.floor(Math.random() * blocked.length)].life = 20;
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(143,180,255,0.9)';
+        ctx.fill();
+      }
+    }
+
+    // Blocked flash effects on the wall
+    for(const b of blocked){
+      if(b.life > 0){
+        b.life--;
+        ctx.beginPath();
+        ctx.arc(wallX, b.y, 8 + (20 - b.life) * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,77,109,' + (b.life / 40) + ')';
+        ctx.fill();
+      }
+    }
+
+    // syscall gate indicator at bottom
+    ctx.fillStyle = 'rgba(255,182,72,0.9)';
+    ctx.fillRect(wallX - 26, H - 50, 52, 16);
+    ctx.fillStyle = '#1a1206';
+    ctx.font = '700 9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SYSCALL', wallX, H - 42);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 10 : CPL flipping ---------- */
+reg('cpl', function(){
+  const bits = document.querySelectorAll('#cplRegister .cpl-bit');
+  const result = document.getElementById('cplResult');
+  if(!bits.length || !result) return { stop(){} };
+  let phase = 0; // 0 = Ring 3, 1 = Ring 0
+  function apply(){
+    if(phase === 0){
+      bits[0].textContent = '1';
+      bits[1].textContent = '1';
+      bits[2].textContent = '3';
+      bits[0].classList.remove('lit'); bits[1].classList.remove('lit');
+      bits[0].classList.add('dim'); bits[1].classList.add('dim'); bits[2].classList.add('dim');
+      result.classList.remove('r0');
+      result.classList.add('r3');
+      result.innerHTML = '<span>CPL = 3 → RING 3 · USER MODE</span><span style="font-family:var(--font);font-size:11px;letter-spacing:.08em">restricted</span>';
+    } else {
+      bits[0].textContent = '0';
+      bits[1].textContent = '0';
+      bits[2].textContent = '0';
+      bits[0].classList.add('lit'); bits[1].classList.add('lit'); bits[2].classList.add('lit');
+      bits[0].classList.remove('dim'); bits[1].classList.remove('dim'); bits[2].classList.remove('dim');
+      result.classList.remove('r3');
+      result.classList.add('r0');
+      result.innerHTML = '<span>CPL = 0 → RING 0 · KERNEL MODE</span><span style="font-family:var(--font);font-size:11px;letter-spacing:.08em">supervisor</span>';
+    }
+  }
+  apply();
+  const timer = setInterval(() => { phase = 1 - phase; apply(); }, 2000);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 20 : Illegal CLI code stepper ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,6,7,8];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t >= 7) lines[t].classList.add('hl-bad');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 950);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 21 : Legal CLI code stepper ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,6,8];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t === 4 || t === 8) lines[t].classList.add('hl-good');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 950);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 22 : GPF terminal demo ---------- */
+reg('gpf', function(){
+  const body = document.getElementById('gpfBody');
+  if(!body) return { stop(){} };
+  const base = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./cli_test</span></span>';
+  const lines = [
+    '<span class="term-line dim">[    0.000] starting user program...</span>',
+    '<span class="term-line warn">[    0.012] attempting __asm__("cli") from Ring 3...</span>',
+    '<span class="term-line err">[    0.013] trap: general protection fault (CPL=3, required CPL=0)</span>',
+    '<span class="term-line err">[    0.013] process terminated</span>',
+    '<span class="term-line ok">[    0.014] kernel: system integrity preserved</span>',
+    '<span class="term-line dim">— exit code 139 —</span>'
+  ];
+  let step = 0;
+  function reset(){ body.innerHTML = base; step = 0; }
+  function tick(){
+    if(step < lines.length){
+      body.insertAdjacentHTML('beforeend', lines[step]);
+      step++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 2600);
+      step = lines.length + 1;
+    }
+  }
+  reset();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 23 : SIGSEGV ---------- */
+reg('sigsegv', function(){
+  const body = document.getElementById('sigsegvBody');
+  if(!body) return { stop(){} };
+  const base = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./crash_test</span></span>';
+  const lines = [
+    '<span class="term-line dim">[    0.001] starting user program...</span>',
+    '<span class="term-line warn">[    0.012] attempting dereference of NULL pointer...</span>',
+    '<span class="term-line err">[    0.013] Segmentation fault (core dumped)</span>',
+    '<span class="term-line dim">— process terminated —</span>',
+    '<span class="term-line ok">[    0.014] kernel: system integrity preserved</span>'
+  ];
+  let step = 0;
+  function reset(){ body.innerHTML = base; step = 0; }
+  function tick(){
+    if(step < lines.length){
+      body.insertAdjacentHTML('beforeend', lines[step]);
+      step++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 2600);
+      step = lines.length + 1;
+    }
+  }
+  reset();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
