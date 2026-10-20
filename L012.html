@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L12 — TLB Acceleration &amp; Caching Math</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#tlbCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Sticky note visual */
+.sticky-scene{padding:14px 0;display:flex;justify-content:center;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+.monitor{width:200px;padding:14px;border-radius:12px;background:rgba(0,0,0,.4);border:1.5px solid rgba(255,255,255,.15);position:relative;}
+.monitor-screen{height:110px;border-radius:6px;background:linear-gradient(135deg,rgba(91,141,255,.20),rgba(160,107,255,.15));border:1px solid rgba(91,141,255,.4);display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--blue-2);font-weight:800;letter-spacing:.06em;}
+.monitor-base{height:10px;background:rgba(255,255,255,.15);border-radius:0 0 6px 6px;margin:6px auto 0;width:60px;}
+.sticky{position:absolute;top:8px;right:8px;width:70px;padding:8px;background:rgba(255,182,72,.85);color:#1a1206;border-radius:3px;font-family:var(--mono);font-size:8px;font-weight:800;letter-spacing:.03em;box-shadow:0 4px 12px rgba(0,0,0,.4),0 0 20px rgba(255,182,72,.4);transform:rotate(3deg);line-height:1.4;z-index:2;}
+.book-stack{flex:1;min-width:200px;padding:14px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);}
+.book-stack h4{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:10px;}
+.book-item{display:flex;justify-content:space-between;padding:6px 10px;border-radius:5px;margin-bottom:4px;background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.30);font-family:var(--mono);font-size:10.5px;color:#ff9fb1;font-weight:700;}
+.book-item .page-n{color:var(--muted);font-size:9.5px;}
+.book-item.saved{background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+
+/* Cache proxy */
+.proxy-flow{display:flex;flex-direction:column;gap:10px;padding:12px 0;}
+.proxy-step{padding:14px;border-radius:10px;border:1px solid;font-family:var(--mono);font-size:11.5px;line-height:1.6;transition:.4s;position:relative;}
+.proxy-step.client{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.proxy-step.cache{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.proxy-step.db{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.proxy-step.cache.hit{background:rgba(46,230,168,.15);border-color:rgba(46,230,168,.75);}
+.proxy-step .ps-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;opacity:.75;display:block;margin-bottom:4px;}
+
+/* Core breakdown visuals */
+.access-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.access-card{padding:16px;border-radius:12px;border:1px solid;}
+.access-card.bad{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.access-card.good{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.access-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.access-card.bad h4{color:var(--crimson);}
+.access-card.good h4{color:var(--emerald);}
+.access-stages{display:flex;flex-direction:column;gap:6px;}
+.access-stage{display:flex;justify-content:space-between;padding:9px 12px;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:700;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);}
+.access-card.bad .access-stage{border-color:rgba(255,77,109,.25);color:rgba(255,159,177,.85);}
+.access-card.good .access-stage{border-color:rgba(46,230,168,.25);color:rgba(136,255,216,.85);}
+.access-stage .as-time{color:var(--muted);font-size:10px;}
+.access-total{display:flex;justify-content:space-between;padding:11px 14px;border-radius:8px;margin-top:10px;font-family:var(--mono);font-size:13px;font-weight:900;letter-spacing:.04em;}
+.access-card.bad .access-total{background:rgba(255,77,109,.20);border:1.5px solid rgba(255,77,109,.65);color:#ff9fb1;}
+.access-card.good .access-total{background:rgba(46,230,168,.20);border:1.5px solid rgba(46,230,168,.65);color:#88ffd8;}
+
+/* TLB structure */
+.tlb-vis{padding:14px 0;}
+.tlb-header{padding:10px 14px;border-radius:8px 8px 0 0;background:rgba(255,182,72,.14);border:1.5px solid rgba(255,182,72,.65);border-bottom:none;text-align:center;font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.06em;color:#ffd18a;}
+.tlb-table{border:1.5px solid rgba(255,182,72,.55);background:rgba(0,0,0,.22);overflow:hidden;}
+.tlb-row{display:grid;grid-template-columns:70px 60px 1fr 60px;gap:1px;background:rgba(255,255,255,.08);padding:1px;}
+.tlb-row.head{background:rgba(255,182,72,.10);}
+.tlb-row.active{background:rgba(46,230,168,.25);}
+.tlb-cell{background:rgba(0,0,0,.30);padding:8px 10px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--ink-2);text-align:center;}
+.tlb-row.head .tlb-cell{color:var(--amber);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:900;background:transparent;}
+.tlb-row.active .tlb-cell{color:#88ffd8;background:rgba(46,230,168,.15);}
+.tlb-cell.tag{color:#b9d0ff;font-weight:800;}
+.tlb-cell.valid{color:#88ffd8;}
+.tlb-cell.frame{color:#ffd18a;font-weight:800;}
+.tlb-cell.lru{color:var(--muted);font-size:9.5px;}
+
+/* Formula card */
+.formula-card{padding:24px;border-radius:14px;background:linear-gradient(140deg,rgba(91,141,255,.10),rgba(160,107,255,.06));border:1.5px solid rgba(91,141,255,.55);}
+.formula-card .fm-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:12px;}
+.formula-card .fm-body{font-family:var(--mono);font-size:clamp(13px,1.2vw,16px);font-weight:800;line-height:2;color:var(--ink);}
+.formula-card .fm-body .hl-blue{color:#b9d0ff;}
+.formula-card .fm-body .hl-amber{color:#ffd18a;}
+.formula-card .fm-body .hl-emerald{color:#88ffd8;}
+.formula-card .fm-body .hl-crimson{color:#ff9fb1;}
+.formula-card .fm-body .hl-muted{color:var(--muted);font-size:.9em;font-weight:600;}
+
+/* EAT worked example */
+.eat-work{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.eat-given{padding:14px 18px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2);}
+.eat-given .eg-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:8px;}
+.eat-given .eg-hl{color:#ffd18a;font-weight:800;}
+.eat-step{padding:12px 16px;border-radius:8px;border:1px solid;font-family:var(--mono);font-size:12px;line-height:1.8;transition:.4s;}
+.eat-step.s1{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.06);color:#b9d0ff;}
+.eat-step.s2{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);color:#ffd18a;}
+.eat-step.s3{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);color:#88ffd8;}
+.eat-step .es-num{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;opacity:.75;display:block;margin-bottom:4px;}
+
+/* EAT interactive */
+.eat-interactive{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);}
+.eat-slider-wrap{margin-bottom:14px;}
+.eat-slider-label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--ink-2);}
+.eat-slider-label .val{font-family:var(--mono);font-size:15px;font-weight:900;color:var(--amber);}
+.eat-slider{width:100%;height:8px;border-radius:4px;-webkit-appearance:none;appearance:none;background:linear-gradient(90deg,#ff4d6d,#ffb648 50%,#2ee6a8);outline:none;cursor:pointer;}
+.eat-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+.eat-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+.eat-result{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px;}
+.eat-stat{padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);text-align:center;}
+.eat-stat .esl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:5px;}
+.eat-stat .esv{font-family:var(--mono);font-size:clamp(14px,1.5vw,18px);font-weight:900;letter-spacing:-.02em;}
+.eat-stat.hit .esv{color:#88ffd8;}
+.eat-stat.miss .esv{color:#ff9fb1;}
+.eat-stat.eat .esv{color:#ffd18a;}
+
+/* Latency curve chart */
+.latency-chart{padding:10px 0;}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Context switch / ASID */
+.cs-vis{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.cs-side{padding:16px;border-radius:12px;border:1px solid;text-align:center;}
+.cs-side.noasid{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.cs-side.asid{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.cs-side h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.cs-side.noasid h4{color:var(--crimson);}
+.cs-side.asid h4{color:var(--emerald);}
+.cs-tlb{padding:10px 8px;border-radius:6px;margin-bottom:6px;font-family:var(--mono);font-size:10px;font-weight:700;border:1px solid;min-height:36px;display:grid;place-items:center;}
+.cs-side.noasid .cs-tlb{border-color:rgba(255,77,109,.35);background:rgba(255,77,109,.10);color:#ff9fb1;}
+.cs-side.noasid .cs-tlb.flushed{animation:flash 1s ease-in-out infinite;opacity:.3;}
+.cs-side.asid .cs-tlb{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.10);color:#88ffd8;}
+@keyframes flash{0%,100%{opacity:.3}50%{opacity:.8}}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-diagram{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);}
+.act-chart{height:180px;position:relative;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid rgba(255,255,255,.08);overflow:hidden;margin-top:10px;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.access-cmp,.cs-vis{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .eat-result{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .tlb-row{grid-template-columns:50px 40px 1fr 40px;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L12 TLB Acceleration</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L12 · Overview" data-anim="tlbcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L12 · TLB Acceleration &amp; Caching Math</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Paging doubles every memory access. <span class="grad-blue">The TLB makes it almost disappear.</span></h1>
+        <p class="lead">Calculate Effective Access Time (EAT) equations using hit-rate variables, hardware cache check latencies, and physical RAM access latency boundaries.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L12</span>
+          <p>L11 gave us paging — but every memory access now requires <strong>two</strong> trips to RAM: one to read the page table entry, another to read the actual data. That's a <strong>50% slowdown</strong>. How does the system recover that performance back?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the TLB canvas on the right. Ask: <em>"If every load takes twice as long, what would a web browser feel like?"</em> (Answer: an order of magnitude slower.)</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · TLB hits vs. misses</div>
+        <canvas id="tlbCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Double-Access Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Problem — Paging Doubles Memory Latency</span>
+    <h2 style="margin-bottom:16px;">Every load. <span class="grad-crimson">Two trips to RAM.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The paging penalty</span>
+          <p>Without a TLB, every memory access requires <strong>two separate RAM reads</strong>: one to fetch the page table entry (to find the frame number), and one to actually read the data at the translated physical address.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>If DRAM access takes 100 ns, a naive paged access takes <strong>200 ns</strong>. That's a 2× slowdown on every single load, store, and instruction fetch. The CPU, designed to run at ~0.3 ns per cycle, spends most of its time waiting on memory.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The multi-level worse case</span>
+          <p>On 32-bit x86 with 2-level paging, it's actually <strong>3 accesses</strong> (directory → table → data). On 64-bit x86 with 4-level paging, it's <strong>5 accesses</strong> without caching. That would be catastrophic.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The obvious fix:</b> cache the results of recent translations. If the same virtual page is accessed again soon, we already know its frame number — skip the page table walk entirely.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Without TLB vs. With TLB</div>
+        <div class="access-cmp">
+          <div class="access-card bad">
+            <h4>Without TLB · 2 accesses</h4>
+            <div class="access-stages">
+              <div class="access-stage"><span>1 · Read page table</span><span class="as-time">100 ns</span></div>
+              <div class="access-stage"><span>2 · Read actual data</span><span class="as-time">100 ns</span></div>
+            </div>
+            <div class="access-total"><span>TOTAL</span><span>200 ns</span></div>
+          </div>
+          <div class="access-card good">
+            <h4>With TLB · hit</h4>
+            <div class="access-stages">
+              <div class="access-stage"><span>1 · Check TLB</span><span class="as-time">1 ns</span></div>
+              <div class="access-stage"><span>2 · Read actual data</span><span class="as-time">100 ns</span></div>
+            </div>
+            <div class="access-total"><span>TOTAL</span><span>101 ns</span></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">The TLB eliminates 99% of the page table lookups — turning a 2× penalty into a 1% penalty.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Sticky Note">
+  <div class="slide-inner">
+    <span class="badge violet">📝 Analogy 1 · The Sticky Note on the Monitor</span>
+    <h2 style="margin-bottom:16px;">You <span class="grad-violet">don't walk to the phonebook</span> for every call</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>You work as a researcher who constantly needs to look up phone numbers in a massive 1,000-page directory book kept <strong>across the room</strong> (the page table in RAM). Every single time you want to make a call, walking across the room to check the book slows you down heavily.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The optimization</span>
+          <p>You stick a <strong>small piece of paper right next to your telephone</strong> (the TLB cache). When you look up a number for the first time, you write it on the sticky note. The next time you call that same person, you don't walk across the room — you glance at the sticky note <strong>instantly</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The miss case</span>
+          <p>You only walk to the heavy phonebook if the note is <strong>missing the name</strong>. That's a TLB miss — the translation wasn't cached, so you have to do the full page table walk.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The win:</b> the sticky note holds maybe 64 entries — tiny compared to the 1,000-page book. But 99% of your calls go to numbers already on the note, because <strong>you call the same people repeatedly</strong>. That's locality of reference.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The sticky note vs. the phonebook</div>
+        <div class="sticky-scene">
+          <div class="monitor">
+            <div class="monitor-screen">
+              📞 TELEPHONE<br>
+              <span style="font-size:8.5px;color:rgba(185,208,255,.7);margin-top:6px;display:inline-block">ready to dial</span>
+            </div>
+            <div class="sticky">
+              ⚡ STICKY<br>
+              <span style="display:block;margin-top:4px">Alice → 555-0123</span>
+              <span style="display:block">Bob → 555-0456</span>
+              <span style="display:block">Mom → 555-0789</span>
+              <span style="display:block;color:rgba(26,18,6,.5);font-size:7px;margin-top:3px">…64 entries max…</span>
+            </div>
+            <div class="monitor-base"></div>
+          </div>
+          <div class="book-stack">
+            <h4>THE PHONEBOOK · page table</h4>
+            <div class="book-item saved"><span>Alice</span><span class="page-n">cached ✓</span></div>
+            <div class="book-item saved"><span>Bob</span><span class="page-n">cached ✓</span></div>
+            <div class="book-item saved"><span>Mom</span><span class="page-n">cached ✓</span></div>
+            <div class="book-item"><span>Dentist</span><span class="page-n">page 247</span></div>
+            <div class="book-item"><span>Pizza</span><span class="page-n">page 512</span></div>
+            <div class="book-item"><span>Boss</span><span class="page-n">page 88</span></div>
+            <div class="book-item"><span>Landlord</span><span class="page-n">page 731</span></div>
+            <div class="book-item"><span>Tax office</span><span class="page-n">page 994</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · What's on the note">
+  <div class="slide-inner">
+    <span class="badge blue">📝 Analogy 1 · What's Actually on the Sticky Note</span>
+    <h2 style="margin-bottom:16px;">Six fields per entry. <span class="grad-blue">Same as a page table entry.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">A TLB entry</div>
+        <div class="tlb-vis">
+          <div class="tlb-header">TLB · one entry</div>
+          <div class="tlb-table">
+            <div class="tlb-row head">
+              <div class="tlb-cell">V-TAG</div>
+              <div class="tlb-cell">VALID</div>
+              <div class="tlb-cell">FIELDS</div>
+              <div class="tlb-cell">LRU</div>
+            </div>
+            <div class="tlb-row">
+              <div class="tlb-cell tag">0x4A2</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame" style="text-align:left;padding-left:14px">
+                frame=0x7C · rw=1 · usr=1 · dirty=0
+              </div>
+              <div class="tlb-cell lru">3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">V-TAG</span>
+          <p>The <strong>virtual page number</strong> — the key. Every entry is indexed by this, so the hardware can compare in parallel.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Frame + permissions</span>
+          <p>The <strong>physical frame number</strong> plus the permission bits (read/write, user/supervisor, dirty, etc.) — copied from the page table entry when the TLB entry was filled.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Valid bit</span>
+          <p>Is this entry live? On context switch, the whole TLB might be marked invalid (flushed) or tagged with an <strong>ASID</strong> so old entries can't accidentally match.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">LRU (replacement hint)</span>
+          <p>Which entry to evict when a new translation needs to be cached. Typically least-recently-used, sometimes pseudo-LRU or random. Small TLBs (64 entries) turn over fast.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Cache Proxy">
+  <div class="slide-inner">
+    <span class="badge">🔑 Analogy 2 · Local Cache Web Proxy</span>
+    <h2 style="margin-bottom:16px;">The TLB is a <span class="grad-blue">cache layer for translations</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The match</span>
+          <p>A Translation Lookaside Buffer functions identically to an ultra-fast hardware register cache layer that <strong>intercepts recursive database index scans</strong> using local static memory chips. Every cache concept you know from web proxies applies here.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mapping</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Browser</strong> → program issuing memory access<br>
+            <strong>Local proxy cache</strong> → TLB<br>
+            <strong>Origin server</strong> → physical RAM (page table + data)<br>
+            <strong>Cache hit</strong> → TLB hit (1 ns)<br>
+            <strong>Cache miss</strong> → TLB miss (walk the page table)
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why both work</span>
+          <p>Locality. Just as you visit the same websites repeatedly, programs access the same pages repeatedly — loops, hot functions, shared libraries. The TLB holds the recent translations and lets the common case skip the slow path.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The cache lookup</div>
+        <div class="proxy-flow">
+          <div class="proxy-step client">
+            <span class="ps-tag">CLIENT</span>
+            Program wants page 0x4A2
+          </div>
+          <div class="proxy-step cache">
+            <span class="ps-tag">TLB · CACHE</span>
+            Is 0x4A2 cached? → yes
+          </div>
+          <div class="proxy-step cache hit">
+            <span class="ps-tag">CACHE HIT ✓</span>
+            frame 0x7C returned immediately · 1 ns
+          </div>
+          <div class="proxy-step db" style="opacity:.4">
+            <span class="ps-tag">RAM · ORIGIN (skipped)</span>
+            Would have read page table · 100 ns
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L12 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">speed layer</span> on top of paging</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L11 (Paging Model)</h4>
+            <p>Integrates directly inside the bit-shifting logic of the MMU address translation processing pathway. Without paging there's nothing to cache — the TLB is a page table entry cache.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L13 (Virtual Memory)</h4>
+            <p>A <strong>TLB miss</strong> pattern can cascade down to trigger a complete disk-drive swap block search if the corresponding page is marked as absent from physical RAM. The TLB is the first layer of a deep caching hierarchy.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Module 3 stack</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>L10</strong> — base + bound (translation, isolation)<br>
+            <strong>L11</strong> — paging (fragmentation-free, shareable)<br>
+            <strong>L12</strong> — TLB (speed — this lecture)<br>
+            <strong>L13</strong> — virtual memory (disk-backed pages)
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The mental model:</b> L11 built a mechanism. L12 makes that mechanism <em>fast</em>. Every subsequent OS topic (virtual memory, mmap, containers, cgroups) assumes both paging and TLB are in place.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 3 dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">L11 · Paging</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">pages → frames</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">MMU hardware</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">bit math</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L12 · TLB</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">translation cache</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">L13 · Virtual Mem</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">swap to disk</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Real systems</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">every CPU has one</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(255,182,72,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(160,107,255,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · What TLB Is">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — What the TLB Actually Is</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-emerald">hardware cache</span> inside the MMU</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Formal definition</span>
+          <p>The <strong>Translation Lookaside Buffer (TLB)</strong> is a specialized hardware cache embedded inside the CPU MMU dedicated exclusively to accelerating virtual address mapping scans. It caches recent virtual-to-physical translations.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it lives</span>
+          <p>Inside the MMU, physically on the CPU die. Not in RAM. Not in the kernel. It's silicon — a few thousand flip-flops and comparators sitting between the load/store unit and the memory controller.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">How it's searched</span>
+          <p>The TLB is an <strong>associative memory</strong> — the hardware compares the incoming virtual page number against <em>all</em> TLB entries simultaneously, in one clock cycle. There's no linear search; the comparison is done by dedicated comparator circuits.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Typical sizes:</b> L1 TLB has 32–128 entries per core. The L2 TLB (unified) has 512–2048 entries. Small, but thanks to locality, they catch 98–99.9% of translations.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Where the TLB sits</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="80" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="42" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">CPU CORE</text>
+          <text x="170" y="60" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">load/store unit · ALU · registers</text>
+          <text x="170" y="82" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">produces virtual addresses</text>
+
+          <line x1="170" y1="100" x2="170" y2="120" stroke="rgba(91,141,255,.75)" stroke-width="1.8" class="svg-flow"/>
+          <text x="185" y="114" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">VA</text>
+
+          <rect x="20" y="120" width="300" height="100" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.75)" stroke-width="1.6"/>
+          <text x="170" y="142" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">MMU · MEMORY MANAGEMENT UNIT</text>
+          <rect x="40" y="156" width="130" height="44" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.75)" stroke-width="1.4"/>
+          <text x="105" y="174" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">TLB</text>
+          <text x="105" y="190" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">cache · associative</text>
+
+          <rect x="180" y="156" width="120" height="44" rx="6" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.75)" stroke-width="1.4"/>
+          <text x="240" y="174" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">PAGE WALKER</text>
+          <text x="240" y="190" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">on TLB miss</text>
+
+          <line x1="170" y1="220" x2="170" y2="242" stroke="rgba(255,182,72,.75)" stroke-width="1.8" class="svg-flow"/>
+          <text x="185" y="236" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">PA</text>
+
+          <rect x="20" y="242" width="300" height="60" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="264" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">PHYSICAL RAM · DRAM</text>
+          <text x="170" y="284" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">page tables + actual data</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · TLB Hit" data-anim="tlbhit">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — The TLB Hit Path</span>
+    <h2 style="margin-bottom:16px;">The translation <span class="grad-emerald">resolves instantly</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What happens on a hit</span>
+          <p>The virtual address is split into page number + offset. The page number is checked <strong>against every TLB entry in parallel</strong>. If a match is found with the valid bit set, the frame number is read directly from that entry.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The cost</span>
+          <p>The TLB check happens <strong>in parallel with the cache lookup</strong> — the CPU doesn't wait for the translation to finish before starting the L1 cache probe. Effectively, a TLB hit adds ~1 ns to the total. On modern hardware, often <strong>zero visible overhead</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The critical detail</span>
+          <p>The physical address is available in one clock cycle. The memory request then goes out immediately. From the program's perspective, there's no "paging slowdown" — the TLB has completely hidden it.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> TLB hits dominate real workloads. Typical hit rates are 98–99.9% — because programs spend most of their time in tight loops, and a loop's working set fits entirely inside a handful of pages.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The hit path</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center">
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08);font-family:var(--mono);font-size:11px;color:#b9d0ff;text-align:center;font-weight:700">VA 0x4A2F0</div>
+            <span style="color:var(--muted);font-size:14px">→</span>
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);font-family:var(--mono);font-size:11px;color:#88ffd8;text-align:center;font-weight:700">PA 0x7C2F0</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1.5px solid rgba(46,230,168,.75);background:rgba(46,230,168,.15);font-family:var(--mono);font-size:11.5px;color:#88ffd8;text-align:center;font-weight:800">
+            ✓ TLB HIT · frame 0x7C returned in 1 ns
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px dashed rgba(255,255,255,.18);background:rgba(255,255,255,.02);font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center">
+            page table walk skipped — 100 ns saved
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · TLB Miss" data-anim="tlbmiss">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — The TLB Miss Path</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-crimson">full page table walk</span> fires</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What happens on a miss</span>
+          <p>If no TLB entry matches, the MMU must <strong>walk the page table</strong> in physical memory — read the page directory, then the page table, find the frame number. On 4-level paging, that's up to 4 memory reads just to translate.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>A single miss costs an extra <strong>100 ns</strong> (one DRAM trip) on 1-level paging, or up to 400 ns on 4-level paging. If the miss rate is 1%, the average cost is still only ~1–4 ns extra — manageable. If it's 20%, the system slows to a crawl.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The recovery</span>
+          <p>After the walk succeeds, the frame number is <strong>inserted into the TLB</strong> (evicting some LRU entry). Next access to the same page becomes a hit. The TLB "learns" the working set over time.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Two flavors of miss:</b> the page table walk succeeds (page is in RAM) → just slow. Or the page's present bit is 0 (page is on disk) → <strong>page fault</strong>, and the OS must load it from swap. That's L13.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The miss path</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.08);font-family:var(--mono);font-size:11px;color:#ff9fb1;text-align:center;font-weight:700">VA 0x9B300 → TLB MISS</div>
+          <div style="padding:12px 14px;border-radius:8px;border:1.5px solid rgba(255,182,72,.75);background:rgba(255,182,72,.10);font-family:var(--mono);font-size:11px;color:#ffd18a;text-align:center">
+            <div style="font-weight:800;margin-bottom:4px">PAGE TABLE WALK</div>
+            <div style="font-size:10px;opacity:.85">read PD · read PT · extract frame</div>
+            <div style="font-size:10px;opacity:.85;margin-top:4px">+100 ns</div>
+          </div>
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);font-family:var(--mono);font-size:11px;color:#88ffd8;text-align:center;font-weight:700">frame found · TLB updated · PA returned</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · TLB Structure" data-anim="tlblookup">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The TLB Structure</span>
+    <h2 style="margin-bottom:16px;">Small. Associative. <span class="grad-amber">Searched in parallel.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The size</span>
+          <p>A typical L1 TLB has <strong>32–128 entries</strong>. The L2 TLB (unified, larger, slower) has <strong>512–2048 entries</strong>. Both are tiny compared to the page table — because they rely on locality, not on holding everything.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The associative lookup</span>
+          <p>Unlike a normal cache (which uses an index), the TLB uses <strong>content-addressable memory</strong> — the incoming page number is compared against every entry simultaneously. Hardware comparators do all comparisons in one clock cycle.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The replacement policy</span>
+          <p>When the TLB fills up and a new translation must be inserted, an entry must be evicted. Most TLBs use <strong>pseudo-LRU</strong> — approximate least-recently-used. That's why the LRU field exists on each entry.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> because there are only ~64 entries, a program with a working set larger than 64 × 4 KB = 256 KB will thrash the TLB. That's why huge-pages (2 MB or 1 GB) exist — one entry covers a lot more memory.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The TLB contents</div>
+        <div class="tlb-vis" id="tlbStruct">
+          <div class="tlb-header">TLB · 6 of 64 entries shown</div>
+          <div class="tlb-table">
+            <div class="tlb-row head">
+              <div class="tlb-cell">V-TAG</div>
+              <div class="tlb-cell">VALID</div>
+              <div class="tlb-cell">FRAME</div>
+              <div class="tlb-cell">LRU</div>
+            </div>
+            <div class="tlb-row" data-row="0">
+              <div class="tlb-cell tag">0x4A2</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame">0x7C</div>
+              <div class="tlb-cell lru">3</div>
+            </div>
+            <div class="tlb-row" data-row="1">
+              <div class="tlb-cell tag">0x1B3</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame">0x42</div>
+              <div class="tlb-cell lru">7</div>
+            </div>
+            <div class="tlb-row" data-row="2">
+              <div class="tlb-cell tag">0x6D1</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame">0x08</div>
+              <div class="tlb-cell lru">1</div>
+            </div>
+            <div class="tlb-row" data-row="3">
+              <div class="tlb-cell tag">0x2F8</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame">0x9A</div>
+              <div class="tlb-cell lru">2</div>
+            </div>
+            <div class="tlb-row" data-row="4">
+              <div class="tlb-cell tag">0x0C7</div>
+              <div class="tlb-cell valid">0</div>
+              <div class="tlb-cell frame">—</div>
+              <div class="tlb-cell lru">—</div>
+            </div>
+            <div class="tlb-row" data-row="5">
+              <div class="tlb-cell tag">0x5A0</div>
+              <div class="tlb-cell valid">1</div>
+              <div class="tlb-cell frame">0x31</div>
+              <div class="tlb-cell lru">4</div>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Entry 4 is invalid (flushed) — never a match. Entries 0–3 and 5 are live and searched on every access.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="The Formula">
+  <div class="slide-inner">
+    <span class="badge">📐 The EAT Formula</span>
+    <h2 style="margin-bottom:16px;">Effective Access Time — <span class="grad-blue">the weighted average</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The formula</div>
+        <div class="formula-card">
+          <div class="fm-label">EFFECTIVE ACCESS TIME</div>
+          <div class="fm-body">
+            EAT = <span class="hl-emerald">HitRate</span> × [<span class="hl-amber">TLB</span> + <span class="hl-blue">Mem</span>]<br>
+            <span class="hl-muted">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+</span> <span class="hl-crimson">MissRate</span> × [<span class="hl-amber">TLB</span> + <span class="hl-blue">Mem</span> + <span class="hl-blue">Mem</span>]<br>
+            <br>
+            <span class="hl-muted">where MissRate = 1 − HitRate</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What each term means</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong style="color:#88ffd8">HitRate</strong> — fraction of accesses that hit the TLB<br>
+            <strong style="color:#ffd18a">TLB</strong> — time to check the TLB (typically ~1 ns)<br>
+            <strong style="color:#b9d0ff">Mem</strong> — time for one DRAM access (~100 ns)<br>
+            <strong style="color:#ff9fb1">MissRate</strong> — fraction that miss (1 − HitRate)
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why hit path is one Mem</span>
+          <p>On a hit, we get the frame from the TLB and go straight to DRAM for the data. That's <strong>1 memory access</strong> (data). The page table read is skipped.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why miss path is two Mem</span>
+          <p>On a miss, we have to <strong>read the page table</strong> first (memory access 1), get the frame, then <strong>read the data</strong> (memory access 2). That's the two access penalty.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The insight:</b> EAT is a probability-weighted average. Most of the time you take the fast path; sometimes you take the slow path. The formula tells you the average cost.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="EAT Worked Example" data-anim="eatwork">
+  <div class="slide-inner">
+    <span class="badge amber">🧮 Worked Example — The Canonical EAT Calculation</span>
+    <h2 style="margin-bottom:16px;">90% hit rate. <span class="grad-amber">100 ns RAM. 1 ns TLB.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="eat-work">
+          <div class="eat-given">
+            <span class="eg-label">Given</span>
+            TLB check latency = <span class="eg-hl">1 ns</span><br>
+            Memory access latency = <span class="eg-hl">100 ns</span><br>
+            TLB hit rate = <span class="eg-hl">0.90</span> (90%)<br>
+            TLB miss rate = <span class="eg-hl">0.10</span> (10%)
+          </div>
+          <div class="eat-step s1">
+            <span class="es-num">STEP 1 · Hit path contribution</span>
+            0.90 × (1 + 100) = 0.90 × 101 = <strong>90.9 ns</strong>
+          </div>
+          <div class="eat-step s2">
+            <span class="es-num">STEP 2 · Miss path contribution</span>
+            0.10 × (1 + 100 + 100) = 0.10 × 201 = <strong>20.1 ns</strong>
+          </div>
+          <div class="eat-step s3">
+            <span class="es-num">STEP 3 · Total EAT</span>
+            90.9 + 20.1 = <strong>111 ns</strong>
+          </div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The final answer</div>
+        <div style="padding:20px;border-radius:12px;border:2px solid rgba(46,230,168,.85);background:rgba(46,230,168,.10);text-align:center">
+          <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:10px">EFFECTIVE ACCESS TIME</div>
+          <div style="font-family:var(--mono);font-size:clamp(28px,3vw,42px);font-weight:900;color:#88ffd8;letter-spacing:-.02em">111 ns</div>
+        </div>
+        <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);margin-top:14px">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:6px">COMPARISONS</div>
+          <div style="font-family:var(--mono);font-size:12px;line-height:1.85;color:#b9d0ff">
+            No TLB (worst) = <strong>200 ns</strong><br>
+            With TLB @ 90% = <strong style="color:#88ffd8">111 ns</strong><br>
+            Speedup = <strong>200 / 111 = 1.80×</strong>
+          </div>
+        </div>
+        <div class="note" style="margin-top:14px">
+          <span class="ic">💡</span>
+          <div>With a <strong>99% hit rate</strong> (typical for real workloads), EAT drops to <strong>~102 ns</strong> — only 2% overhead. That's why paging is acceptable in practice.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Hit Rate Curve" data-anim="curve">
+  <div class="slide-inner">
+    <span class="badge emerald">📈 The Hit Rate Curve</span>
+    <h2 style="margin-bottom:16px;">EAT is <span class="grad-emerald">nonlinear</span> in the hit rate</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · EAT vs. hit rate</div>
+        <div class="latency-chart">
+          <svg viewBox="0 0 400 260" style="width:100%;height:auto">
+            <!-- Grid -->
+            <line x1="60" y1="30" x2="60" y2="220" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+            <line x1="60" y1="220" x2="380" y2="220" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+            <!-- Y gridlines -->
+            <line x1="60" y1="30" x2="380" y2="30" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="60" y1="77" x2="380" y2="77" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="60" y1="125" x2="380" y2="125" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="60" y1="172" x2="380" y2="172" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <!-- Y labels -->
+            <text x="52" y="34" text-anchor="end" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">200</text>
+            <text x="52" y="81" text-anchor="end" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">150</text>
+            <text x="52" y="129" text-anchor="end" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">125</text>
+            <text x="52" y="176" text-anchor="end" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">110</text>
+            <text x="52" y="224" text-anchor="end" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">100</text>
+            <!-- X labels -->
+            <text x="60" y="238" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">0%</text>
+            <text x="140" y="238" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">25%</text>
+            <text x="220" y="238" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">50%</text>
+            <text x="300" y="238" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">75%</text>
+            <text x="380" y="238" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter">100%</text>
+            <!-- Y-axis label -->
+            <text x="20" y="130" text-anchor="middle" font-size="9.5" fill="rgba(132,148,180,.85)" font-family="Inter" font-weight="700" transform="rotate(-90 20 130)">EAT (ns)</text>
+            <!-- X-axis label -->
+            <text x="220" y="255" text-anchor="middle" font-size="9.5" fill="rgba(132,148,180,.85)" font-family="Inter" font-weight="700">HIT RATE</text>
+
+            <!-- The curve: EAT = hitRate × 101 + (1-hitRate) × 201 = 201 - 100×hitRate -->
+            <path id="curvePath" d="" fill="none" stroke="url(#curveGrad)" stroke-width="2.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="curveGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#ff4d6d"/>
+                <stop offset="50%" stop-color="#ffb648"/>
+                <stop offset="100%" stop-color="#2ee6a8"/>
+              </linearGradient>
+            </defs>
+            <!-- Live dot on the curve -->
+            <circle id="liveDot" cx="300" cy="127" r="5" fill="#eaf0fc" stroke="#2ee6a8" stroke-width="2.5"/>
+            <text id="liveDotLabel" x="310" y="120" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">90%</text>
+          </svg>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Reading the curve</span>
+          <p>At 0% hit rate (no cache at all), EAT = 201 ns — the full two-access penalty. At 100% hit rate, EAT = 101 ns — nearly the no-paging cost. Everything in between is a smooth blend.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why the curve is steep near 100%</span>
+          <p>Going from 90% to 99% hits shaves 9 ns off EAT — that's 8% improvement for 9 percentage points. Going from 0% to 50% saves 50 ns. Both are linear, but the <em>relative</em> improvement is huge at the top end.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The design implication</span>
+          <p>Schedulers, cache designers, and programmers all obsess over the <strong>last 1% of hit rate</strong> — that's where the wins are. Doubling TLB size or adding a 2-level TLB pushes 95% to 99%.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Live · Interactive Calculator" data-anim="interactive">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Live Demo — The Interactive EAT Calculator</span>
+    <h2 style="margin-bottom:16px;">Drag the slider. <span class="grad-amber">Watch EAT change in real time.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="eat-interactive">
+          <div class="eat-slider-wrap">
+            <div class="eat-slider-label">
+              <span>TLB HIT RATE</span>
+              <span class="val" id="hitRateVal">90%</span>
+            </div>
+            <input type="range" class="eat-slider" id="hitRateSlider" min="0" max="100" value="90" step="1">
+          </div>
+          <div class="eat-result">
+            <div class="eat-stat hit">
+              <div class="esl">Hit Path</div>
+              <div class="esv" id="hitPathVal">101 ns</div>
+            </div>
+            <div class="eat-stat miss">
+              <div class="esl">Miss Path</div>
+              <div class="esv" id="missPathVal">201 ns</div>
+            </div>
+            <div class="eat-stat eat">
+              <div class="esl">EAT</div>
+              <div class="esv" id="eatVal">111 ns</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel blue" style="margin-top:14px">
+          <span class="panel-label">The math behind the slider</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.85;margin-top:4px;color:var(--ink-2)">
+            hitRate = <span id="equation-hit" style="color:#88ffd8;font-weight:800">0.90</span><br>
+            missRate = 1 − 0.90 = <span id="equation-miss" style="color:#ff9fb1;font-weight:800">0.10</span><br>
+            EAT = 0.90 × 101 + 0.10 × 201 = <span id="equation-eat" style="color:#ffd18a;font-weight:800">111 ns</span>
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">What the slider shows</div>
+        <div style="padding:8px 0">
+          <div style="padding:16px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--ink-2)">
+            <div style="display:flex;justify-content:space-between"><span>hitRate × 101:</span><span id="prod-hit" style="color:#88ffd8;font-weight:800">90.9 ns</span></div>
+            <div style="display:flex;justify-content:space-between"><span>missRate × 201:</span><span id="prod-miss" style="color:#ff9fb1;font-weight:800">20.1 ns</span></div>
+            <div style="border-top:1px solid rgba(255,255,255,.10);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><span style="font-weight:800">EAT:</span><span id="prod-total" style="color:#ffd18a;font-weight:900">111 ns</span></div>
+          </div>
+          <div style="padding:14px;margin-top:12px;border-radius:10px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.4);font-size:12px;line-height:1.6;color:var(--ink-2)">
+            <strong style="color:#b9d0ff">Try it:</strong> push the slider from 90% to 99% and watch EAT drop from 111 ns to ~102 ns. Push it to 20% and watch it balloon to ~181 ns. That's a 10× speed difference in the worst case.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Multi-level Impact">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Multi-Level Paging + TLB Impact</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-violet">savings from caching</span> are even bigger</h2>
+    <div class="split">
+      <div class="panel crimson" style="padding:18px">
+        <span class="panel-label">4-level paging, no TLB</span>
+        <p style="line-height:1.9;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:var(--ink-2)">
+          Read PML4 → PDP → PD → PT → data<br>
+          <strong style="color:#ff9fb1">5 memory accesses per access</strong><br>
+          ~500 ns for a single load<br>
+          <span style="color:#ff9fb1;font-weight:800">≈ 10× slowdown vs. no paging</span>
+        </p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">4-level paging, TLB hit</span>
+        <p style="line-height:1.9;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:var(--ink-2)">
+          TLB check → data<br>
+          <strong style="color:#88ffd8">1 memory access per access</strong><br>
+          ~101 ns for a single load<br>
+          <span style="color:#88ffd8;font-weight:800">≈ 1% overhead vs. no paging</span>
+        </p>
+      </div>
+    </div>
+    <div class="panel amber" style="margin-top:16px;padding:18px">
+      <span class="panel-label">The consequence</span>
+      <p>Without a TLB, 4-level paging would be unusable — the overhead would be 5× per access. The TLB is what makes multi-level paging viable. It doesn't just "help" — <strong>modern paging wouldn't exist without it.</strong></p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Historical context:</b> when Intel and AMD moved from 32-bit (2-level paging) to 64-bit (4-level paging), TLB design became a first-order concern. Modern CPUs dedicate significant die area to multi-level TLB structures with hundreds of entries each.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Code · EAT" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code — Computing EAT</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">30-line calculator</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>eat.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// Compute Effective Access Time for a TLB</span></span><span class="code-line"><span class="c-type">double</span> <span class="c-name">compute_eat</span>(<span class="c-type">double</span> <span class="c-var">hit_rate</span>,</span><span class="code-line">                   <span class="c-type">double</span> <span class="c-var">tlb_ns</span>,</span><span class="code-line">                   <span class="c-type">double</span> <span class="c-var">mem_ns</span>) {</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">miss_rate</span> = <span class="c-num">1.0</span> - <span class="c-var">hit_rate</span>;</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">hit_cost</span>  = <span class="c-var">tlb_ns</span> + <span class="c-var">mem_ns</span>;</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">miss_cost</span> = <span class="c-var">tlb_ns</span> + <span class="c-var">mem_ns</span> + <span class="c-var">mem_ns</span>;</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">hit_rate</span> * <span class="c-var">hit_cost</span> + <span class="c-var">miss_rate</span> * <span class="c-var">miss_cost</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>(<span class="c-type">void</span>) {</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">tlb</span> = <span class="c-num">1.0</span>;    <span class="c-com">// 1 ns</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">mem</span> = <span class="c-num">100.0</span>;  <span class="c-com">// 100 ns</span></span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Try several hit rates</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">rates</span>[] = {<span class="c-num">0.50</span>, <span class="c-num">0.90</span>, <span class="c-num">0.95</span>, <span class="c-num">0.99</span>, <span class="c-num">0.999</span>};</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-num">5</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-type">double</span> <span class="c-var">eat</span> = <span class="c-name">compute_eat</span>(<span class="c-var">rates</span>[<span class="c-var">i</span>], <span class="c-var">tlb</span>, <span class="c-var">mem</span>);</span><span class="code-line">        <span class="c-name">printf</span>(<span class="c-str">"hit %.1f%% → EAT %.1f ns\n"</span>,</span><span class="code-line">               <span class="c-var">rates</span>[<span class="c-var">i</span>] * <span class="c-num">100</span>, <span class="c-var">eat</span>);</span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The core function</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">compute_eat()</code> is a three-line calculation: hit_rate × hit_cost + miss_rate × miss_cost. That's the entire formula.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What the output shows</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.8;margin-top:4px;color:var(--ink-2)">
+            hit 50.0% → EAT 151.0 ns<br>
+            hit 90.0% → EAT 111.0 ns<br>
+            hit 95.0% → EAT 106.0 ns<br>
+            hit 99.0% → EAT 102.0 ns<br>
+            hit 99.9% → EAT 101.1 ns
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The pattern</span>
+          <p>Every 1% increase in hit rate saves exactly 1 ns of EAT (since hit_cost − miss_cost = −100 ns, and 1% × 100 ns = 1 ns). Linear in the hit rate, until you approach 100% where the remaining 100 ns of DRAM is unavoidable.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Real World · TLB Sizes">
+  <div class="slide-inner">
+    <span class="badge emerald">🌍 Real World — Actual TLB Sizes and Hit Rates</span>
+    <h2 style="margin-bottom:16px;">What's actually <span class="grad-emerald">in your CPU</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Typical Intel / AMD configuration</span>
+          <p style="line-height:1.85;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            <strong style="color:#88ffd8">L1 dTLB:</strong> 64 entries (4 KB pages)<br>
+            <strong style="color:#88ffd8">L1 iTLB:</strong> 64 entries<br>
+            <strong style="color:#88ffd8">L2 STLB:</strong> 1536 entries (unified)<br>
+            <strong style="color:#88ffd8">Huge pages:</strong> separate 32-entry TLB for 2 MB pages
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Typical hit rates</span>
+          <p style="line-height:1.85;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            <strong>L1 TLB:</strong> ~95% on typical code<br>
+            <strong>L1 + L2 combined:</strong> ~99.5%<br>
+            <strong>After huge-page use:</strong> ~99.9%
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The huge-page trick</span>
+          <p>One 2 MB huge-page entry covers 512 ordinary 4 KB pages. That effectively gives you a <strong>512× bigger TLB</strong> for workloads that can use it. Databases and JVMs aggressively use huge-pages for exactly this reason.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> if you've ever heard "use huge pages for your database" — this is the reason. The TLB is the bottleneck for large working sets, and huge-pages multiply effective capacity.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Effective capacity by page size</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:6px">4 KB PAGES · 64 ENTRIES</div>
+            <div style="font-family:var(--mono);font-size:13px;color:#b9d0ff;font-weight:700">64 × 4 KB = <strong>256 KB</strong> of TLB-covered memory</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--amber);margin-bottom:6px">2 MB HUGE PAGES · 32 ENTRIES</div>
+            <div style="font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700">32 × 2 MB = <strong>64 MB</strong> of TLB-covered memory</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:6px">1 GB HUGE PAGES · 4 ENTRIES</div>
+            <div style="font-family:var(--mono);font-size:13px;color:#88ffd8;font-weight:700">4 × 1 GB = <strong>4 GB</strong> of TLB-covered memory</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Huge pages shift the TLB bottleneck by orders of magnitude.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="TLB Flush">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 The Context Switch Cost — TLB Flushes</span>
+    <h2 style="margin-bottom:16px;">Every context switch <span class="grad-crimson">invalidates the TLB</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The problem</span>
+          <p>When the OS switches from process A to process B, process B has a different page table. Any TLB entry mapping A's virtual pages would give wrong results for B. The TLB must be <strong>invalidated</strong> — all entries marked invalid.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>After a flush, the first access to any page becomes a TLB miss. The process runs slowly until the TLB refills with its hot entries. On a busy system, this happens hundreds of times per second.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The mitigation — ASIDs</span>
+          <p>Modern CPUs support <strong>Address Space Identifiers</strong>: each TLB entry is tagged with the process ID. On context switch, the OS just changes the current ASID — no flush needed. TLB entries for different processes coexist and match by ASID.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Historical context:</b> before ASIDs (pre-2010 on x86, still common on some ARM), full TLB flushes on every context switch were a big deal. Modern systems use PCIDs (x86) or ASIDs (ARM) to avoid this.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">With vs. without ASID</div>
+        <div class="cs-vis">
+          <div class="cs-side noasid">
+            <h4>WITHOUT ASID</h4>
+            <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px;font-family:var(--mono)">switch A→B</div>
+            <div class="cs-tlb flushed">TLB entry A-1</div>
+            <div class="cs-tlb flushed">TLB entry A-2</div>
+            <div class="cs-tlb flushed">TLB entry A-3</div>
+            <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(255,77,109,.15);font-family:var(--mono);font-size:10.5px;color:#ff9fb1;font-weight:700">all flushed → refill cost</div>
+          </div>
+          <div class="cs-side asid">
+            <h4>WITH ASID/PCID</h4>
+            <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px;font-family:var(--mono)">switch A→B</div>
+            <div class="cs-tlb">ASID A · entry 1 ✓</div>
+            <div class="cs-tlb">ASID A · entry 2 ✓</div>
+            <div class="cs-tlb">ASID B · entry 1 ✓</div>
+            <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(46,230,168,.15);font-family:var(--mono);font-size:10.5px;color:#88ffd8;font-weight:700">all kept → no refill cost</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — TLB Terms</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">TLB</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Translation Lookaside Buffer — a specialized hardware cache embedded inside the CPU MMU dedicated exclusively to accelerating virtual address mapping scans.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A tiny, ultra-fast cache inside the CPU that remembers recent address translations. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Typical size</span>
+          <p>L1 TLB: 32–128 entries. L2 TLB: 512–2048 entries. Physically inside the CPU die.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">TLB Hit Rate</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The statistical percentage frequency representing how often a target virtual address translation is successfully resolved inside the fast cache layer.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( What fraction of memory accesses find their translation already cached. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real-world value</span>
+          <p>95% for L1 alone. 99.5%+ for L1+L2 combined. 99.9%+ with huge-pages. Higher is always better.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge amber">🏷️ System Lexicon — Miss &amp; EAT</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">TLB Miss</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A scenario where a virtual address is absent from the TLB, forcing the system to perform a slower, multi-step page table walk across main RAM.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The translation isn't in the cache — the CPU must walk the page table in memory. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Cost</span>
+          <p>One extra memory access (1-level paging) or up to 4 (4-level paging). Handled in hardware or by a fast software TLB miss handler.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">EAT</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Effective Access Time — the calculated average operational time cost paid by a system to resolve a memory data request stream.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( On average, how long does one memory access take with the TLB in place? )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The formula</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">EAT = h × (t + m) + (1−h) × (t + 2m)</code><br>where h = hit rate, t = TLB latency, m = memory latency.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Real-Time Latency Math Challenge</span>
+    <h2 style="margin-bottom:16px;">Change the hit rate. <span class="grad-violet">Plot the curve.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The exercise</span>
+          <p>Write the EAT equation on the projector. Have students compute EAT for a few hit rates — start with the canonical 90%, then try:</p>
+          <p style="line-height:1.9;margin-top:6px;font-size:13px;font-family:var(--mono)">
+            <strong style="color:#88ffd8">95%</strong> → (0.95 × 101) + (0.05 × 201) = ?<br>
+            <strong style="color:#ffd18a">50%</strong> → (0.50 × 101) + (0.50 × 201) = ?<br>
+            <strong style="color:#ff9fb1">20%</strong> → (0.20 × 101) + (0.80 × 201) = ?
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The plot</span>
+          <p>Have students plot their computed points on graph paper or the whiteboard. Connect the dots. Observe the resulting curve — a straight line from 201 (at 0%) to 101 (at 100%).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief</span>
+          <p><em>"Why does 20% hit rate barely help compared to 95%?"</em> Answer: because the miss path is 2× the hit path, so bad hit rates mean most accesses pay the full penalty. That's why real systems work hard to get the hit rate above 99%.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Extension:</b> try to guess what hit rate you'd need for EAT = 105 ns. Answer: solve 101×h + 201×(1−h) = 105 → 201 − 100×h = 105 → h = 0.96. So a 96% hit rate gets you to 5% overhead.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The computed values</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:8px">
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#88ffd8;font-weight:800">h = 99%</span>
+            <span style="color:var(--ink)">EAT = 102.0 ns</span>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.45);background:rgba(46,230,168,.06);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#88ffd8;font-weight:800">h = 95%</span>
+            <span style="color:var(--ink)">EAT = 106.0 ns</span>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#ffd18a;font-weight:800">h = 90%</span>
+            <span style="color:var(--ink)">EAT = 111.0 ns</span>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.45);background:rgba(255,182,72,.06);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#ffd18a;font-weight:800">h = 50%</span>
+            <span style="color:var(--ink)">EAT = 151.0 ns</span>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.08);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#ff9fb1;font-weight:800">h = 20%</span>
+            <span style="color:var(--ink)">EAT = 181.0 ns</span>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.65);background:rgba(255,77,109,.10);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:12px">
+            <span style="color:#ff9fb1;font-weight:800">h = 0%</span>
+            <span style="color:var(--ink)">EAT = 201.0 ns</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Live · Latency Challenge" data-anim="challenge">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Live Demo — The Hit Rate Challenge</span>
+    <h2 style="margin-bottom:16px;">Watch EAT <span class="grad-amber">rise and fall</span> as the hit rate swings</h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Auto-cycling through hit rates</div>
+        <div class="eat-interactive" style="padding:20px">
+          <div style="text-align:center;margin-bottom:16px">
+            <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:6px">TLB HIT RATE</div>
+            <div id="cycleHit" style="font-family:var(--mono);font-size:clamp(36px,4vw,56px);font-weight:900;letter-spacing:-.03em;color:#88ffd8;line-height:1">95%</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div class="eat-stat hit">
+              <div class="esl">Hit Path</div>
+              <div class="esv" id="cycleHitPath">101</div>
+            </div>
+            <div class="eat-stat miss">
+              <div class="esl">Miss Path</div>
+              <div class="esv" id="cycleMissPath">201</div>
+            </div>
+            <div class="eat-stat eat">
+              <div class="esl">EAT</div>
+              <div class="esv" id="cycleEat">106</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:12px 14px;border-radius:8px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink-2)" id="cycleEq">
+            EAT = 0.95 × 101 + 0.05 × 201 = 106.0 ns
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What's happening</span>
+          <p>The hit rate cycles through 95% → 90% → 50% → 20% → 95%. Each cycle demonstrates the same formula, but the answer swings wildly.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The observation</span>
+          <p>Notice that as the hit rate <strong>drops</strong>, EAT grows fast. From 95% to 50% is a 45 ns increase. From 50% to 20% is another 30 ns. The curve isn't linear in perception — the last percentage points cost the most.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The real-world warning</span>
+          <p>When you hear "my program got 3× slower after a change" — 90% of the time, it's TLB thrashing. Some innocuous refactor blew up the working set, and the TLB hit rate collapsed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about the TLB</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"The TLB is part of the page table"</div>
+        <div class="pc-desc">No — the TLB is a <strong>cache of page table entries</strong>, not the page table itself. The page table lives in RAM. The TLB lives in the CPU. They serve different roles: the page table is authoritative, the TLB is a speed optimization.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Hit rate = miss rate × 2"</div>
+        <div class="pc-desc">Not quite. The correct relation is <strong>hit rate + miss rate = 1</strong>. If your hit rate is 0.90, your miss rate is 0.10 — not 0.20. The temptation to think of "hits and misses as separate counts" leads to doubling errors in the EAT formula.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"TLB miss means the page is on disk"</div>
+        <div class="pc-desc">Not necessarily. A TLB miss just means the <strong>translation isn't cached</strong>. The page table walk then proceeds — if the page is in RAM (present bit = 1), it's just a slow translation. Only if the present bit is 0 does it become a page fault requiring disk I/O. That's L13.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Real World · Why It Works">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — Why Locality Makes This Work</span>
+    <h2 style="margin-bottom:16px;">Programs <span class="grad-emerald">reuse the same pages</span> over and over</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Temporal locality</span>
+          <p>If you access page X, you're likely to access page X again soon. Tight loops — the bread and butter of all computation — touch the same handful of pages millions of times per second.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Spatial locality</span>
+          <p>If you access page X, you're likely to access page X+1 soon (because arrays are contiguous). A simple `for (i=0; i&lt;N; i++) a[i]++` walks sequentially through pages, causing periodic TLB misses at page boundaries.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The practical result</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Code loop:</strong> ~99.9% hit rate<br>
+            <strong>Typical app:</strong> ~99% hit rate<br>
+            <strong>Pathological (big working set):</strong> ~50% hit rate<br>
+            <strong>Adversarial (deliberately thrashing):</strong> &lt;10% hit rate
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> this is why <strong>data layout matters</strong>. A cache-friendly loop that walks memory sequentially gets near-100% TLB hits. A linked list with nodes scattered across memory gets much worse — because it jumps between pages that don't fit in the TLB simultaneously.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Locality in practice</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:8px">✓ Cache-friendly loop</div>
+            <div style="display:flex;gap:2px">
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#88ffd8;font-weight:800">P1</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#88ffd8;font-weight:800">P2</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#88ffd8;font-weight:800">P3</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#88ffd8;font-weight:800">P4</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#88ffd8;font-weight:800">P5</div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">working set fits in 5 pages → 99.9% hits</div>
+          </div>
+          <div>
+            <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:8px">✗ Cache-hostile (linked list)</div>
+            <div style="display:flex;gap:2px">
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ff9fb1;font-weight:800">P47</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ff9fb1;font-weight:800">P8</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ff9fb1;font-weight:800">P213</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ff9fb1;font-weight:800">P92</div>
+              <div style="flex:1;height:32px;border-radius:4px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ff9fb1;font-weight:800">P156</div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">every access a new page → TLB thrashing</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Cohesion Full">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🧭 Full Module 3 View — Where L12 Fits</span>
+    <h2 style="margin-bottom:20px;">The speed layer that <span class="grad-violet">makes paging feasible</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The complete module</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13.5px">
+            <strong style="color:#ffd18a">L10 · Base + Bound</strong> — translation and isolation (contiguous)<br>
+            <strong style="color:#88ffd8">L11 · Paging</strong> — fragmentation-free, shareable<br>
+            <strong style="color:#b9d0ff">L12 · TLB</strong> — the speed layer (this lecture)<br>
+            <strong style="color:#c9a7ff">L13 · Virtual Memory</strong> — disk-backed pages, huge address spaces<br>
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What L12 enabled</span>
+          <p>Multi-level paging (which every 64-bit system uses) would be <strong>impossible</strong> without the TLB. The cost of 4–5 memory accesses per access would make the machine unusable. The TLB is what makes modern paging practical.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What comes next</span>
+          <p>L13 takes paging one step further. The page table gets a "present" bit. When it's 0, the page is on disk. The TLB miss then cascades down to a page fault — the kernel must load the page from swap before the access can proceed. That's the whole machinery of virtual memory.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 3 arc</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="30" y="20" width="280" height="50" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="40" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="700">L10 · Base + Bound</text>
+          <text x="170" y="58" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">translation · isolation</text>
+
+          <line x1="170" y1="70" x2="170" y2="88" stroke="rgba(255,182,72,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="88" width="280" height="50" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="108" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="700">L11 · Paging</text>
+          <text x="170" y="126" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">fragmentation-free</text>
+
+          <line x1="170" y1="138" x2="170" y2="156" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="156" width="280" height="50" rx="10" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.85)" stroke-width="1.8"/>
+          <text x="170" y="176" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">L12 · TLB · ACTIVE</text>
+          <text x="170" y="194" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">caching → fast paging</text>
+
+          <line x1="170" y1="206" x2="170" y2="224" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="224" width="280" height="50" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="244" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="700">L13 · Virtual Memory</text>
+          <text x="170" y="262" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">pages on disk</text>
+
+          <text x="170" y="304" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">each layer removes a limitation</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L12 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>Paging without caching would <strong>double every memory access</strong>. The TLB is a hardware cache inside the MMU that holds recent translations, resolving 98–99.9% of accesses in ~1 ns.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>EAT = h × (t + m) + (1−h) × (t + 2m)</strong>. With hit rate h, TLB latency t, memory latency m. At 90% hits: 111 ns. At 99% hits: 102 ns. At 0%: 201 ns.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>The TLB is a <strong>small associative cache</strong> — typically 32–128 L1 entries, 512–2048 L2. Huge-pages multiply effective capacity by 512× or more, which is why databases use them.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Context switches flush the TLB</strong> without ASIDs/PCIDs, causing a performance hit. Modern CPUs tag entries with ASID to preserve them across switches.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L13 — Virtual Memory, Demand Paging &amp; Page Replacement</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>The TLB caches translations — but a TLB miss leads to a page table walk, and if the page table entry says "not present," that walk becomes a <strong>page fault</strong>. L13 shows how the OS handles that: locating the page on disk, loading it into RAM, updating the page table, and deciding which page to evict when RAM is full.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L13: Virtual Memory &amp; Demand Paging &nbsp;|&nbsp; [L13.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad12" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad12)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad12)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : TLB canvas ---------- */
+reg('tlbcanvas', function(){
+  const c = document.getElementById('tlbCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const tlbEntries = [
+    {tag: '0x4A2', frame: '0x7C'},
+    {tag: '0x1B3', frame: '0x42'},
+    {tag: '0x6D1', frame: '0x08'},
+    {tag: '0x2F8', frame: '0x9A'},
+    {tag: '0x5A0', frame: '0x31'}
+  ];
+
+  const requests = [
+    {va: '0x4A2F0', page: '0x4A2', hit: true, frame: '0x7C'},
+    {va: '0x9B300', page: '0x9B3', hit: false, frame: '0x44'},
+    {va: '0x1B3A8', page: '0x1B3', hit: true, frame: '0x42'},
+    {va: '0x6D1C0', page: '0x6D1', hit: true, frame: '0x08'},
+    {va: '0x7F420', page: '0x7F4', hit: false, frame: '0x2C'},
+    {va: '0x2F8D0', page: '0x2F8', hit: true, frame: '0x9A'}
+  ];
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('EVERY ACCESS: TLB LOOKUP → HIT OR MISS', W/2, 16);
+
+    const req = requests[Math.floor(t / 55) % requests.length];
+
+    // Left: incoming request
+    ctx.fillStyle = 'rgba(91,141,255,0.20)';
+    ctx.fillRect(30, 100, 150, 100);
+    ctx.strokeStyle = 'rgba(91,141,255,0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(30, 100, 150, 100);
+
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('REQUEST', 105, 112);
+    ctx.fillStyle = '#fff';
+    ctx.font = '900 14px JetBrains Mono, monospace';
+    ctx.fillText('VA ' + req.va, 105, 140);
+    ctx.fillStyle = 'rgba(185,208,255,0.7)';
+    ctx.font = '700 10px JetBrains Mono, monospace';
+    ctx.fillText('page ' + req.page, 105, 170);
+
+    // Arrow to TLB
+    ctx.strokeStyle = 'rgba(91,141,255,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(186, 150);
+    ctx.lineTo(220, 150);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(220, 150);
+    ctx.lineTo(212, 144);
+    ctx.moveTo(220, 150);
+    ctx.lineTo(212, 156);
+    ctx.stroke();
+
+    // Center: TLB
+    ctx.fillStyle = 'rgba(255,182,72,0.12)';
+    ctx.fillRect(226, 60, 160, 240);
+    ctx.strokeStyle = 'rgba(255,182,72,0.65)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(226, 60, 160, 240);
+
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('TLB · 5 entries', 306, 72);
+
+    tlbEntries.forEach((e, i) => {
+      const ey = 100 + i * 36;
+      const isMatch = (e.tag === req.page);
+      ctx.fillStyle = isMatch ? 'rgba(46,230,168,0.30)' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(240, ey, 132, 28);
+      ctx.strokeStyle = isMatch ? '#2ee6a8' : 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = isMatch ? 2 : 1;
+      ctx.strokeRect(240, ey, 132, 28);
+      ctx.fillStyle = isMatch ? '#fff' : 'rgba(255,209,138,0.6)';
+      ctx.font = '700 10.5px JetBrains Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.tag, 250, ey + 14);
+      ctx.textAlign = 'right';
+      ctx.fillText('→ ' + e.frame, 366, ey + 14);
+    });
+
+    // Right: result
+    const resultX = W - 220;
+    if(req.hit){
+      ctx.fillStyle = 'rgba(46,230,168,0.15)';
+      ctx.fillRect(resultX, 100, 150, 100);
+      ctx.strokeStyle = '#2ee6a8';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(resultX, 100, 150, 100);
+
+      ctx.fillStyle = '#88ffd8';
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('✓ TLB HIT', resultX + 75, 112);
+      ctx.fillStyle = '#fff';
+      ctx.font = '900 14px JetBrains Mono, monospace';
+      ctx.fillText('frame ' + req.frame, resultX + 75, 142);
+      ctx.fillStyle = 'rgba(136,255,216,0.7)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.fillText('1 ns', resultX + 75, 170);
+    } else {
+      ctx.fillStyle = 'rgba(255,77,109,0.15)';
+      ctx.fillRect(resultX, 100, 150, 100);
+      ctx.strokeStyle = '#ff4d6d';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(resultX, 100, 150, 100);
+
+      ctx.fillStyle = '#ff9fb1';
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('✗ TLB MISS', resultX + 75, 112);
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 11px JetBrains Mono, monospace';
+      ctx.fillText('page walk', resultX + 75, 140);
+      ctx.fillStyle = 'rgba(255,159,177,0.7)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.fillText('+100 ns', resultX + 75, 158);
+      ctx.fillStyle = '#88ffd8';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.fillText('→ frame ' + req.frame, resultX + 75, 176);
+    }
+
+    // Arrow to result
+    ctx.strokeStyle = req.hit ? 'rgba(46,230,168,0.75)' : 'rgba(255,77,109,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(390, 150);
+    ctx.lineTo(resultX - 4, 150);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(resultX - 4, 150);
+    ctx.lineTo(resultX - 12, 144);
+    ctx.moveTo(resultX - 4, 150);
+    ctx.lineTo(resultX - 12, 156);
+    ctx.stroke();
+
+    // Bottom hint
+    ctx.fillStyle = 'rgba(132,148,180,0.6)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('98–99% of accesses hit · 1–2% pay the walk penalty', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 8 : TLB hit visual ---------- */
+reg('tlbhit', function(){
+  // Static visualization — CSS-only.
+  return { stop(){} };
+});
+
+/* ---------- Slide 9 : TLB miss visual ---------- */
+reg('tlbmiss', function(){
+  return { stop(){} };
+});
+
+/* ---------- Slide 10 : TLB structure highlight ---------- */
+reg('tlblookup', function(){
+  const rows = document.querySelectorAll('#tlbStruct .tlb-row');
+  if(!rows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.classList.remove('active'));
+    const row = rows[idx % rows.length];
+    if(row && row.dataset.row !== undefined) row.classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.classList.remove('active')); } };
+});
+
+/* ---------- Slide 12 : EAT worked steps ---------- */
+reg('eatwork', function(){
+  const steps = document.querySelectorAll('.slide[data-anim="eatwork"] .eat-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.style.opacity = (i <= idx) ? '1' : '0.4';
+      s.style.transform = (i === idx) ? 'scale(1.02)' : 'scale(1)';
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 1000);
+  return { stop(){ clearInterval(timer); steps.forEach(s => { s.style.opacity='1'; s.style.transform='scale(1)'; }); } };
+});
+
+/* ---------- Slide 13 : EAT curve ---------- */
+reg('curve', function(){
+  const path = document.getElementById('curvePath');
+  const dot = document.getElementById('liveDot');
+  const label = document.getElementById('liveDotLabel');
+  if(!path || !dot) return { stop(){} };
+
+  // Build the curve path: EAT = 201 - 100 × hitRate
+  // Map hitRate [0,100] → x [60,380]; EAT [100,200] → y [220,30]
+  // y = 220 - (EAT - 100) × (190/100)
+  let d = 'M';
+  for(let h = 0; h <= 100; h += 2){
+    const eat = 201 - h;
+    const x = 60 + (h / 100) * 320;
+    const y = 220 - ((eat - 100) / 100) * 190;
+    if(h === 0) d += ` ${x} ${y}`;
+    else d += ` L ${x} ${y}`;
+  }
+  path.setAttribute('d', d);
+
+  let idx = 0;
+  function tick(){
+    // Cycle through hit rates
+    const rates = [95, 90, 50, 20, 99];
+    const h = rates[idx % rates.length];
+    const eat = 201 - h;
+    const x = 60 + (h / 100) * 320;
+    const y = 220 - ((eat - 100) / 100) * 190;
+    dot.setAttribute('cx', x);
+    dot.setAttribute('cy', y);
+    label.setAttribute('x', x + 10);
+    label.setAttribute('y', y - 8);
+    label.textContent = h + '%';
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1200);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 14 : interactive EAT ---------- */
+reg('interactive', function(){
+  const slider = document.getElementById('hitRateSlider');
+  if(!slider) return { stop(){} };
+  function update(){
+    const h = parseInt(slider.value) / 100;
+    const hitCost = 101;
+    const missCost = 201;
+    const eat = h * hitCost + (1 - h) * missCost;
+    const hitProd = h * hitCost;
+    const missProd = (1 - h) * missCost;
+
+    document.getElementById('hitRateVal').textContent = Math.round(h * 100) + '%';
+    document.getElementById('hitPathVal').textContent = hitCost + ' ns';
+    document.getElementById('missPathVal').textContent = missCost + ' ns';
+    document.getElementById('eatVal').textContent = eat.toFixed(1) + ' ns';
+    document.getElementById('equation-hit').textContent = h.toFixed(2);
+    document.getElementById('equation-miss').textContent = (1 - h).toFixed(2);
+    document.getElementById('equation-eat').textContent = eat.toFixed(1) + ' ns';
+    document.getElementById('prod-hit').textContent = hitProd.toFixed(1) + ' ns';
+    document.getElementById('prod-miss').textContent = missProd.toFixed(1) + ' ns';
+    document.getElementById('prod-total').textContent = eat.toFixed(1) + ' ns';
+  }
+  slider.addEventListener('input', update);
+  update();
+  return { stop(){ slider.removeEventListener('input', update); } };
+});
+
+/* ---------- Slide 16 : code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [1,2,3,4,5,6,7,8,9,11,12,13,14,16,17,18,19,20,22,23,24,25];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    if(lines[seq[i % seq.length]]) lines[seq[i % seq.length]].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 550);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 22 : live cycling ---------- */
+reg('challenge', function(){
+  const hitEl = document.getElementById('cycleHit');
+  const hitPathEl = document.getElementById('cycleHitPath');
+  const missPathEl = document.getElementById('cycleMissPath');
+  const eatEl = document.getElementById('cycleEat');
+  const eqEl = document.getElementById('cycleEq');
+  if(!hitEl || !eatEl) return { stop(){} };
+
+  const rates = [95, 90, 50, 20, 99];
+  let idx = 0;
+  function tick(){
+    const h = rates[idx % rates.length];
+    const hFrac = h / 100;
+    const hitCost = 101;
+    const missCost = 201;
+    const eat = hFrac * hitCost + (1 - hFrac) * missCost;
+
+    hitEl.textContent = h + '%';
+    hitPathEl.textContent = hitCost;
+    missPathEl.textContent = missCost;
+    eatEl.textContent = eat.toFixed(1);
+    eqEl.textContent = `EAT = ${hFrac.toFixed(2)} × 101 + ${(1-hFrac).toFixed(2)} × 201 = ${eat.toFixed(1)} ns`;
+
+    // Color: green for high hit, red for low
+    if (h >= 90) {
+      hitEl.style.color = '#88ffd8';
+    } else if (h >= 50) {
+      hitEl.style.color = '#ffd18a';
+    } else {
+      hitEl.style.color = '#ff9fb1';
+    }
+
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
