@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L05 — Process Anatomy &amp; The PCB Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Slide 1 canvas */
+#procCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Memory layout */
+.mem-stack{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);}
+.mem-seg{padding:14px 16px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.03);transition:.4s;}
+.mem-seg.active{transform:scale(1.015);}
+.mem-seg .seg-head{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:900;letter-spacing:.06em;}
+.mem-seg .seg-name{font-family:var(--mono);text-transform:uppercase;}
+.mem-seg .seg-size{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:700;}
+.mem-seg .seg-desc{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.45;}
+.mem-seg.text{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.06);}
+.mem-seg.text .seg-name{color:var(--blue-2);}
+.mem-seg.text.active{border-color:rgba(91,141,255,.9);background:rgba(91,141,255,.16);box-shadow:0 0 24px rgba(91,141,255,.4);}
+.mem-seg.data{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.06);}
+.mem-seg.data .seg-name{color:var(--emerald);}
+.mem-seg.data.active{border-color:rgba(46,230,168,.9);background:rgba(46,230,168,.16);box-shadow:0 0 24px rgba(46,230,168,.4);}
+.mem-seg.heap{border-color:rgba(255,182,72,.4);background:rgba(255,182,72,.06);}
+.mem-seg.heap .seg-name{color:var(--amber);}
+.mem-seg.heap.active{border-color:rgba(255,182,72,.9);background:rgba(255,182,72,.16);box-shadow:0 0 24px rgba(255,182,72,.4);}
+.mem-seg.stack{border-color:rgba(160,107,255,.4);background:rgba(160,107,255,.06);}
+.mem-seg.stack .seg-name{color:var(--violet);}
+.mem-seg.stack.active{border-color:rgba(160,107,255,.9);background:rgba(160,107,255,.16);box-shadow:0 0 24px rgba(160,107,255,.4);}
+.mem-seg .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:8px;position:relative;overflow:hidden;}
+.mem-seg .bar::after{content:'';position:absolute;left:0;top:0;bottom:0;border-radius:3px;width:var(--w,60%);background:var(--c,var(--blue));opacity:.7;}
+.mem-seg.text .bar::after{--c:var(--blue);}
+.mem-seg.data .bar::after{--c:var(--emerald);}
+.mem-seg.heap .bar::after{--c:var(--amber);}
+.mem-seg.stack .bar::after{--c:var(--violet);}
+
+/* Ledger / accountant analogy */
+.ledger-stack{display:grid;grid-template-columns:1fr;gap:10px;}
+.ledger-card{padding:14px 16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);position:relative;}
+.ledger-card .lc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.ledger-card .lc-name{font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.05em;}
+.ledger-card .lc-idx{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:700;}
+.ledger-card .lc-desc{font-size:11.5px;color:var(--ink-2);line-height:1.5;}
+.ledger-card .lc-value{font-family:var(--mono);font-size:11.5px;color:var(--ink);font-weight:700;margin-top:4px;}
+.ledger-card.pid{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.06);}
+.ledger-card.pid .lc-name{color:var(--blue-2);}
+.ledger-card.state{border-color:rgba(255,182,72,.45);background:rgba(255,182,72,.06);}
+.ledger-card.state .lc-name{color:var(--amber);}
+.ledger-card.pc{border-color:rgba(160,107,255,.45);background:rgba(160,107,255,.06);}
+.ledger-card.pc .lc-name{color:var(--violet);}
+.ledger-card.regs{border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.06);}
+.ledger-card.regs .lc-name{color:var(--crimson);}
+.ledger-card.files{border-color:rgba(46,230,168,.45);background:rgba(46,230,168,.06);}
+.ledger-card.files .lc-name{color:var(--emerald);}
+
+/* Process states lifecycle */
+.states-rig{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:14px 0;}
+.state-node{padding:14px 8px;border-radius:10px;text-align:center;border:1px solid var(--stroke);background:rgba(255,255,255,.04);font-size:10.5px;font-weight:800;letter-spacing:.05em;position:relative;transition:.3s;}
+.state-node.highlight{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.18);color:#b9d0ff;box-shadow:0 0 24px rgba(91,141,255,.6);transform:scale(1.05);}
+.state-node .sn-ic{font-size:22px;display:block;margin-bottom:6px;}
+.state-node.new{border-color:rgba(160,107,255,.5);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.state-node.ready{border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.state-node.running{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.08);color:#88ffd8;}
+.state-node.waiting{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.08);color:#ffd18a;}
+.state-node.terminated{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Process states diagram (arc) */
+.states-arc{position:relative;padding:20px 8px;}
+.states-arc svg{width:100%;height:auto;}
+
+/* PCB field card */
+.pcb-card{border-radius:16px;padding:18px;border:1px solid var(--stroke);background:linear-gradient(150deg,rgba(255,255,255,.05),rgba(255,255,255,.02));}
+.pcb-card .pcb-field{font-family:var(--mono);font-size:clamp(28px,3vw,44px);font-weight:900;letter-spacing:-.03em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pcb-card .pcb-type{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:18px;}
+.pcb-card .pcb-row{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:12px;font-size:13px;line-height:1.6;color:var(--ink-2);}
+.pcb-card .pcb-key{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:5px;}
+.pcb-card.blue .pcb-field{background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pcb-card.amber .pcb-field{background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pcb-card.violet .pcb-field{background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pcb-card.crimson .pcb-field{background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pcb-card.emerald .pcb-field{background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-key{color:#b9d0ff;font-weight:700;}
+.term-val{color:#ffd18a;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Segments slide (single segment focus) */
+.seg-focus{display:flex;flex-direction:column;gap:14px;}
+.seg-hero{padding:24px;border-radius:16px;border:1.5px solid;position:relative;overflow:hidden;}
+.seg-hero.text{border-color:rgba(91,141,255,.7);background:rgba(91,141,255,.10);}
+.seg-hero.data{border-color:rgba(46,230,168,.7);background:rgba(46,230,168,.10);}
+.seg-hero.heap{border-color:rgba(255,182,72,.7);background:rgba(255,182,72,.10);}
+.seg-hero.stack{border-color:rgba(160,107,255,.7);background:rgba(160,107,255,.10);}
+.seg-hero .sh-name{font-family:var(--mono);font-size:clamp(24px,2.4vw,36px);font-weight:900;letter-spacing:-.03em;line-height:1;margin-bottom:8px;}
+.seg-hero.text .sh-name{color:#b9d0ff;}
+.seg-hero.data .sh-name{color:#88ffd8;}
+.seg-hero.heap .sh-name{color:#ffd18a;}
+.seg-hero.stack .sh-name{color:#c9a7ff;}
+.seg-hero .sh-size{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:14px;}
+.seg-hero .sh-content{font-family:var(--mono);font-size:12px;line-height:1.85;color:var(--ink-2);padding:12px 14px;border-radius:10px;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.08);}
+
+/* Decorative memory cells */
+.cells-rig{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:10px;}
+.mem-cell{height:26px;border-radius:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:.3s;}
+.mem-cell.lit{background:var(--c,var(--blue));border-color:var(--c,var(--blue));box-shadow:0 0 10px var(--c,var(--blue));}
+
+/* /proc terminal */
+.proc-dir{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);font-family:var(--mono);font-size:11.5px;line-height:1.9;}
+.proc-row{display:flex;justify-content:space-between;padding:4px 8px;border-radius:5px;}
+.proc-row:hover{background:rgba(255,255,255,.04);}
+.proc-row .pr-key{color:#b9d0ff;font-weight:700;}
+.proc-row .pr-val{color:#ffd18a;}
+
+/* Activity */
+.activity-vis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px 0;}
+.act-cell{padding:16px 12px;border-radius:12px;text-align:center;border:1px solid var(--stroke);background:rgba(255,255,255,.04);font-size:11px;font-weight:800;letter-spacing:.04em;position:relative;transition:.3s;}
+.act-cell .ac-icon{font-size:24px;display:block;margin-bottom:6px;}
+.act-cell .ac-title{font-family:var(--mono);font-size:11px;font-weight:900;margin-bottom:4px;}
+.act-cell .ac-desc{font-size:10px;color:var(--muted);line-height:1.4;font-weight:600;}
+.act-cell.text{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.act-cell.data{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.act-cell.heap{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.act-cell.stack{border-color:rgba(160,107,255,.55);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.act-cell.drop-target{outline:2px dashed rgba(255,255,255,.3);outline-offset:-6px;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex{grid-template-columns:1fr;}
+  .states-rig{grid-template-columns:repeat(3,1fr);}
+  .slide{padding:76px 26px 96px;}
+  .activity-vis{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .states-rig{grid-template-columns:repeat(2,1fr);}
+  .cells-rig{grid-template-columns:repeat(4,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L05 Process Anatomy</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L05 · Overview" data-anim="procmap">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L05 · Process Anatomy &amp; The PCB Ledger</span>
+    <div class="split">
+      <div class="stack">
+        <h1>A process is a program <span class="grad-blue">in motion</span> — and the kernel keeps a ledger for every one</h1>
+        <p class="lead">Diagram the internal memory layout of a process and define every tracking metric stored inside the Process Control Block (PCB) kernel ledger.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L05</span>
+          <p>In L04 we ended with <strong>PID 1 running</strong>. But what <em>is</em> a running program, physically? Where does its code live? Its variables? And how does the kernel remember which instruction each of its hundreds of children is currently executing?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated memory map on the right. Let it cycle through the four segments twice before talking.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The four-segment process memory map</div>
+        <canvas id="procCanvas" width="600" height="480"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Question">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 Program vs. Process — The Critical Distinction</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-crimson">program</span> is a file. A <span class="grad-emerald">process</span> is that file alive.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">A program is</span>
+          <p>A static binary file sitting on disk. It occupies no RAM, has no program counter, no register values, no PID. It's just bytes on a storage block.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">A process is</span>
+          <p>An <strong>active instance of a running software application</strong> containing its own dedicated <strong>execution context</strong> and <strong>address boundaries</strong>. It owns memory. It has a current instruction. It can be scheduled.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The relationship</span>
+          <p>One program file → <strong>many processes</strong>. Open Chrome three times and you have three independent Chrome processes, each with its own memory, PID, and program counter — all running the same binary from disk.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Analogy:</b> A recipe book is a program. Actually cooking the recipe in your kitchen is a process. Two cooks can be following the same recipe simultaneously — that's two processes sharing one program file.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Static file vs. live process</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="20" y="20" width="140" height="240" rx="12" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.5"/>
+          <text x="90" y="42" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">PROGRAM (FILE)</text>
+          <text x="90" y="58" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">on disk</text>
+
+          <rect x="34" y="76" width="112" height="24" rx="5" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.5)" stroke-width="1"/>
+          <text x="90" y="92" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="JetBrains Mono">a.out</text>
+
+          <text x="90" y="122" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no RAM</text>
+          <text x="90" y="140" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no PID</text>
+          <text x="90" y="158" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no PC</text>
+          <text x="90" y="176" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no registers</text>
+          <text x="90" y="194" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ not schedulable</text>
+          <text x="90" y="212" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no memory</text>
+          <text x="90" y="230" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="Inter">✕ no file descriptors</text>
+          <text x="90" y="250" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.8)" font-family="JetBrains Mono">static · passive</text>
+
+          <line x1="160" y1="150" x2="200" y2="150" stroke="rgba(46,230,168,.85)" stroke-width="2" class="svg-flow"/>
+          <text x="180" y="142" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">exec</text>
+
+          <rect x="200" y="20" width="120" height="240" rx="12" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.5)" stroke-width="1.5"/>
+          <text x="260" y="42" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">PROCESS (LIVE)</text>
+          <text x="260" y="58" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">in RAM</text>
+
+          <rect x="214" y="76" width="92" height="24" rx="5" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="260" y="92" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">PID 4821</text>
+
+          <text x="260" y="122" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ own memory</text>
+          <text x="260" y="140" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ own PC</text>
+          <text x="260" y="158" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ own registers</text>
+          <text x="260" y="176" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ own FDs</text>
+          <text x="260" y="194" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ schedulable</text>
+          <text x="260" y="212" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ has a state</text>
+          <text x="260" y="230" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="Inter">✓ tracked by PCB</text>
+          <text x="260" y="250" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.8)" font-family="JetBrains Mono">dynamic · alive</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Accountant">
+  <div class="slide-inner">
+    <span class="badge amber">📒 Analogy 1 · The Corporate Building Accountant</span>
+    <h2 style="margin-bottom:16px;">A building manager keeps a <span class="grad-amber">ledger folder</span> for every tenant</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The Setup</span>
+          <p>Imagine a massive corporate office building where multiple completely different businesses (user processes) share the same workspace. Each business thinks it is the only company there.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Ledger</span>
+          <p>To keep them organized, the building manager has a dedicated filing cabinet containing a thick ledger folder for every single business. <strong>This folder is the Process Control Block (PCB).</strong></p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What's inside the folder</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>PID</strong> — the tenant's unique identity badge<br>
+            <strong>State</strong> — currently working / on break<br>
+            <strong>Program Counter</strong> — which line of their contract they're reading<br>
+            <strong>Registers</strong> — their running tally of calculations<br>
+            <strong>File descriptors</strong> — which doors they have keys to
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The key insight:</b> if a business leaves the room (gets context-switched out), the accountant reads their ledger to restore their <strong>exact state</strong> when they return. Without the ledger, work would have to restart from scratch.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The ledger for one tenant</div>
+        <div class="ledger-stack">
+          <div class="ledger-card pid">
+            <div class="lc-head"><span class="lc-name">PID</span><span class="lc-idx">field 01</span></div>
+            <div class="lc-desc">Identity badge — unique per process</div>
+            <div class="lc-value">PID = 4821</div>
+          </div>
+          <div class="ledger-card state">
+            <div class="lc-head"><span class="lc-name">STATE</span><span class="lc-idx">field 02</span></div>
+            <div class="lc-desc">Current lifecycle flag</div>
+            <div class="lc-value">RUNNING</div>
+          </div>
+          <div class="ledger-card pc">
+            <div class="lc-head"><span class="lc-name">PROGRAM COUNTER</span><span class="lc-idx">field 03</span></div>
+            <div class="lc-desc">Address of next instruction</div>
+            <div class="lc-value">PC = 0x4005C8</div>
+          </div>
+          <div class="ledger-card regs">
+            <div class="lc-head"><span class="lc-name">REGISTERS</span><span class="lc-idx">field 04</span></div>
+            <div class="lc-desc">Saved CPU state at last switch</div>
+            <div class="lc-value">rax=0x7FF… rdi=42</div>
+          </div>
+          <div class="ledger-card files">
+            <div class="lc-head"><span class="lc-name">OPEN FILES</span><span class="lc-idx">field 05</span></div>
+            <div class="lc-desc">File descriptors the process holds</div>
+            <div class="lc-value">fd 0,1,2 + fd 3=file.txt</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy · Accountant Detail">
+  <div class="slide-inner">
+    <span class="badge blue">📒 Analogy 1 · Why the Ledger Matters — Context Switch</span>
+    <h2 style="margin-bottom:16px;">Every pause, the ledger is <span class="grad-blue">updated and read back</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Step 1 · Save on exit</span>
+          <p>Tenant A is running. The OS decides to switch away. The kernel <strong>saves all of A's register values, PC, and CPU state</strong> into A's PCB folder. Tenant A is now "ready" but paused.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Step 2 · Load on resume</span>
+          <p>Later, the OS picks Tenant A again. It reads the PCB folder back, <strong>restores every register and the PC</strong>, and Tenant A continues from exactly where it stopped — as if nothing happened.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The magic</span>
+          <p>The tenant never notices. From their perspective, time just moved forward. Only the accountant's ledger makes this possible. This is the <strong>context switch</strong> — the topic of L06.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Cost of a bad ledger:</b> if any register isn't saved correctly, the process resumes with a corrupted value and crashes or produces wrong results — a nondeterministic bug that's nearly impossible to debug.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The save-restore cycle</div>
+        <div style="padding:8px 0">
+          <svg viewBox="0 0 320 320" style="width:100%;height:auto">
+            <rect x="40" y="20" width="240" height="60" rx="12" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.6)" stroke-width="1.6"/>
+            <text x="160" y="44" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">PROCESS A · RUNNING</text>
+            <text x="160" y="62" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">executing on CPU core</text>
+
+            <line x1="160" y1="80" x2="160" y2="112" stroke="rgba(255,182,72,.85)" stroke-width="2" class="svg-flow"/>
+            <text x="185" y="100" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">save</text>
+
+            <rect x="40" y="112" width="240" height="80" rx="12" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.6)" stroke-width="1.6"/>
+            <text x="160" y="134" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">PCB for A · SAVED</text>
+            <text x="160" y="152" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">registers + PC + state</text>
+            <text x="160" y="176" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">state = READY</text>
+
+            <line x1="160" y1="192" x2="160" y2="224" stroke="rgba(160,107,255,.85)" stroke-width="2" class="svg-flow"/>
+            <text x="185" y="212" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">schedule</text>
+
+            <rect x="40" y="224" width="240" height="60" rx="12" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.6)" stroke-width="1.6"/>
+            <text x="160" y="248" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">OTHER PROCESSES RUN</text>
+            <text x="160" y="266" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">A waits its turn</text>
+
+            <line x1="160" y1="284" x2="160" y2="306" stroke="rgba(46,230,168,.85)" stroke-width="2" class="svg-flow"/>
+            <text x="185" y="302" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">resume</text>
+          </svg>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55;text-align:center">A resumes from the saved PC — as if no time had passed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · VM Snapshot">
+  <div class="slide-inner">
+    <span class="badge violet">💾 Analogy 2 · VM Config File + Saved-State Snapshot</span>
+    <h2 style="margin-bottom:16px;">A PCB is basically <span class="grad-violet">a saved machine snapshot</span> for one program</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What a VM snapshot contains</span>
+          <p>Memory image, all CPU registers, disk state, device attachments. You can power off a VM, come back a week later, and resume it exactly where it left off.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What a PCB contains</span>
+          <p>Saved register state, program counter, memory management boundaries, open file descriptor table, and lifecycle flags. The kernel uses it to pause and resume processes the same way a hypervisor snapshots a VM.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The structural match</span>
+          <p>A process layout matches a sandboxed virtual container, where the underlying host kernel preserves a <strong>structured C struct</strong> (<code style="font-family:var(--mono);color:#88ffd8">struct task_struct</code> in Linux) to cache metadata boundaries that hardware registers must shift into during a context switch.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> On Linux, the PCB is literally a C struct called <code style="font-family:var(--mono);color:#c9a7ff">task_struct</code>. It's roughly 1.7 KB per process. With 500 processes, that's under 1 MB of kernel memory — a very efficient way to track a lot of state.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The snapshot metaphor</div>
+        <svg viewBox="0 0 320 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="130" height="130" rx="12" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.6)" stroke-width="1.5"/>
+          <text x="85" y="44" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">VM SNAPSHOT</text>
+          <rect x="34" y="60" width="102" height="20" rx="4" fill="rgba(160,107,255,.20)" stroke="rgba(160,107,255,.4)" stroke-width="1"/>
+          <text x="85" y="74" text-anchor="middle" font-size="8.5" fill="#c9a7ff" font-family="JetBrains Mono">memory image</text>
+          <rect x="34" y="86" width="102" height="20" rx="4" fill="rgba(160,107,255,.20)" stroke="rgba(160,107,255,.4)" stroke-width="1"/>
+          <text x="85" y="100" text-anchor="middle" font-size="8.5" fill="#c9a7ff" font-family="JetBrains Mono">CPU registers</text>
+          <rect x="34" y="112" width="102" height="20" rx="4" fill="rgba(160,107,255,.20)" stroke="rgba(160,107,255,.4)" stroke-width="1"/>
+          <text x="85" y="126" text-anchor="middle" font-size="8.5" fill="#c9a7ff" font-family="JetBrains Mono">disk state</text>
+
+          <line x1="152" y1="85" x2="178" y2="85" stroke="rgba(255,182,72,.85)" stroke-width="2" class="svg-flow"/>
+          <text x="165" y="75" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">≈</text>
+
+          <rect x="170" y="20" width="130" height="130" rx="12" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.6)" stroke-width="1.5"/>
+          <text x="235" y="44" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">PROCESS PCB</text>
+          <rect x="184" y="60" width="102" height="20" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.4)" stroke-width="1"/>
+          <text x="235" y="74" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">registers saved</text>
+          <rect x="184" y="86" width="102" height="20" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.4)" stroke-width="1"/>
+          <text x="235" y="100" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">program counter</text>
+          <rect x="184" y="112" width="102" height="20" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.4)" stroke-width="1"/>
+          <text x="235" y="126" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">memory map</text>
+
+          <text x="160" y="180" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,.5)" font-family="Inter">both are snapshots of live state</text>
+
+          <rect x="20" y="200" width="280" height="40" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="160" y="220" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">C · struct task_struct (Linux)</text>
+          <text x="160" y="234" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">~1.7 KB per process · stored in kernel memory</text>
+
+          <text x="160" y="272" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">hypervisor : virtual machine</text>
+          <text x="160" y="290" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">kernel     : process</text>
+          <text x="160" y="308" text-anchor="middle" font-size="9" fill="rgba(46,230,168,.85)" font-family="JetBrains Mono" font-weight="700">same shape, different scale</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Core Breakdown · Overview">
+  <div class="slide-inner">
+    <span class="badge">📖 Core Breakdown — What a Process Actually Contains</span>
+    <h2 style="margin-bottom:16px;">Two things: an <span class="grad-blue">address space</span> and a <span class="grad-violet">ledger entry</span></h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">Part 1 · The Address Space</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:14px">
+          The physical and virtual memory the process can see and touch:<br>
+          <strong style="color:#b9d0ff">Text segment</strong> — compiled machine instructions<br>
+          <strong style="color:#88ffd8">Data segment</strong> — global and static variables<br>
+          <strong style="color:#ffd18a">Heap</strong> — dynamically allocated memory (malloc)<br>
+          <strong style="color:#c9a7ff">Stack</strong> — local variables and function call frames
+        </p>
+      </div>
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">Part 2 · The PCB (kernel-side)</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:14px">
+          The kernel's tracking ledger for that process:<br>
+          <strong style="color:#b9d0ff">PID</strong> — unique identifier<br>
+          <strong style="color:#ffd18a">State</strong> — running / ready / waiting<br>
+          <strong style="color:#c9a7ff">Program counter</strong> — next instruction<br>
+          <strong style="color:#ff9fb1">CPU registers</strong> — saved at last switch<br>
+          <strong style="color:#88ffd8">File descriptors</strong> — open files/sockets<br>
+          <strong>Memory map</strong> — page table pointer
+        </p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>Two different perspectives on the same thing:</b> the address space is what the <em>process</em> sees; the PCB is what the <em>kernel</em> sees. Both describe the same running program.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Memory · Text">
+  <div class="slide-inner">
+    <span class="badge blue">🧱 Memory Layout — Text Segment</span>
+    <h2 style="margin-bottom:16px;">The compiled <span class="grad-blue">machine instructions</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What lives here</span>
+          <p>The CPU's native machine instructions, produced by the compiler from your source code. When you run <code style="font-family:var(--mono);color:#b9d0ff">gcc program.c</code>, this is where the resulting <code style="font-family:var(--mono);color:#b9d0ff">main</code>, <code style="font-family:var(--mono);color:#b9d0ff">printf</code>, and every other function ends up.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Characteristics</span>
+          <p><strong>Read-only</strong> — you can't modify executing code (that would be self-modifying code, which is disabled by default). <strong>Shared</strong> across processes running the same binary. <strong>Executable</strong> — this is the only segment the CPU will fetch instructions from.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why read-only matters</span>
+          <p>If the text segment were writable, a buggy pointer could accidentally overwrite the running code. Marking it read-only means the MMU catches such writes as faults. It also lets the kernel <strong>share</strong> one physical copy of Chrome's code across 30 Chrome processes.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Text segment · read-only · executable</div>
+        <div class="seg-hero text">
+          <div class="sh-name">.text</div>
+          <div class="sh-size">read-only · executable · shared</div>
+          <div class="sh-content">
+            0x4004d0:  push   %rbp<br>
+            0x4004d1:  mov    %rsp,%rbp<br>
+            0x4004d4:  mov    $0x1,%eax<br>
+            0x4004d9:  callq  0x4003e0 &lt;printf@plt&gt;<br>
+            0x4004de:  pop    %rbp<br>
+            0x4004df:  retq
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Instructions are fetched from this segment by the CPU's instruction decoder. Every other segment is data.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Memory · Data">
+  <div class="slide-inner">
+    <span class="badge emerald">🧱 Memory Layout — Data Segment</span>
+    <h2 style="margin-bottom:16px;">Global and static variables — <span class="grad-emerald">allocated at load time</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Data segment · read/write · fixed size</div>
+        <div class="seg-hero data">
+          <div class="sh-name">.data / .bss</div>
+          <div class="sh-size">read/write · fixed size · per-process</div>
+          <div class="sh-content">
+            int   global_counter = 0;     // .bss<br>
+            int   global_cfg     = 42;    // .data<br>
+            char  banner[]       = "Hi";  // .data<br>
+            static int cache;             // .bss
+          </div>
+        </div>
+        <div class="mini-label" style="margin-top:16px">Live memory cells · highlighted as globals are accessed</div>
+        <div class="cells-rig" id="dataCells">
+          <div class="mem-cell lit" style="--c:#2ee6a8"></div>
+          <div class="mem-cell" style="--c:#2ee6a8"></div>
+          <div class="mem-cell lit" style="--c:#2ee6a8"></div>
+          <div class="mem-cell" style="--c:#2ee6a8"></div>
+          <div class="mem-cell"></div>
+          <div class="mem-cell lit" style="--c:#2ee6a8"></div>
+          <div class="mem-cell"></div>
+          <div class="mem-cell"></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What lives here</span>
+          <p>Global variables and <code style="font-family:var(--mono);color:#88ffd8">static</code> local variables. Anything declared <strong>outside a function body</strong>, or declared with the <code style="font-family:var(--mono);color:#88ffd8">static</code> keyword inside a function.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The .bss / .data split</span>
+          <p><strong>.data</strong> holds globals with non-zero initial values. <strong>.bss</strong> holds globals initialized to zero — they don't need to be stored in the binary because the kernel just zero-fills them at load time. It's a size optimization.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Fixed size at load</span>
+          <p>Unlike the heap, the data segment's size is set once at program load. It cannot grow during execution. If you run out of globals, you don't "grow" them — you allocate on the heap instead.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Memory · Heap">
+  <div class="slide-inner">
+    <span class="badge amber">🧱 Memory Layout — Heap</span>
+    <h2 style="margin-bottom:16px;">Dynamically allocated memory — <span class="grad-amber">grows as needed</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What lives here</span>
+          <p>Memory allocated explicitly at runtime via <code style="font-family:var(--mono);color:#ffd18a">malloc</code>, <code style="font-family:var(--mono);color:#ffd18a">calloc</code>, <code style="font-family:var(--mono);color:#ffd18a">realloc</code>, or <code style="font-family:var(--mono);color:#ffd18a">new</code> in C++. Data structures whose size isn't known until runtime — strings, dynamic arrays, trees, hash tables.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it grows</span>
+          <p>The heap starts small and <strong>grows upward</strong> (toward higher addresses) as allocations happen. The kernel extends the heap via the <code style="font-family:var(--mono);color:#b9d0ff">brk</code> syscall when the current heap space runs out.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The classic problems</span>
+          <p><strong>Memory leaks</strong> — forgetting to <code style="font-family:var(--mono);color:#ff9fb1">free</code> allocations means the heap grows forever. <strong>Use-after-free</strong> — accessing memory after freeing it corrupts whatever gets allocated there next.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Heap · read/write · grows upward</div>
+        <div class="seg-hero heap">
+          <div class="sh-name">heap</div>
+          <div class="sh-size">read/write · grows up · per-process</div>
+          <div class="sh-content">
+            char *s = malloc(256);      // allocate<br>
+            strcpy(s, "hello world");   // use<br>
+            char *t = malloc(64);       // another block<br>
+            free(s);                    // release<br>
+            free(t);                    // release
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Allocations are tracked by the malloc bookkeeping — the process "owns" them until freed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Memory · Stack">
+  <div class="slide-inner">
+    <span class="badge violet">🧱 Memory Layout — Stack</span>
+    <h2 style="margin-bottom:16px;">Local variables and call frames — <span class="grad-violet">grows downward</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Stack · read/write · grows down · LIFO</div>
+        <div class="seg-hero stack">
+          <div class="sh-name">stack</div>
+          <div class="sh-size">read/write · grows down · per-thread</div>
+          <div class="sh-content">
+            [ main() frame ]<br>
+            &nbsp;&nbsp;int x = 5<br>
+            &nbsp;&nbsp;int y = 10<br>
+            &nbsp;&nbsp;...<br>
+            [ foo() frame ]   ← current top<br>
+            &nbsp;&nbsp;int result<br>
+            &nbsp;&nbsp;char buf[32]<br>
+            &nbsp;&nbsp;return address
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Each function call pushes a new frame. Returning pops it. Very fast — just move the stack pointer.</p>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What lives here</span>
+          <p>Local variables, function parameters, return addresses, saved registers — everything needed to resume a function call. Managed entirely by the <strong>call/return</strong> instructions.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Grows downward</span>
+          <p>The stack grows toward <strong>lower addresses</strong> (opposite of the heap). This is intentional — the stack and heap grow toward each other from opposite ends of the address space, maximizing the room for both.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The classic bug</span>
+          <p>If the stack grows into the heap, you get a <strong>stack overflow</strong>. If a function recurses infinitely, the call frames pile up until they collide with the heap. The kernel detects this as a fault and terminates the process.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Memory · Full Map">
+  <div class="slide-inner">
+    <span class="badge">📊 The Full Memory Map — All Four Segments Together</span>
+    <h2 style="margin-bottom:20px;">One process, four regions, <span class="grad-blue">one address space</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The canonical process memory layout</div>
+        <div class="mem-stack">
+          <div class="mem-seg stack">
+            <div class="seg-head"><span class="seg-name">stack</span><span class="seg-size">▼ grows down</span></div>
+            <div class="seg-desc">Local variables · function call frames · return addresses</div>
+            <div class="bar"></div>
+          </div>
+          <div class="mem-seg heap">
+            <div class="seg-head"><span class="seg-name">heap</span><span class="seg-size">▲ grows up</span></div>
+            <div class="seg-desc">malloc/calloc allocations · dynamic data structures</div>
+            <div class="bar"></div>
+          </div>
+          <div class="mem-seg data">
+            <div class="seg-head"><span class="seg-name">.data / .bss</span><span class="seg-size">fixed</span></div>
+            <div class="seg-desc">Global variables · static variables · initialized + zeroed</div>
+            <div class="bar" style="--w:35%"></div>
+          </div>
+          <div class="mem-seg text">
+            <div class="seg-head"><span class="seg-name">.text</span><span class="seg-size">read-only</span></div>
+            <div class="seg-desc">Compiled machine instructions · shared across processes</div>
+            <div class="bar" style="--w:25%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The layout at a glance</span>
+          <p style="line-height:1.9;margin-top:4px">
+            <strong style="color:#c9a7ff">Stack</strong> — top of address space, grows <em>down</em><br>
+            <strong style="color:#ffd18a">Heap</strong> — grows <em>up</em> toward the stack<br>
+            <strong style="color:#88ffd8">Data</strong> — fixed-size, set at program load<br>
+            <strong style="color:#b9d0ff">Text</strong> — bottom of address space, read-only
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What happens as the program runs</span>
+          <p>The heap and stack each grow independently. If they ever meet, the process is out of memory and will crash (or the kernel's brk/stack growth will fail). This is why <strong>unbounded recursion or runaway allocation</strong> eventually crashes the process.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this specific layout</span>
+          <p>Text at the bottom (never changes). Data just above (fixed at load). Heap grows up. Stack grows down from the top. The middle is a no-man's-land that neither segment can enter unless the other shrinks — a natural guard against unbounded growth.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="PCB · Introduction">
+  <div class="slide-inner">
+    <span class="badge amber">📋 The Process Control Block — Introduction</span>
+    <h2 style="margin-bottom:16px;">One <span class="grad-amber">kernel data structure</span> per process</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Definition</span>
+          <p>The <strong>Process Control Block (PCB)</strong> is the definitive kernel data structure used to track, schedule, and preserve a process's metadata. Every running process has exactly one PCB, allocated from kernel memory when the process is created.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it lives</span>
+          <p>In <strong>kernel memory</strong> (Ring 0), not user space. The process cannot read or modify its own PCB — only the kernel can. This is what makes the ledger trustworthy.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The Linux name</span>
+          <p>On Linux, the PCB is implemented as <code style="font-family:var(--mono);color:#c9a7ff">struct task_struct</code>. On macOS/BSD it's called <code style="font-family:var(--mono);color:#c9a7ff">struct proc</code>. Windows calls it <code style="font-family:var(--mono);color:#c9a7ff">EPROCESS</code>. Same concept, different name.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>One PCB per process, not per program.</b> Open Chrome 5 times → 5 processes → 5 PCBs. Same binary, separate tracking.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The kernel's process table</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="316" rx="14" fill="rgba(255,182,72,.05)" stroke="rgba(255,182,72,.55)" stroke-width="1.5"/>
+          <text x="170" y="40" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">KERNEL MEMORY · PROCESS TABLE</text>
+
+          <rect x="34" y="60" width="272" height="48" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="46" y="78" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">PCB [0]</text>
+          <text x="46" y="96" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">PID 1 · init · RUNNING</text>
+
+          <rect x="34" y="116" width="272" height="48" rx="8" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.65)" stroke-width="1.3"/>
+          <text x="46" y="134" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">PCB [1]</text>
+          <text x="46" y="152" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">PID 4821 · chrome · READY</text>
+
+          <rect x="34" y="172" width="272" height="48" rx="8" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.65)" stroke-width="1.3"/>
+          <text x="46" y="190" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">PCB [2]</text>
+          <text x="46" y="208" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">PID 4822 · spotify · WAITING</text>
+
+          <rect x="34" y="228" width="272" height="48" rx="8" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.65)" stroke-width="1.3"/>
+          <text x="46" y="246" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">PCB [3]</text>
+          <text x="46" y="264" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">PID 4823 · code · READY</text>
+
+          <text x="170" y="304" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">… thousands more …</text>
+          <text x="170" y="320" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.5)" font-family="JetBrains Mono">users cannot read or write these</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="PCB · PID">
+  <div class="slide-inner">
+    <span class="badge blue">🔢 PCB Field 1 — PID (Process ID)</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">unique identity badge</span> of every process</h2>
+    <div class="split">
+      <div class="pcb-card blue">
+        <div class="pcb-field">pid_t pid</div>
+        <div class="pcb-type">process identifier · integer · 32-bit</div>
+        <div class="pcb-row">
+          <span class="pcb-key">What it is</span>
+          A unique integer assigned by the kernel at process creation. No two live processes on the same machine share a PID.
+        </div>
+        <div class="pcb-row">
+          <span class="pcb-key">How it's used</span>
+          Every signal, every scheduling decision, every permission check identifies the process by its PID. Users interact with PIDs constantly — <code style="font-family:var(--mono);color:#b9d0ff">kill 4821</code>, <code style="font-family:var(--mono);color:#b9d0ff">ps aux | grep 4821</code>.
+        </div>
+        <div class="pcb-row">
+          <span class="pcb-key">Range</span>
+          Default 1 to 32768 on Linux. Reused when a process exits and its slot is freed. PID 1 is always <code style="font-family:var(--mono);color:#b9d0ff">init</code> / <code style="font-family:var(--mono);color:#b9d0ff">systemd</code>.
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Every process has one</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:14px 16px;border-radius:12px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08);display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">🌐</span>
+              <span style="font-weight:700;color:#b9d0ff">chrome</span>
+            </div>
+            <span style="font-family:var(--mono);font-size:14px;font-weight:800;color:#b9d0ff">PID 4821</span>
+          </div>
+          <div style="padding:14px 16px;border-radius:12px;border:1px solid rgba(160,107,255,.55);background:rgba(160,107,255,.08);display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">🎵</span>
+              <span style="font-weight:700;color:#c9a7ff">spotify</span>
+            </div>
+            <span style="font-family:var(--mono);font-size:14px;font-weight:800;color:#c9a7ff">PID 4822</span>
+          </div>
+          <div style="padding:14px 16px;border-radius:12px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">💻</span>
+              <span style="font-weight:700;color:#88ffd8">code</span>
+            </div>
+            <span style="font-family:var(--mono);font-size:14px;font-weight:800;color:#88ffd8">PID 4823</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Same binary, different PIDs — Chrome opened twice gives two processes, both running <code style="font-family:var(--mono);color:#b9d0ff">/usr/bin/chrome</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="PCB · State">
+  <div class="slide-inner">
+    <span class="badge amber">🚦 PCB Field 2 — Process State</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">lifecycle flag</span> — where in its journey the process is</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="pcb-card amber">
+          <div class="pcb-field">enum state</div>
+          <div class="pcb-type">process lifecycle flag · one of five values</div>
+          <div class="pcb-row">
+            <span class="pcb-key">Definition</span>
+            The operational lifecycle flag of a task: <strong>New, Ready, Running, Waiting/Blocked, Terminated</strong>.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Why it matters</span>
+            The scheduler only picks from the <strong>Ready</strong> queue. A process in <strong>Waiting</strong> cannot run, even if the CPU is idle — it's waiting for I/O, a lock, or a signal.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Where it's used</span>
+            Every context switch, every scheduler decision, every <code style="font-family:var(--mono);color:#ffd18a">ps</code> output reads this field.
+          </div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The five-state lifecycle</div>
+        <div class="states-rig" id="statesRig">
+          <div class="state-node new" data-idx="0"><span class="sn-ic">🌱</span>NEW</div>
+          <div class="state-node ready" data-idx="1"><span class="sn-ic">⏳</span>READY</div>
+          <div class="state-node running" data-idx="2"><span class="sn-ic">▶️</span>RUNNING</div>
+          <div class="state-node waiting" data-idx="3"><span class="sn-ic">⏸️</span>WAITING</div>
+          <div class="state-node terminated" data-idx="4"><span class="sn-ic">☠️</span>TERMINATED</div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Every process passes through these states during its lifetime.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="PCB · State Diagram">
+  <div class="slide-inner">
+    <span class="badge violet">🚦 The 5-State Process Diagram — All Transitions</span>
+    <h2 style="margin-bottom:16px;">Which states connect to which, and <span class="grad-violet">what triggers each transition</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The transitions</span>
+          <p style="line-height:1.9;margin-top:4px">
+            <strong>NEW → READY</strong> — admitted by scheduler<br>
+            <strong>READY → RUNNING</strong> — dispatcher picks it<br>
+            <strong>RUNNING → READY</strong> — time slice expires (preempted)<br>
+            <strong>RUNNING → WAITING</strong> — I/O request / lock wait<br>
+            <strong>WAITING → READY</strong> — I/O completes / lock released<br>
+            <strong>RUNNING → TERMINATED</strong> — exits or is killed
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What makes this a "state machine"</span>
+          <p>Every transition is caused by an event the kernel detects: a syscall, an interrupt, a timer tick, or an exit. The scheduler's job (Module 2, L07–L08) is to decide which READY process becomes RUNNING next.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The waiting state matters most</span>
+          <p>Most of a process's time is spent WAITING. A browser tab waiting for a network packet, or a program waiting on a disk read, is not consuming CPU — it's sitting in the WAITING state until the kernel wakes it.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The full state machine</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="10" y="130" width="60" height="46" rx="8" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.75)" stroke-width="1.4"/>
+          <text x="40" y="156" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter" font-weight="800">NEW</text>
+
+          <rect x="100" y="130" width="70" height="46" rx="8" fill="rgba(91,141,255,.16)" stroke="rgba(91,141,255,.75)" stroke-width="1.4"/>
+          <text x="135" y="156" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="800">READY</text>
+
+          <rect x="200" y="130" width="70" height="46" rx="8" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.75)" stroke-width="1.4"/>
+          <text x="235" y="156" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">RUNNING</text>
+
+          <rect x="290" y="60" width="42" height="60" rx="8" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.75)" stroke-width="1.4"/>
+          <text x="311" y="90" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="Inter" font-weight="800">TERM-</text>
+          <text x="311" y="104" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="Inter" font-weight="800">INATED</text>
+
+          <rect x="200" y="230" width="70" height="46" rx="8" fill="rgba(255,182,72,.16)" stroke="rgba(255,182,72,.75)" stroke-width="1.4"/>
+          <text x="235" y="256" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="800">WAITING</text>
+
+          <line x1="70" y1="153" x2="100" y2="153" stroke="rgba(160,107,255,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="170" y1="153" x2="200" y2="153" stroke="rgba(91,141,255,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="200" y1="140" x2="170" y2="140" stroke="rgba(91,141,255,.5)" stroke-width="1.3" stroke-dasharray="4 3"/>
+          <line x1="235" y1="176" x2="235" y2="230" stroke="rgba(255,182,72,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="200" y1="245" x2="160" y2="176" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="270" y1="140" x2="290" y2="90" stroke="rgba(255,77,109,.75)" stroke-width="1.5" class="svg-flow"/>
+
+          <text x="85" y="146" text-anchor="middle" font-size="7.5" fill="rgba(160,107,255,.85)" font-family="JetBrains Mono">admit</text>
+          <text x="185" y="146" text-anchor="middle" font-size="7.5" fill="rgba(91,141,255,.85)" font-family="JetBrains Mono">dispatch</text>
+          <text x="185" y="130" text-anchor="middle" font-size="7.5" fill="rgba(91,141,255,.7)" font-family="JetBrains Mono">preempt</text>
+          <text x="250" y="208" text-anchor="middle" font-size="7.5" fill="rgba(255,182,72,.85)" font-family="JetBrains Mono">I/O wait</text>
+          <text x="175" y="225" text-anchor="middle" font-size="7.5" fill="rgba(46,230,168,.85)" font-family="JetBrains Mono">I/O done</text>
+          <text x="295" y="118" text-anchor="middle" font-size="7.5" fill="rgba(255,77,109,.85)" font-family="JetBrains Mono">exit</text>
+
+          <text x="170" y="305" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">every arrow = a kernel decision or an event</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="PCB · PC">
+  <div class="slide-inner">
+    <span class="badge violet">🎯 PCB Field 3 — Program Counter (PC)</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-violet">address of the next instruction</span> to execute</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="pcb-card violet">
+          <div class="pcb-field">void *program_counter</div>
+          <div class="pcb-type">address · 64-bit · x86 called RIP · ARM called PC</div>
+          <div class="pcb-row">
+            <span class="pcb-key">Definition</span>
+            A specialized physical CPU register that stores the memory address of the next instruction waiting to be executed.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Why the PCB saves it</span>
+            When a context switch happens, the current PC value is written into the outgoing process's PCB. When the process resumes, the PC is loaded back — so execution continues at the exact same instruction.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">On x86_64</span>
+            The register is called <code style="font-family:var(--mono);color:#c9a7ff">RIP</code>. On ARM, it's called <code style="font-family:var(--mono);color:#c9a7ff">PC</code>. Both are 64-bit on 64-bit systems.
+          </div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The PC moving through instructions</div>
+        <div style="padding:10px 0;font-family:var(--mono);font-size:12px;line-height:2;color:var(--ink-2)">
+          <div data-pc-line="0" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004d0:  push %rbp</div>
+          <div data-pc-line="1" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004d1:  mov %rsp, %rbp</div>
+          <div data-pc-line="2" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004d4:  mov $0x1, %eax</div>
+          <div data-pc-line="3" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004d9:  call 0x4003e0</div>
+          <div data-pc-line="4" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004de:  pop %rbp</div>
+          <div data-pc-line="5" style="padding:4px 10px;border-radius:6px;transition:.3s">0x4004df:  ret</div>
+        </div>
+        <div class="mini-label" style="margin-top:14px">PC currently points at</div>
+        <div id="pcValue" style="font-family:var(--mono);font-size:20px;font-weight:800;color:#c9a7ff;padding:12px 16px;border-radius:10px;background:rgba(160,107,255,.10);border:1px solid rgba(160,107,255,.4)">
+          0x4004d0
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="PCB · Registers">
+  <div class="slide-inner">
+    <span class="badge crimson">💾 PCB Field 4 — CPU Register Saves</span>
+    <h2 style="margin-bottom:16px;">Every <span class="grad-crimson">register value</span> preserved at context switch</h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Register set saved on context switch</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:6px 0">
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#b9d0ff;font-weight:800;margin-bottom:4px">RAX</div>
+            <div style="color:#eaf0fc">0x7FFFF7A0</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#88ffd8;font-weight:800;margin-bottom:4px">RBX</div>
+            <div style="color:#eaf0fc">0x00000042</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#ffd18a;font-weight:800;margin-bottom:4px">RCX</div>
+            <div style="color:#eaf0fc">0x00000010</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(160,107,255,.55);background:rgba(160,107,255,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#c9a7ff;font-weight:800;margin-bottom:4px">RDX</div>
+            <div style="color:#eaf0fc">0x0000DEAD</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#ff9fb1;font-weight:800;margin-bottom:4px">RSI</div>
+            <div style="color:#eaf0fc">0x7FFC0000</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#88ffd8;font-weight:800;margin-bottom:4px">RDI</div>
+            <div style="color:#eaf0fc">0x00000001</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#b9d0ff;font-weight:800;margin-bottom:4px">RSP</div>
+            <div style="color:#eaf0fc">0x7FFC0120</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(160,107,255,.55);background:rgba(160,107,255,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#c9a7ff;font-weight:800;margin-bottom:4px">RBP</div>
+            <div style="color:#eaf0fc">0x7FFC0140</div>
+          </div>
+          <div class="reg-cell" style="padding:12px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.10);font-family:var(--mono);font-size:11px;text-align:center">
+            <div style="color:#ffd18a;font-weight:800;margin-bottom:4px">RIP</div>
+            <div style="color:#eaf0fc">0x4004d9</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="pcb-card crimson">
+          <div class="pcb-field">uint64_t regs[16]</div>
+          <div class="pcb-type">cpu register snapshot · saved at every switch</div>
+          <div class="pcb-row">
+            <span class="pcb-key">What's saved</span>
+            Every general-purpose register: rax, rbx, rcx, rdx, rsi, rdi, rsp, rbp, r8–r15, plus the instruction pointer RIP and the flags register.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Why it matters</span>
+            A register is a "scratchpad" holding values the program is working on right now. If the kernel doesn't save them, another process would clobber them and the original process would resume with garbage in its variables.
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is the whole trick of multitasking:</b> save all registers to PCB, load another process's registers from <em>its</em> PCB, and the CPU is now running the other process — even though it's the same physical hardware.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="PCB · Memory Map">
+  <div class="slide-inner">
+    <span class="badge emerald">🗺️ PCB Field 5 — Memory Management Boundaries</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">address space boundaries</span> for this process</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="pcb-card emerald">
+          <div class="pcb-field">mm_struct *mm</div>
+          <div class="pcb-type">memory descriptor · pointer · per-process</div>
+          <div class="pcb-row">
+            <span class="pcb-key">What it holds</span>
+            The process's base and bound registers (conceptually), the page table base address, and pointers to the VMA (virtual memory area) descriptors that define each segment of the address space.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">The boundary values</span>
+            Base address of the process's address space, end address, and the location of each of text/data/heap/stack — so the kernel can validate every memory access the process attempts.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Used for</span>
+            Setting up the MMU on context switch (loading the page table base into the CR3 register on x86), validating syscall pointer arguments, and enforcing the boundary that turns stray writes into SIGSEGV instead of corruption.
+          </div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Each process gets its own memory map</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.6)" font-family="Inter" font-weight="700">PHYSICAL RAM · shared substrate</text>
+
+          <rect x="14" y="32" width="312" height="270" rx="10" fill="rgba(0,0,0,.25)" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+
+          <rect x="30" y="54" width="280" height="60" rx="8" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.65)" stroke-width="1.3"/>
+          <text x="170" y="76" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">PROCESS A · 0x0000–0x7FFF</text>
+          <text x="170" y="94" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">text · data · heap · stack</text>
+          <text x="170" y="108" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">mm-&gt;start_code = 0x0000 · mm-&gt;end_data = 0x4000</text>
+
+          <rect x="30" y="126" width="280" height="60" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="170" y="148" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">PROCESS B · 0x8000–0xFFFF</text>
+          <text x="170" y="166" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">text · data · heap · stack</text>
+          <text x="170" y="180" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">mm-&gt;start_code = 0x8000 · mm-&gt;end_data = 0xC000</text>
+
+          <rect x="30" y="198" width="280" height="60" rx="8" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.65)" stroke-width="1.3"/>
+          <text x="170" y="220" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">PROCESS C · 0x10000–0x17FFF</text>
+          <text x="170" y="238" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">text · data · heap · stack</text>
+          <text x="170" y="252" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">mm-&gt;start_code = 0x10000 · mm-&gt;end_data = 0x14000</text>
+
+          <text x="170" y="288" text-anchor="middle" font-size="8.5" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">same physical machine · three isolated regions</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="PCB · Files">
+  <div class="slide-inner">
+    <span class="badge blue">📁 PCB Field 6 — Open File Descriptor Tables</span>
+    <h2 style="margin-bottom:16px;">Every <span class="grad-blue">open file or socket</span> the process holds</h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The per-process file descriptor table</div>
+        <div style="padding:6px 0;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.08)">
+            <span style="font-family:var(--mono);font-size:16px;font-weight:900;color:#b9d0ff;min-width:36px">fd 0</span>
+            <span style="font-size:14px">📖</span>
+            <span style="font-weight:700;color:#b9d0ff">stdin</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">/dev/pts/0</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.08)">
+            <span style="font-family:var(--mono);font-size:16px;font-weight:900;color:#88ffd8;min-width:36px">fd 1</span>
+            <span style="font-size:14px">📝</span>
+            <span style="font-weight:700;color:#88ffd8">stdout</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">/dev/pts/0</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.08)">
+            <span style="font-family:var(--mono);font-size:16px;font-weight:900;color:#ff9fb1;min-width:36px">fd 2</span>
+            <span style="font-size:14px">⚠️</span>
+            <span style="font-weight:700;color:#ff9fb1">stderr</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">/dev/pts/0</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,182,72,.5);background:rgba(255,182,72,.08)">
+            <span style="font-family:var(--mono);font-size:16px;font-weight:900;color:#ffd18a;min-width:36px">fd 3</span>
+            <span style="font-size:14px">📄</span>
+            <span style="font-weight:700;color:#ffd18a">data.txt</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">/home/user/data.txt</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid rgba(160,107,255,.5);background:rgba(160,107,255,.08)">
+            <span style="font-family:var(--mono);font-size:16px;font-weight:900;color:#c9a7ff;min-width:36px">fd 4</span>
+            <span style="font-size:14px">🌐</span>
+            <span style="font-weight:700;color:#c9a7ff">socket</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">TCP :443 → 142.250.x.x</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="pcb-card blue">
+          <div class="pcb-field">struct files_struct *files</div>
+          <div class="pcb-type">open file descriptor table · pointer</div>
+          <div class="pcb-row">
+            <span class="pcb-key">What it holds</span>
+            An array where each slot points to an open file description. Slot numbers are the file descriptors you see as integers in C code.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">The three universal FDs</span>
+            Every process starts with <strong>0 = stdin, 1 = stdout, 2 = stderr</strong> — inherited from the parent process that created it.
+          </div>
+          <div class="pcb-row">
+            <span class="pcb-key">Why the PCB tracks them</span>
+            When a process exits, the kernel must close every FD in the table. Otherwise the underlying file handles leak. This is why <strong>the OS cleans up leaked file handles</strong> at process termination — but only if the process exits, not if it stays alive and keeps opening files.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="PCB · Code">
+  <div class="slide-inner">
+    <span class="badge amber">💻 PCB in C — The Kernel Data Structure</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-amber">simplified</span> view of what the kernel actually stores</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>process_control_block.h</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Conceptual kernel representation of a Process Control Block</span></span><span class="code-line"><span class="c-kw">struct</span> <span class="c-type">ProcessControlBlock</span> {</span><span class="code-line">    <span class="c-type">int</span>                 <span class="c-var">pid</span>;             <span class="c-com">// unique process identifier</span></span><span class="code-line">    <span class="c-kw">enum</span> { <span class="c-num">READY</span>, <span class="c-num">RUNNING</span>, <span class="c-num">BLOCKED</span> }</span><span class="code-line">                        <span class="c-var">state</span>;           <span class="c-com">// lifecycle tracker</span></span><span class="code-line">    <span class="c-type">unsigned long</span>       <span class="c-var">program_counter</span>; <span class="c-com">// pointer to current instruction</span></span><span class="code-line">    <span class="c-type">unsigned long</span>       <span class="c-var">registers</span>[<span class="c-num">16</span>];  <span class="c-com">// CPU register save area</span></span><span class="code-line">    <span class="c-type">int</span>                 <span class="c-var">open_files_map</span>[<span class="c-num">256</span>]; <span class="c-com">// FD table</span></span><span class="code-line">    <span class="c-type">struct mm_struct</span>*   <span class="c-var">mm</span>;              <span class="c-com">// memory boundaries</span></span><span class="code-line">    <span class="c-type">struct</span> <span class="c-type">ProcessControlBlock</span>* <span class="c-var">next</span>; <span class="c-com">// linked list of all PCBs</span></span><span class="code-line">};</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Field by field</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <code style="font-family:var(--mono);color:#ffd18a">pid</code> — unique identity<br>
+            <code style="font-family:var(--mono);color:#ffd18a">state</code> — lifecycle flag<br>
+            <code style="font-family:var(--mono);color:#ffd18a">program_counter</code> — next instruction<br>
+            <code style="font-family:var(--mono);color:#ffd18a">registers[16]</code> — CPU snapshot<br>
+            <code style="font-family:var(--mono);color:#ffd18a">open_files_map[256]</code> — FDs<br>
+            <code style="font-family:var(--mono);color:#ffd18a">mm</code> — memory map pointer<br>
+            <code style="font-family:var(--mono);color:#ffd18a">next</code> — chaining
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real Linux <code style="font-family:var(--mono);color:#c9a7ff">task_struct</code> is ~1.7 KB</b> and has ~100 fields. This is the simplified educational version — but every field shown is real and necessary.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Real World · /proc">
+  <div class="slide-inner">
+    <span class="badge emerald">🔍 Real World — Reading PCBs via /proc on Linux</span>
+    <h2 style="margin-bottom:16px;">The kernel <span class="grad-emerald">exposes PCB data</span> through a virtual filesystem</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Looking at a real process's PCB data</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — inspect /proc/4821</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat /proc/4821/status | head -6</span></span>
+            <span class="term-line dim">Name:    chrome</span>
+            <span class="term-line dim">State:   S (sleeping)</span>
+            <span class="term-line dim">Tgid:    4821</span>
+            <span class="term-line dim">Pid:     4821</span>
+            <span class="term-line dim">PPid:    1</span>
+            <span class="term-line dim">...</span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">ls -l /proc/4821/fd</span></span>
+            <span class="term-line dim">lrwx---- 1 user user 64 ... 0 -&gt; /dev/pts/0</span>
+            <span class="term-line dim">lrwx---- 1 user user 64 ... 1 -&gt; /dev/pts/0</span>
+            <span class="term-line dim">lrwx---- 1 user user 64 ... 2 -&gt; /dev/pts/0</span>
+            <span class="term-line dim">lrwx---- 1 user user 64 ... 3 -&gt; /home/user/data.txt</span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat /proc/4821/maps | head -4</span></span>
+            <span class="term-line dim">00400000-00452000 r-xp  /usr/bin/chrome</span>
+            <span class="term-line dim">00651000-00653000 r--p  /usr/bin/chrome</span>
+            <span class="term-line dim">01f2a000-01f4b000 rw-p  [heap]</span>
+            <span class="term-line dim">7ffd4c000000-7ffd4c021000 rw-p  [stack]</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What just happened</span>
+          <p>The kernel exposes a process's PCB data through a <strong>virtual filesystem</strong> at <code style="font-family:var(--mono);color:#88ffd8">/proc/[pid]/</code>. Reading those files doesn't read from disk — it asks the kernel to format and print the live data from that process's PCB.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Field mapping</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <code style="font-family:var(--mono);color:#b9d0ff">/proc/PID/status</code> → PID, State, PPid<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">/proc/PID/fd</code> → open file descriptors<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">/proc/PID/maps</code> → memory layout<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">/proc/PID/stat</code> → PC, registers, state (raw)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Try it yourself</span>
+          <p>On any Linux machine (or WSL), run <code style="font-family:var(--mono);color:#ffd18a">ps aux | head -5</code> to see all PIDs, then <code style="font-family:var(--mono);color:#ffd18a">cat /proc/[pid]/status</code> to inspect any one of them.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Process Terms</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Process</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An active instance of a running software application containing its own dedicated execution context and address boundaries.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A program that's actually alive in RAM right now, with its own memory, PID, and current instruction. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">PCB</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Process Control Block — the definitive kernel data structure used to track, schedule, and preserve a process's metadata.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The kernel's ledger folder for one process. Contains every piece of state needed to pause and resume it. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Program Counter &amp; States</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Program Counter</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 03 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A specialized physical CPU register that stores the memory address of the next instruction waiting to be executed.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The bookmark that tells the CPU which line of your program to run next. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Process States</div>
+        <div class="lex-sub" style="color:#88ffd8">Bonus</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The operational lifecycle flag of a task: <strong>New, Ready, Running, Waiting/Blocked, Terminated</strong>.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( What the process is currently doing: being born, waiting for CPU, using CPU, waiting for I/O, or dead. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L05 Sits</span>
+    <h2 style="margin-bottom:20px;">The bridge from <span class="grad-violet">Module 1 → Module 2</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L02 (Dual-Mode Barrier)</h4>
+            <p>Relies on Ring 0 privileges to protect the PCB arrays from being altered by unprivileged user application code. The PCB lives in kernel memory — user space cannot even read it directly.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L06 (Execution Mechanics)</h4>
+            <p>Modifying, cloning, or discarding a process lifecycle requires allocating or freeing a physical PCB block struct inside the kernel slab allocator. Without a PCB, <code style="font-family:var(--mono);color:#88ffd8">fork()</code> cannot exist.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Downstream impact</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Module 2 (L06–L09):</strong> every process creation, scheduling decision, and context switch reads and writes the PCB.<br>
+            <strong>Module 3 (Memory):</strong> the PCB's <code style="font-family:var(--mono);color:#b9d0ff">mm</code> pointer is where page tables live.<br>
+            <strong>Module 4 (Sync):</strong> kernel locks protect the PCB during concurrent updates.<br>
+            <strong>Module 5 (Files):</strong> the PCB's file descriptor table is the file system entry point per process.
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="100" y="130" width="140" height="60" rx="12" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">L05 · PCB</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">process ledger</text>
+
+          <rect x="20" y="30" width="130" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="85" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L02 · Dual-Mode</text>
+          <text x="85" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 0 protection</text>
+
+          <rect x="190" y="30" width="130" height="48" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="255" y="50" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="255" y="66" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">mm_struct → pages</text>
+
+          <rect x="20" y="240" width="130" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="85" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">L06 · Execution</text>
+          <text x="85" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">fork/exec/switch</text>
+
+          <rect x="190" y="240" width="130" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="255" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="255" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">PCB mutexes</text>
+
+          <line x1="85" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="255" y1="78" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="85" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="255" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Human PCB Blueprint Map</span>
+    <h2 style="margin-bottom:16px;">Four students. Four memory segments. <span class="grad-violet">Place them correctly.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Draw a massive empty process memory map on the chalkboard with the four segments labelled <strong>Text, Data, Heap, Stack</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The cards</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>Student A</strong> — "Global Int Variable"<br>
+            <strong>Student B</strong> — "Compiled Print Instruction"<br>
+            <strong>Student C</strong> — "Malloc Address Pointer"<br>
+            <strong>Student D</strong> — "Local Function Loop Index"
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The task</span>
+          <p>Each student walks up and stands in the exact segment zone where their asset belongs. Then the class verifies — is each student in the right place? Why?</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> ask why "Global Int Variable" goes in Data but "Local Function Loop Index" goes in Stack. The answer: <strong>lifetime and scope</strong>. Globals live for the whole process; locals live only during the function call.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four segments, with the four cards</div>
+        <div class="activity-vis">
+          <div class="act-cell text">
+            <span class="ac-icon">📝</span>
+            <div class="ac-title">.text</div>
+            <div class="ac-desc">Compiled Print Instruction</div>
+          </div>
+          <div class="act-cell data">
+            <span class="ac-icon">🌍</span>
+            <div class="ac-title">.data</div>
+            <div class="ac-desc">Global Int Variable</div>
+          </div>
+          <div class="act-cell heap">
+            <span class="ac-icon">📦</span>
+            <div class="ac-title">heap</div>
+            <div class="ac-desc">Malloc Address Pointer</div>
+          </div>
+          <div class="act-cell stack">
+            <span class="ac-icon">📚</span>
+            <div class="ac-title">stack</div>
+            <div class="ac-desc">Local Function Loop Index</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Text/Data are fixed at load time. Heap/Stack grow at runtime.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L05 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>A process is not a program. A program is a static file; a process is that file <strong>alive in RAM</strong>, with its own PID, memory, program counter, and lifecycle state.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>Every process has <strong>four memory segments</strong>: Text (read-only code), Data (globals), Heap (dynamic allocations, grows up), Stack (function frames, grows down).</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>The <strong>Process Control Block (PCB)</strong> is the kernel's ledger for one process — PID, state, PC, saved registers, memory boundaries, file descriptor table.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>The PCB is what makes <strong>context switching</strong> possible. Save state → run another process → restore state. Without it, multitasking doesn't exist.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L06 — Execution Mechanics (fork, exec, Context Switch)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Now that we know what a PCB is, L06 shows how the kernel creates one (<code style="font-family:var(--mono);color:#b9d0ff">fork</code>), replaces its address space (<code style="font-family:var(--mono);color:#b9d0ff">exec</code>), and swaps PCBs during a context switch.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L06: Execution Mechanics &nbsp;|&nbsp; [L6.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad5" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad5)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad5)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : process map canvas ---------- */
+reg('procmap', function(){
+  const c = document.getElementById('procCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const segments = [
+    {name:'STACK',     desc:'local vars · grows down', color:'#a06bff', y:40,  h:80,  dir:'▼'},
+    {name:'HEAP',      desc:'malloc · grows up',       color:'#ffb648', y:130, h:80,  dir:'▲'},
+    {name:'DATA',      desc:'globals · static',        color:'#2ee6a8', y:220, h:80,  dir:'■'},
+    {name:'TEXT',      desc:'read-only code',          color:'#8fb4ff', y:310, h:80,  dir:'■'},
+    {name:'GUARD',     desc:'unmapped',                color:'rgba(255,77,109,0.5)', y:400, h:30, dir:'✕'}
+  ];
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    const activeIdx = Math.floor(t / 70) % 4;
+
+    segments.forEach((s, i) => {
+      const active = (i === activeIdx);
+      const x = 40, w = W - 80;
+
+      // background rect
+      ctx.fillStyle = active ? s.color + '28' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(x, s.y, w, s.h);
+
+      // border
+      ctx.strokeStyle = active ? s.color : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = active ? 2.5 : 1;
+      ctx.strokeRect(x, s.y, w, s.h);
+
+      // name
+      ctx.fillStyle = active ? s.color : 'rgba(255,255,255,0.45)';
+      ctx.font = '800 14px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.name, x + 20, s.y + 26);
+
+      // description
+      ctx.fillStyle = active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.30)';
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.fillText(s.desc, x + 20, s.y + 46);
+
+      // direction
+      ctx.fillStyle = active ? s.color : 'rgba(255,255,255,0.30)';
+      ctx.font = '900 24px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(s.dir, x + w - 20, s.y + s.h / 2);
+
+      // fill animation on the active segment
+      if(active && i !== 4){
+        const fillPct = 0.2 + 0.6 * Math.abs(Math.sin(t / 55));
+        ctx.fillStyle = s.color + '70';
+        ctx.fillRect(x + 2, s.y + s.h - 6, (w - 4) * fillPct, 4);
+      }
+    });
+
+    // bracket on the left
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(24, 40);
+    ctx.lineTo(24, 390);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(20, 40); ctx.lineTo(28, 40);
+    ctx.moveTo(20, 390); ctx.lineTo(28, 390);
+    ctx.stroke();
+
+    // labels on the sides
+    ctx.fillStyle = 'rgba(255,255,255,0.40)';
+    ctx.font = '700 9px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('HIGH ADDR', 24, 30);
+    ctx.fillText('LOW ADDR', 24, 404);
+
+    // title at the bottom
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ONE PROCESS · FOUR SEGMENTS · ONE ADDRESS SPACE', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 8 : data cells flicker ---------- */
+reg('datacells', function(){
+  const cells = document.querySelectorAll('#dataCells .mem-cell');
+  if(!cells.length) return { stop(){} };
+  let idx = 0;
+  const timer = setInterval(() => {
+    cells.forEach(c => c.classList.remove('lit'));
+    cells[idx % cells.length].classList.add('lit');
+    cells[(idx + 2) % cells.length].classList.add('lit');
+    cells[(idx + 5) % cells.length].classList.add('lit');
+    idx++;
+  }, 700);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 14 : state highlight ---------- */
+reg('states', function(){
+  const nodes = document.querySelectorAll('#statesRig .state-node');
+  if(!nodes.length) return { stop(){} };
+  let idx = 0;
+  const timer = setInterval(() => {
+    nodes.forEach(n => n.classList.remove('highlight'));
+    nodes[idx % nodes.length].classList.add('highlight');
+    idx++;
+  }, 700);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 16 : PC tracking ---------- */
+reg('pctrack', function(){
+  const lines = document.querySelectorAll('[data-pc-line]');
+  const pcVal = document.getElementById('pcValue');
+  if(!lines.length || !pcVal) return { stop(){} };
+  const pcs = ['0x4004d0', '0x4004d1', '0x4004d4', '0x4004d9', '0x4004de', '0x4004df'];
+  let idx = 0;
+  const timer = setInterval(() => {
+    lines.forEach(l => { l.style.background = ''; l.style.color = ''; });
+    const line = lines[idx % lines.length];
+    if(line){
+      line.style.background = 'rgba(160,107,255,0.20)';
+      line.style.color = '#c9a7ff';
+      pcVal.textContent = pcs[idx % pcs.length];
+    }
+    idx++;
+  }, 700);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Auto-register animations on slide change ---------- */
+(function registerDynamicAnims(){
+  // Slide 8 has #dataCells
+  const slide8 = document.querySelectorAll('.slide')[7]; // 0-indexed slide 8
+  if(slide8 && slide8.querySelector('#dataCells')) slide8.dataset.anim = 'datacells';
+
+  // Slide 14 has #statesRig
+  const slide14 = document.querySelectorAll('.slide')[13];
+  if(slide14 && slide14.querySelector('#statesRig')) slide14.dataset.anim = 'states';
+
+  // Slide 16 has #pcValue
+  const slide16 = document.querySelectorAll('.slide')[15];
+  if(slide16 && slide16.querySelector('#pcValue')) slide16.dataset.anim = 'pctrack';
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
