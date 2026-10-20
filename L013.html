@@ -1,0 +1,2270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L13 — Virtual Memory, Demand Paging &amp; Page Replacement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#vmCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Desk + library */
+.desk-scene{padding:14px 0;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+.desk{flex:1;min-width:220px;padding:16px;border-radius:12px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.45);}
+.desk-title{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:12px;}
+.desk-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.desk-slot{aspect-ratio:.75;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.03);display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:800;transition:.3s;text-align:center;padding:6px;}
+.desk-slot.filled-a{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.15);color:#b9d0ff;}
+.desk-slot.filled-b{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.15);color:#88ffd8;}
+.desk-slot.filled-c{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.15);color:#ffd18a;}
+.desk-slot.evicting{animation:evictFlash .8s ease-out;}
+@keyframes evictFlash{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(255,77,109,.8);border-color:#ff4d6d;background:rgba(255,77,109,.20)}}
+
+.library{flex:1;min-width:220px;padding:16px;border-radius:12px;background:rgba(160,107,255,.06);border:1px solid rgba(160,107,255,.45);}
+.library-title{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#c9a7ff;margin-bottom:12px;}
+.library-stacks{display:flex;flex-direction:column;gap:6px;}
+.library-book{padding:8px 12px;border-radius:6px;background:rgba(160,107,255,.10);border:1px solid rgba(160,107,255,.35);font-family:var(--mono);font-size:10.5px;color:#c9a7ff;font-weight:700;display:flex;justify-content:space-between;}
+
+/* Streaming buffer */
+.stream-vis{padding:10px 0;}
+.stream-bar{height:36px;border-radius:8px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);overflow:hidden;position:relative;display:flex;margin-bottom:8px;}
+.stream-chunk{height:100%;display:grid;place-items:center;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.03em;border-right:1px solid rgba(0,0,0,.3);}
+.stream-chunk.loaded{background:rgba(46,230,168,.35);color:#88ffd8;}
+.stream-chunk.buffering{background:rgba(255,182,72,.20);color:#ffd18a;}
+.stream-chunk.empty{background:rgba(255,255,255,.03);color:var(--muted);}
+.stream-playhead{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 12px #fff,0 0 20px rgba(91,141,255,.8);animation:playSweep 6s linear infinite;}
+@keyframes playSweep{from{left:0}to{left:100%}}
+.stream-legend{display:flex;gap:14px;font-size:10.5px;color:var(--muted);font-family:var(--mono);font-weight:700;}
+
+/* Present/absent bit */
+.pte-bit-vis{padding:14px 0;}
+.pte-bit-row{display:grid;grid-template-columns:60px 1fr 1fr;gap:12px;align-items:center;margin-bottom:10px;}
+.pte-bit-label{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:800;text-align:right;}
+.pte-bit-box{padding:14px;border-radius:8px;border:1.5px solid;font-family:var(--mono);font-size:13px;font-weight:900;text-align:center;letter-spacing:.06em;}
+.pte-bit-box.present{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.12);color:#88ffd8;}
+.pte-bit-box.absent{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.12);color:#ff9fb1;}
+.pte-bit-meaning{font-size:11.5px;color:var(--ink-2);line-height:1.55;}
+
+/* Page fault sequence */
+.pf-steps{display:flex;flex-direction:column;gap:8px;padding:8px 0;}
+.pf-step{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:center;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);transition:.4s;}
+.pf-step.active{border-color:rgba(255,182,72,.75);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.pf-step.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);}
+.pf-num{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;font-family:var(--mono);font-size:16px;font-weight:900;background:rgba(255,182,72,.15);border:1px solid rgba(255,182,72,.4);color:#ffd18a;flex:none;}
+.pf-step.active .pf-num{background:rgba(255,182,72,.30);border-color:rgba(255,182,72,.85);}
+.pf-step.done .pf-num{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.75);color:#88ffd8;}
+.pf-body{min-width:0;}
+.pf-title{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:3px;}
+.pf-desc{font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.5;}
+.pf-step.active .pf-desc{color:rgba(255,209,138,.85);}
+
+/* FIFO / LRU frame trace */
+.trace-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.trace-panel{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.20);}
+.trace-panel.fifo{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.05);}
+.trace-panel.lru{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.05);}
+.trace-panel h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.trace-panel.fifo h4{color:var(--blue-2);}
+.trace-panel.lru h4{color:var(--amber);}
+.trace-table{display:grid;grid-template-columns:40px 1fr 1fr 1fr 40px;gap:3px;font-family:var(--mono);font-size:10.5px;font-weight:700;}
+.trace-cell{padding:7px 4px;text-align:center;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:var(--ink-2);}
+.trace-cell.head{background:rgba(0,0,0,.30);color:var(--muted);font-size:9px;letter-spacing:.05em;text-transform:uppercase;}
+.trace-cell.ref{color:#b9d0ff;font-weight:900;}
+.trace-cell.frame-a{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);color:#b9d0ff;}
+.trace-cell.frame-b{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.trace-cell.frame-c{background:rgba(255,182,72,.20);border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.trace-cell.miss{background:rgba(255,77,109,.20);border-color:rgba(255,77,109,.55);color:#ff9fb1;font-weight:900;}
+.trace-cell.hit{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.55);color:#88ffd8;font-weight:900;}
+.trace-total{grid-column:1/-1;padding:10px;border-radius:6px;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:11.5px;font-weight:800;text-align:center;margin-top:6px;color:var(--ink);}
+
+/* Interactive demo */
+.demo-stage{padding:14px 0;}
+.demo-refs{display:flex;gap:6px;justify-content:center;margin-bottom:18px;flex-wrap:wrap;}
+.demo-ref{padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.03);font-family:var(--mono);font-size:15px;font-weight:900;color:var(--muted);transition:.3s;}
+.demo-ref.past{background:rgba(46,230,168,.15);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.demo-ref.current{background:rgba(255,182,72,.30);border-color:rgba(255,182,72,.85);color:#ffd18a;box-shadow:0 0 24px -4px rgba(255,182,72,.85);transform:scale(1.1);}
+.demo-frames-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.demo-frame-set{padding:12px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);}
+.demo-frame-set.fifo{border-color:rgba(91,141,255,.45);}
+.demo-frame-set.lru{border-color:rgba(255,182,72,.45);}
+.demo-frame-title{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;display:flex;justify-content:space-between;}
+.demo-frame-set.fifo .demo-frame-title{color:var(--blue-2);}
+.demo-frame-set.lru .demo-frame-title{color:var(--amber);}
+.demo-frames{display:flex;gap:6px;}
+.demo-frame{flex:1;aspect-ratio:1;border-radius:8px;border:1.5px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:grid;place-items:center;font-family:var(--mono);font-size:16px;font-weight:900;color:var(--muted);transition:.4s;}
+.demo-frame.occupied-a{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.75);color:#b9d0ff;}
+.demo-frame.occupied-b{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.75);color:#88ffd8;}
+.demo-frame.occupied-c{background:rgba(255,182,72,.20);border-color:rgba(255,182,72,.75);color:#ffd18a;}
+.demo-frame.just-loaded{animation:loadFlash .8s ease-out;}
+@keyframes loadFlash{0%{transform:scale(1.2);box-shadow:0 0 30px rgba(46,230,168,.9)}100%{transform:scale(1);box-shadow:none}}
+.demo-status{text-align:center;padding:12px 16px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);font-family:var(--mono);font-size:12px;font-weight:800;margin-bottom:12px;}
+.demo-status.fault{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.demo-status.hit{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.demo-progress{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px;}
+.demo-progress-fill{height:100%;background:linear-gradient(90deg,#ffb648,#2ee6a8);width:0%;transition:width .35s ease;}
+.demo-counts{display:flex;gap:14px;justify-content:center;margin-top:10px;font-family:var(--mono);font-size:11px;font-weight:800;}
+.demo-counts .cnt-fifo{color:var(--blue-2);}
+.demo-counts .cnt-lru{color:var(--amber);}
+
+/* Thrashing */
+.thrash-vis{padding:12px 0;}
+.thrash-chart{height:220px;background:rgba(0,0,0,.22);border-radius:10px;border:1px solid var(--stroke);padding:10px;position:relative;}
+.thrash-chart svg{width:100%;height:100%;}
+
+/* Working set */
+.ws-vis{padding:10px 0;}
+.ws-timeline{display:flex;gap:2px;height:40px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);}
+.ws-cell{display:grid;place-items:center;font-family:var(--mono);font-size:9px;font-weight:800;color:var(--muted);flex:1;transition:.3s;}
+.ws-cell.hot{background:rgba(255,77,109,.30);color:#ff9fb1;}
+.ws-cell.active{background:rgba(255,182,72,.30);color:#ffd18a;}
+.ws-cell.warm{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.ws-cell.cold{background:rgba(255,255,255,.03);}
+
+/* Swap space */
+.swap-vis{padding:10px 0;}
+.swap-diagram{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap;}
+.swap-ram,.swap-disk{flex:1;min-width:200px;padding:14px;border-radius:10px;border:1.5px solid;font-family:var(--mono);font-size:11px;}
+.swap-ram{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.swap-disk{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);}
+.swap-title{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.swap-ram .swap-title{color:var(--emerald);}
+.swap-disk .swap-title{color:var(--amber);}
+.swap-item{padding:7px 10px;border-radius:5px;margin-bottom:4px;background:rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.08);color:var(--ink-2);font-weight:700;display:flex;justify-content:space-between;}
+.swap-item.evicted{color:#ffd18a;border-color:rgba(255,182,72,.35);}
+.swap-item.swapped{color:var(--muted);font-style:italic;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-chairs{display:flex;gap:14px;justify-content:center;padding:14px 0;flex-wrap:wrap;}
+.act-chair{width:80px;height:100px;border-radius:8px 8px 12px 12px;border:2px dashed rgba(255,255,255,.20);background:rgba(255,255,255,.03);display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:800;transition:.4s;position:relative;}
+.act-chair.occupied-a{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.75);border-style:solid;color:#b9d0ff;}
+.act-chair.occupied-b{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.75);border-style:solid;color:#88ffd8;}
+.act-chair.occupied-c{background:rgba(255,182,72,.20);border-color:rgba(255,182,72,.75);border-style:solid;color:#ffd18a;}
+.act-chair .seat-label{position:absolute;bottom:6px;font-size:8.5px;color:var(--muted);letter-spacing:.06em;font-weight:700;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.trace-cmp,.demo-frames-split{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .desk-slots{grid-template-columns:repeat(3,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L13 Virtual Memory</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L13 · Overview" data-anim="vmcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L13 · Virtual Memory, Demand Paging &amp; Page Replacement</span>
+    <div class="split">
+      <div class="stack">
+        <h1>What if a program could be <span class="grad-blue">bigger than your RAM?</span></h1>
+        <p class="lead">Trace a page reference execution string manually through FIFO and LRU page replacement pipelines, and accurately log final Page Fault counts.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L13</span>
+          <p>L11 gave us paging. L12 made it fast. But so far we've assumed every page a process needs is already in RAM. What if it's not? What if the program's total working set is <strong>larger than the physical RAM</strong> — how does it still run?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the canvas on the right. Ask: <em>"You're running Photoshop with a 3 GB file open on an 8 GB laptop. Chrome is also open with 40 tabs. How does anything still work?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Pages moving between disk and RAM</div>
+        <canvas id="vmCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Programs Outgrow RAM</span>
+    <h2 style="margin-bottom:16px;">Paging gave us isolation. <span class="grad-crimson">But not capacity.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The gap</span>
+          <p>A modern program's virtual address space is typically <strong>tens of GB</strong> (shared libraries, data files, mmap'd regions). Physical RAM is 8–32 GB on most machines. The virtual space exceeds physical memory by 2–10× on a normal desktop.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why we can get away with it</span>
+          <p>Because <strong>most of that address space isn't actually touched at any moment</strong>. A 3 GB Photoshop file might only have 200 MB of it actively in use. A web browser reserves GBs of virtual space but only touches a fraction.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The insight</span>
+          <p>If we only load the pages that are <strong>actually accessed</strong>, and put the rest on disk (swap space), the process can have a huge virtual address space while consuming only the RAM it genuinely needs at any moment.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Virtual memory</b> is the mechanism that makes this work. Paging is the mechanism for isolation; virtual memory is the mechanism for capacity. Same page tables, same MMU — but with a "present" bit and swap space.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Virtual address space vs. physical RAM</div>
+        <div class="mem-map" style="padding:14px">
+          <div class="mem-track" style="height:100px">
+            <div class="mem-process a" style="left:2%;width:20%;">touched<small>in RAM</small></div>
+            <div class="mem-process b" style="left:24%;width:16%;">hot page<small>in RAM</small></div>
+            <div style="position:absolute;left:42%;width:16%;top:8px;bottom:8px;border-radius:6px;background:repeating-linear-gradient(45deg,rgba(255,182,72,.10) 0 6px,rgba(255,182,72,.03) 6px 12px);border:1px dashed rgba(255,182,72,.35);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ffd18a;font-weight:700">on disk</div>
+            <div class="mem-process c" style="left:60%;width:18%;">touched<small>in RAM</small></div>
+            <div style="position:absolute;left:80%;width:18%;top:8px;bottom:8px;border-radius:6px;background:repeating-linear-gradient(45deg,rgba(255,182,72,.10) 0 6px,rgba(255,182,72,.03) 6px 12px);border:1px dashed rgba(255,182,72,.35);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:#ffd18a;font-weight:700">on disk</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Only some pages are in RAM at any moment. The rest are on disk. Together they form the full virtual address space.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Desk + Library">
+  <div class="slide-inner">
+    <span class="badge violet">📚 Analogy 1 · The Limited Desk &amp; Library Storage Stacks</span>
+    <h2 style="margin-bottom:16px;">Your desk holds 3 books. <span class="grad-violet">The library holds thousands.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>You're studying in a massive university library. Your <strong>study desk can only fit exactly 3 books</strong> at a time (physical frame allocation). You're currently writing an essay that references <strong>10 different books</strong> (virtual address space).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The page fault</span>
+          <p>You start working: you look for Book A on your desk. <strong>It isn't there!</strong> You must pause your work, wait for a runner to fetch Book A from the deep basement storage stacks (the hard disk / swap space), and drop it onto your desk.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The replacement</span>
+          <p>When your desk fills up completely and you need a <strong>4th book</strong>, you must choose one current book to throw off your desk and send back to the basement (page replacement policy).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The analogy in one line:</b> demand paging means you only fetch a book when you need it, and page replacement means you sometimes throw a book back to make room for another.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The desk and the library</div>
+        <div class="desk-scene">
+          <div class="desk">
+            <div class="desk-title">📖 YOUR DESK · 3 book slots</div>
+            <div class="desk-slots">
+              <div class="desk-slot filled-a" id="deskSlot0">Book A</div>
+              <div class="desk-slot filled-b" id="deskSlot1">Book B</div>
+              <div class="desk-slot filled-c" id="deskSlot2">Book C</div>
+            </div>
+            <p style="font-size:10.5px;margin-top:12px;color:var(--muted);line-height:1.5">Currently 3 books on desk. You want Book D (next reference).</p>
+          </div>
+          <div class="library">
+            <div class="library-title">🏛️ BASEMENT STACKS · on disk</div>
+            <div class="library-stacks">
+              <div class="library-book"><span>Book A</span><span>also on desk</span></div>
+              <div class="library-book"><span>Book B</span><span>also on desk</span></div>
+              <div class="library-book"><span>Book C</span><span>also on desk</span></div>
+              <div class="library-book"><span>Book D</span><span>← needs fetching</span></div>
+              <div class="library-book"><span>Book E</span><span>in basement</span></div>
+              <div class="library-book"><span>Book F</span><span>in basement</span></div>
+              <div class="library-book"><span>Book G</span><span>in basement</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Replacement decision">
+  <div class="slide-inner">
+    <span class="badge amber">📚 Analogy 1 · The Replacement Decision</span>
+    <h2 style="margin-bottom:16px;">Which book gets thrown off the desk? <span class="grad-amber">Two strategies.</span></h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">FIFO · First In First Out</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">Throw off whichever book has been on the desk the <strong>longest</strong>. Simple, easy to track with a timestamp. But a book you grabbed first and have been using continuously could get thrown off — even if it's the one you need most.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--muted);font-family:var(--mono)">Advantage: trivial to implement</p>
+        <p style="font-size:11.5px;color:var(--crimson);font-family:var(--mono)">Disadvantage: ignores usage — can evict hot pages</p>
+      </div>
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">LRU · Least Recently Used</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">Throw off whichever book <strong>you haven't touched in the longest time</strong>. Assumes that if you haven't looked at a book recently, you probably won't need it soon.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--muted);font-family:var(--mono)">Advantage: better approximation of future use</p>
+        <p style="font-size:11.5px;color:var(--crimson);font-family:var(--mono)">Disadvantage: expensive to track precisely</p>
+      </div>
+    </div>
+    <div class="panel emerald" style="margin-top:20px;padding:18px">
+      <span class="panel-label">The core insight</span>
+      <p>The choice of eviction policy determines <strong>how often you'll take a page fault</strong>. A good policy that keeps hot pages in RAM means fewer slow disk fetches. A bad policy thrashes — constantly fetching and evicting the same pages over and over.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Streaming">
+  <div class="slide-inner">
+    <span class="badge">🎬 Analogy 2 · On-Demand Network Streaming Buffer</span>
+    <h2 style="margin-bottom:16px;">Only buffer what you're about to watch</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The match</span>
+          <p>Demand paging matches media streaming platforms that load only the <strong>immediate 10 seconds</strong> of a massive 4K movie file into active memory, swapping old data blocks clear out of local cache boundaries when the player scrubs to a new section.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The parallel</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Netflix movie</strong> → process's virtual address space<br>
+            <strong>Buffer region</strong> → physical RAM frames<br>
+            <strong>Pre-fetch ahead</strong> → OS readahead heuristic<br>
+            <strong>Buffer eviction</strong> → page replacement<br>
+            <strong>Network re-fetch</strong> → page fault → disk read
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What demand paging learns from this</span>
+          <p>Don't load the whole movie. Load just what's needed, predict what's next, and evict old chunks. That's what the OS does — the file is the process, the buffer is RAM, the network is disk.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The streaming buffer</div>
+        <div class="stream-vis">
+          <div class="stream-bar">
+            <div class="stream-chunk loaded" style="flex:1">0:00</div>
+            <div class="stream-chunk loaded" style="flex:1">0:10</div>
+            <div class="stream-chunk loaded" style="flex:1">0:20</div>
+            <div class="stream-chunk buffering" style="flex:1">0:30</div>
+            <div class="stream-chunk empty" style="flex:1">0:40</div>
+            <div class="stream-chunk empty" style="flex:1">0:50</div>
+            <div class="stream-chunk empty" style="flex:1">1:00</div>
+            <div class="stream-chunk empty" style="flex:1">1:10</div>
+            <div class="stream-playhead"></div>
+          </div>
+          <div class="stream-legend">
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(46,230,168,.55);border-radius:2px;display:inline-block"></span>in buffer</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(255,182,72,.30);border-radius:2px;display:inline-block"></span>buffering</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(255,255,255,.08);border-radius:2px;display:inline-block"></span>not yet loaded</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">The player only buffers what's near the current playhead. The rest is on the server until needed. Same as demand paging.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L13 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">final layer</span> of Module 3</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L11 (Paging)</h4>
+            <p>Virtual memory is built on paging. Without page tables there's no "present bit" to check, no swap-in mechanism, no replacement policy. L11 is the substrate.</p>
+          </div>
+          <div class="cohesion-card relies">
+            <h4>Relies On · L12 (TLB)</h4>
+            <p>When the TLB misses, we walk the page table. If the entry says "not present," that walk becomes a <strong>page fault</strong> — and the kernel has to load the page from disk. So L13 extends L12's chain: TLB miss → page table walk → page fault → disk read.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 4 (Process Synchronization)</h4>
+            <p>Because virtual memory allows multiple concurrent threads to securely share specific page entries, it sets the stage for race condition contentions. <strong>Shared pages = shared state = synchronization needs.</strong></p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 5 (File &amp; Storage Management)</h4>
+            <p>Swapping unmapped dirty pages out of RAM requires <strong>directly orchestrating raw block writes</strong> to disk storage partitions. The page replacement algorithm must talk to the file system and block device drivers.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Module 3 is complete:</b> L10 (base + bound) → L11 (paging) → L12 (TLB) → L13 (virtual memory). Together they explain how a 64-bit address space can be presented to a process that only has 8 GB of physical RAM — the entire memory illusion.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 3 arc + downstream</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="140" height="42" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="38" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L10 · Base/Bound</text>
+          <text x="90" y="52" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">translation</text>
+
+          <rect x="180" y="20" width="140" height="42" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="38" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">L11 · Paging</text>
+          <text x="250" y="52" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">pages → frames</text>
+
+          <line x1="90" y1="62" x2="140" y2="88" stroke="rgba(255,182,72,.6)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="62" x2="200" y2="88" stroke="rgba(46,230,168,.6)" stroke-width="1.4" class="svg-flow"/>
+
+          <rect x="80" y="88" width="180" height="42" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="106" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">L12 · TLB</text>
+          <text x="170" y="120" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">translation cache</text>
+
+          <line x1="170" y1="130" x2="170" y2="154" stroke="rgba(91,141,255,.6)" stroke-width="1.4" class="svg-flow"/>
+
+          <rect x="60" y="154" width="220" height="52" rx="10" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.85)" stroke-width="1.8"/>
+          <text x="170" y="174" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">L13 · VIRTUAL MEMORY</text>
+          <text x="170" y="192" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">swap · faults · replacement</text>
+
+          <line x1="130" y1="206" x2="90" y2="242" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="206" x2="250" y2="242" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+
+          <rect x="20" y="242" width="140" height="52" rx="9" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="262" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="90" y="278" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">shared pages</text>
+
+          <rect x="180" y="242" width="140" height="52" rx="9" fill="rgba(255,182,72,.08)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="262" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="700">Module 5</text>
+          <text x="250" y="278" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">swap to disk</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Demand Paging">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — Demand Paging</span>
+    <h2 style="margin-bottom:16px;">Load a page <span class="grad-emerald">only when needed</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Formal definition</span>
+          <p><strong>Demand Paging</strong> is an optimization mechanism where virtual pages are loaded into physical RAM strictly on-demand only when an active instruction requests them. No eager loading — pages appear in RAM the moment they're first touched.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What happens on process start</span>
+          <p>When a program launches, the OS sets up its page table but <strong>doesn't load any pages yet</strong>. Every page table entry is initially marked "absent." Execution begins — the first instruction fetch triggers a page fault, which loads the first page. The process then runs one page at a time.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The big win</span>
+          <p>Process startup is nearly instant. A 3 GB program can start in milliseconds — only its first few pages get loaded. The rest trickle in as execution reaches them. This is what makes huge applications feel instant.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Compare to eager loading:</b> without demand paging, launching Firefox would require reading 500 MB from disk into RAM before the first window appeared. With it, the window appears in ~2 seconds and pages load as needed.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Demand paging — the loading pattern</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="70" rx="10" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.45)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">VIRTUAL ADDRESS SPACE</text>
+          <g transform="translate(30,48)">
+            <rect x="0" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.30)" stroke="rgba(255,182,72,.65)"/>
+            <text x="17" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p0</text>
+            <rect x="40" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="57" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p1</text>
+            <rect x="80" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="97" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p2</text>
+            <rect x="120" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="137" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p3</text>
+            <rect x="160" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="177" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p4</text>
+            <rect x="200" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="217" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p5</text>
+            <rect x="240" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.10)"/>
+            <text x="257" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono" font-weight="700">p6</text>
+          </g>
+
+          <line x1="170" y1="86" x2="170" y2="112" stroke="rgba(46,230,168,.75)" stroke-width="1.8" class="svg-flow"/>
+          <text x="185" y="105" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">demand</text>
+          <text x="185" y="118" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">on first touch</text>
+
+          <rect x="14" y="120" width="312" height="70" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="140" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">PHYSICAL RAM</text>
+          <g transform="translate(30,154)">
+            <rect x="0" y="0" width="35" height="24" rx="3" fill="rgba(46,230,168,.30)" stroke="rgba(46,230,168,.75)"/>
+            <text x="17" y="15" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">p0</text>
+            <rect x="40" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+            <text x="57" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono">—</text>
+            <rect x="80" y="0" width="35" height="24" rx="3" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+            <text x="97" y="15" text-anchor="middle" font-size="8" fill="var(--muted)" font-family="JetBrains Mono">—</text>
+          </g>
+
+          <rect x="14" y="206" width="312" height="80" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="226" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">DISK · SWAP / EXECUTABLE</text>
+          <g transform="translate(30,240)">
+            <rect x="0" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="17" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p1</text>
+            <rect x="40" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="57" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p2</text>
+            <rect x="80" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="97" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p3</text>
+            <rect x="120" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="137" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p4</text>
+            <rect x="160" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="177" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p5</text>
+            <rect x="200" y="0" width="35" height="24" rx="3" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.55)"/>
+            <text x="217" y="15" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">p6</text>
+          </g>
+          <text x="170" y="296" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">all others wait on disk until touched</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Present Bit">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown — The Present / Absent Bit</span>
+    <h2 style="margin-bottom:16px;">One bit per page tells the MMU <span class="grad-blue">"is this in RAM?"</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What the bit means</span>
+          <p>Every page table entry has a <strong>present bit</strong> (also called the "valid" or "P" bit). If it's 1, the page is currently in a physical frame — the MMU can complete the translation normally. If it's 0, the page is <strong>absent</strong> — currently on disk.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What happens when it's 0</span>
+          <p>The MMU doesn't just fail — it raises a specific hardware exception called a <strong>page fault</strong>. That traps into the kernel. The kernel recognizes it as "this page is on disk, not in RAM" and orchestrates the load.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The key insight</span>
+          <p>The present bit is what makes virtual memory transparent. The process has no idea a page is missing. It issues a load. The load might take 100 ns (page in RAM) or 10 ms (page on disk, needs swap-in). <strong>Either way, the process sees the load succeed.</strong> The MMU and kernel hide the difference.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> the present bit is why you can have a 64-bit program address space on a 8 GB machine. The page table has 2^52 entries, all but a tiny fraction marked "absent." When you access one, it becomes present after a fault.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Present vs. absent</div>
+        <div class="pte-bit-vis">
+          <div class="pte-bit-row">
+            <div class="pte-bit-label">PTE</div>
+            <div class="pte-bit-box present">PRESENT = 1</div>
+            <div class="pte-bit-meaning">Page is in RAM. MMU translates immediately. ~100 ns access.</div>
+          </div>
+          <div class="pte-bit-row">
+            <div class="pte-bit-label">PTE</div>
+            <div class="pte-bit-box absent">PRESENT = 0</div>
+            <div class="pte-bit-meaning">Page is on disk. MMU raises page fault. Kernel swaps it in. ~10 ms access.</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:14px;border-radius:10px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.35);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink-2)">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:6px">SAME PTE, DIFFERENT STATE</div>
+          Present 1 → frame bits valid, page in RAM<br>
+          Present 0 → disk address in the entry instead<br>
+          MMU checks P first, before using any other bits
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Page Fault Sequence" data-anim="pfseq">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Page Fault Sequence</span>
+    <h2 style="margin-bottom:16px;">Six steps from fault to resume</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · What happens on a page fault</div>
+        <div class="pf-steps" id="pfSeq">
+          <div class="pf-step" data-idx="0">
+            <div class="pf-num">1</div>
+            <div class="pf-body">
+              <div class="pf-title">Hardware trap fires</div>
+              <div class="pf-desc">MMU sees P=0 → raises page fault exception → CPU switches to Ring 0</div>
+            </div>
+          </div>
+          <div class="pf-step" data-idx="1">
+            <div class="pf-num">2</div>
+            <div class="pf-body">
+              <div class="pf-title">Kernel identifies the page</div>
+              <div class="pf-desc">Reads faulting address from CR2 register → determines which page is absent</div>
+            </div>
+          </div>
+          <div class="pf-step" data-idx="2">
+            <div class="pf-num">3</div>
+            <div class="pf-body">
+              <div class="pf-title">Find a free frame</div>
+              <div class="pf-desc">Pick a free physical frame, or evict one via replacement algorithm</div>
+            </div>
+          </div>
+          <div class="pf-step" data-idx="3">
+            <div class="pf-num">4</div>
+            <div class="pf-body">
+              <div class="pf-title">Read page from disk</div>
+              <div class="pf-desc">Issue block read to swap partition → wait ~10 ms for I/O</div>
+            </div>
+          </div>
+          <div class="pf-step" data-idx="4">
+            <div class="pf-num">5</div>
+            <div class="pf-body">
+              <div class="pf-title">Update page table</div>
+              <div class="pf-desc">Set P=1, fill in frame number → now the page is resident</div>
+            </div>
+          </div>
+          <div class="pf-step" data-idx="5">
+            <div class="pf-num">6</div>
+            <div class="pf-body">
+              <div class="pf-title">Resume the instruction</div>
+              <div class="pf-desc">Restart the load/store that faulted → now it succeeds from RAM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The trap-and-resume model</span>
+          <p>The fault isn't a failure. It's a <strong>transparent suspension and retry</strong>. The instruction that caused the fault runs again after the page is loaded, and this time it succeeds.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The cost per fault</span>
+          <p>Disk read of 4 KB typically takes <strong>5–10 ms</strong> on SSD, <strong>10–20 ms</strong> on HDD. That's 50,000–100,000× slower than a RAM access. One page fault dominates a million normal accesses.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why page faults are catastrophic at scale</span>
+          <p>A process that faults once per second is fine. A process that faults once per 100 instructions spends <strong>99% of its time waiting on disk</strong>. That's thrashing — next slide.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · FIFO">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown — FIFO Page Replacement</span>
+    <h2 style="margin-bottom:16px;">Evict the <span class="grad-blue">oldest page</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The rule</span>
+          <p>Maintain a queue of pages in the order they were loaded. When a fault occurs and a frame must be freed, evict the page at the <strong>front of the queue</strong> — the one that has been in RAM the longest. Add the new page to the back.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's attractive</span>
+          <p>Trivial to implement. No tracking needed beyond a queue. Each page just needs a timestamp (or a doubly-linked list position) at load time. O(1) eviction, O(1) insertion.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why it's bad</span>
+          <p>FIFO ignores <strong>actual usage</strong>. A page loaded early but accessed constantly gets evicted just because it's old. FIFO has no idea whether a page is hot or cold. This can cause poor cache behavior and, famously, <strong>Belady's anomaly</strong> — adding more frames can <em>increase</em> faults.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">FIFO queue</div>
+        <svg viewBox="0 0 340 200" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">FIFO QUEUE</text>
+
+          <text x="30" y="50" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">oldest</text>
+          <text x="310" y="50" text-anchor="end" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">newest</text>
+
+          <rect x="30" y="70" width="60" height="50" rx="6" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="60" y="100" text-anchor="middle" font-size="13" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">P3</text>
+          <text x="60" y="116" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">evict</text>
+
+          <rect x="100" y="70" width="60" height="50" rx="6" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.75)" stroke-width="1.6"/>
+          <text x="130" y="100" text-anchor="middle" font-size="13" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P1</text>
+
+          <rect x="170" y="70" width="60" height="50" rx="6" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+          <text x="200" y="100" text-anchor="middle" font-size="13" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">P4</text>
+
+          <rect x="240" y="70" width="60" height="50" rx="6" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.75)" stroke-width="1.6"/>
+          <text x="270" y="100" text-anchor="middle" font-size="13" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">P2</text>
+
+          <line x1="310" y1="95" x2="330" y2="95" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+          <text x="335" y="80" text-anchor="end" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">new</text>
+          <text x="335" y="110" text-anchor="end" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">enters</text>
+
+          <text x="170" y="160" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">P3 loaded first → evicted first</text>
+          <text x="170" y="180" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">even if P3 is being used constantly</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · LRU">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — LRU Page Replacement</span>
+    <h2 style="margin-bottom:16px;">Evict the <span class="grad-amber">least recently used page</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">LRU ordering</div>
+        <svg viewBox="0 0 340 200" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">LRU LIST · ordered by recency</text>
+
+          <text x="30" y="50" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">least recently used</text>
+          <text x="310" y="50" text-anchor="end" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">most recently used</text>
+
+          <rect x="30" y="70" width="60" height="50" rx="6" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="60" y="100" text-anchor="middle" font-size="13" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">P1</text>
+          <text x="60" y="116" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">evict</text>
+
+          <rect x="100" y="70" width="60" height="50" rx="6" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.75)" stroke-width="1.6"/>
+          <text x="130" y="100" text-anchor="middle" font-size="13" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P3</text>
+
+          <rect x="170" y="70" width="60" height="50" rx="6" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+          <text x="200" y="100" text-anchor="middle" font-size="13" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">P4</text>
+
+          <rect x="240" y="70" width="60" height="50" rx="6" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.75)" stroke-width="1.6"/>
+          <text x="270" y="100" text-anchor="middle" font-size="13" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">P2</text>
+
+          <text x="170" y="160" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">P1 was accessed the longest time ago</text>
+          <text x="170" y="180" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">even if it was loaded first, its recent use matters</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The rule</span>
+          <p>On every memory access, move the accessed page to the <strong>front</strong> of a recency list. When a fault occurs and a frame must be freed, evict the page at the <strong>back</strong> of the list — the one whose last access was longest ago.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's better</span>
+          <p>LRU tracks <strong>actual usage</strong>, not load time. A page that's been in RAM for hours but is accessed constantly stays at the front and never gets evicted. A page that was loaded recently but never used sinks to the back and gets removed first.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The problem</span>
+          <p>Precise LRU is <strong>expensive in hardware</strong>. Every memory access would need to update a timestamp or reorder a list — that's a lot of bookkeeping for something that should be nearly free. Real systems use <strong>approximate LRU</strong> via a reference bit and clock algorithm.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The intuition:</b> LRU assumes the future looks like the past. If you haven't touched a page in a long time, you probably won't touch it soon. This assumption holds for most real workloads — which is why LRU is the gold standard for page replacement.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="FIFO Worked Example">
+  <div class="slide-inner">
+    <span class="badge blue">🧮 Worked Example — FIFO Trace</span>
+    <h2 style="margin-bottom:16px;">Reference string: <span class="grad-blue">1, 2, 3, 4, 1, 2</span> · 3 frames</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">FIFO · frame-by-frame</div>
+        <div class="trace-panel fifo" style="padding:14px;border:1px solid rgba(91,141,255,.45);background:rgba(91,141,255,.05)">
+          <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:10px">TRACE TABLE</div>
+          <div class="trace-table">
+            <div class="trace-cell head">REF</div>
+            <div class="trace-cell head">F1</div>
+            <div class="trace-cell head">F2</div>
+            <div class="trace-cell head">F3</div>
+            <div class="trace-cell head">EVENT</div>
+
+            <div class="trace-cell ref">1</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">2</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">3</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">4</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">1</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">1</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">2</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">1</div>
+            <div class="trace-cell frame-c">2</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-total" style="color:#b9d0ff">TOTAL PAGE FAULTS = 6</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What's happening at each step</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong style="color:#b9d0ff">1, 2, 3</strong> → three cold misses, all frames empty<br>
+            <strong style="color:#b9d0ff">4</strong> → evict 1 (oldest, loaded first)<br>
+            <strong style="color:#b9d0ff">1</strong> → evict 2 (next oldest)<br>
+            <strong style="color:#b9d0ff">2</strong> → evict 3 (next oldest)
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The pathological behavior</span>
+          <p>Every single access after the first three is a <strong>miss</strong>, even though pages 1, 2, 3 were used recently. FIFO evicts them anyway because it only cares about load time. This is the FIFO weakness in its purest form.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="LRU Worked Example">
+  <div class="slide-inner">
+    <span class="badge amber">🧮 Worked Example — LRU Trace</span>
+    <h2 style="margin-bottom:16px;">Same reference string: <span class="grad-amber">1, 2, 3, 4, 1, 2</span> · 3 frames</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">LRU · frame-by-frame</div>
+        <div class="trace-panel lru" style="padding:14px;border:1px solid rgba(255,182,72,.45);background:rgba(255,182,72,.05)">
+          <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--amber);margin-bottom:10px">TRACE TABLE</div>
+          <div class="trace-table">
+            <div class="trace-cell head">REF</div>
+            <div class="trace-cell head">F1</div>
+            <div class="trace-cell head">F2</div>
+            <div class="trace-cell head">F3</div>
+            <div class="trace-cell head">EVENT</div>
+
+            <div class="trace-cell ref">1</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">2</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell">—</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">3</div>
+            <div class="trace-cell frame-a">1</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">4</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">2</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">1</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">1</div>
+            <div class="trace-cell frame-c">3</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-cell ref">2</div>
+            <div class="trace-cell frame-a">4</div>
+            <div class="trace-cell frame-b">1</div>
+            <div class="trace-cell frame-c">2</div>
+            <div class="trace-cell miss">MISS</div>
+
+            <div class="trace-total" style="color:#ffd18a">TOTAL PAGE FAULTS = 6</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The same answer, different path</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong style="color:#ffd18a">4</strong> → evict 1 (LRU of {1,2,3} = 1)<br>
+            <strong style="color:#ffd18a">1</strong> → evict 2 (LRU of {2,3,4} = 2)<br>
+            <strong style="color:#ffd18a">2</strong> → evict 3 (LRU of {3,4,1} = 3)
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Wait — same as FIFO?</span>
+          <p>Yes! In this specific reference string, FIFO and LRU both produce <strong>6 faults</strong>. The eviction choices happen to align because the access pattern is monotonically increasing then jumps back. In real workloads, LRU typically outperforms FIFO by 20–40%.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The key takeaway</span>
+          <p>The reference string is deliberately chosen (per the syllabus) to show a case where both algorithms perform <strong>equally poorly</strong>. This is pedagogical — it shows you how to compute faults for both. Real workloads diverge sharply.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Comparison & Belady's Anomaly">
+  <div class="slide-inner">
+    <span class="badge crimson">📊 FIFO vs. LRU — And Belady's Anomaly</span>
+    <h2 style="margin-bottom:16px;">Same result here. <span class="grad-crimson">Different behavior elsewhere.</span></h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">FIFO properties</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13px">
+          ✓ Trivial to implement (queue)<br>
+          ✓ O(1) eviction and insertion<br>
+          ✗ Ignores usage patterns<br>
+          ✗ Can exhibit <strong style="color:#ff9fb1">Belady's anomaly</strong>
+        </p>
+      </div>
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">LRU properties</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13px">
+          ✓ Approximates future use well<br>
+          ✓ No Belady's anomaly (it's a "stack algorithm")<br>
+          ✗ Precise implementation is expensive<br>
+          ✗ Real systems approximate with reference bits
+        </p>
+      </div>
+    </div>
+    <div class="panel crimson" style="margin-top:20px;padding:18px">
+      <span class="panel-label">Belady's anomaly</span>
+      <p style="line-height:1.7;margin-top:6px;font-size:13.5px">For FIFO (and some other algorithms), <strong>increasing the number of frames can increase the number of page faults</strong>. This is deeply counterintuitive — more memory should mean fewer faults. LRU doesn't exhibit this because it's a <em>stack algorithm</em> — the set of pages in N frames is always a subset of the set in N+1 frames.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Classic example of Belady's anomaly:</b> reference string <code style="font-family:var(--mono);color:#c9a7ff">1,2,3,4,1,2,5,1,2,3,4,5</code> with FIFO gives <strong>9 faults at 3 frames</strong> but <strong>10 faults at 4 frames</strong>. That's the textbook anomaly.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live Demo" data-anim="pagedemo">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Interactive Page Replacement Tracer</span>
+    <h2 style="margin-bottom:16px;">Watch FIFO and LRU <span class="grad-emerald">side by side</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Reference string: 1, 2, 3, 4, 1, 2 · 3 frames</div>
+        <div class="demo-stage" id="demoStage">
+          <div class="demo-refs" id="demoRefs">
+            <!-- refs generated by JS -->
+          </div>
+          <div class="demo-status" id="demoStatus">
+            Ready — press play to trace
+          </div>
+          <div class="demo-frames-split">
+            <div class="demo-frame-set fifo">
+              <div class="demo-frame-title">
+                <span>FIFO</span>
+                <span>faults: <span id="fifoFaults">0</span></span>
+              </div>
+              <div class="demo-frames" id="fifoFrames">
+                <div class="demo-frame">—</div>
+                <div class="demo-frame">—</div>
+                <div class="demo-frame">—</div>
+              </div>
+            </div>
+            <div class="demo-frame-set lru">
+              <div class="demo-frame-title">
+                <span>LRU</span>
+                <span>faults: <span id="lruFaults">0</span></span>
+              </div>
+              <div class="demo-frames" id="lruFrames">
+                <div class="demo-frame">—</div>
+                <div class="demo-frame">—</div>
+                <div class="demo-frame">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="demo-progress">
+            <div class="demo-progress-fill" id="demoProgressFill"></div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're watching</span>
+          <p>Both algorithms process the same reference string. Frame contents update in real time. Watch how FIFO and LRU make different eviction choices on references 4, 1, and 2.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The blow-by-blow</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:12.5px">
+            <strong>Step 1-3:</strong> cold misses, both algorithms identical<br>
+            <strong>Step 4:</strong> FIFO evicts 1 (oldest), LRU evicts 1 (LRU)<br>
+            <strong>Step 5:</strong> FIFO evicts 2 (oldest), LRU evicts 2 (LRU)<br>
+            <strong>Step 6:</strong> FIFO evicts 3 (oldest), LRU evicts 3 (LRU)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Same choices, same faults</span>
+          <p>In this example, FIFO and LRU happen to make identical choices every time — which is why both end up with 6 faults. Change the reference string and they'd diverge.</p>
+        </div>
+        <div class="demo-counts">
+          <span class="cnt-fifo">FIFO: <span id="demoCountFifo">0</span> faults</span>
+          <span class="cnt-lru">LRU: <span id="demoCountLru">0</span> faults</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Thrashing">
+  <div class="slide-inner">
+    <span class="badge crimson">💀 Thrashing — The Worst Failure Mode</span>
+    <h2 style="margin-bottom:16px;">When the system <span class="grad-crimson">spends more time swapping than working</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Formal definition</span>
+          <p><strong>Thrashing</strong> is a critical system failure state where a machine spends more time continuously swapping blocks back and forth to disk than executing actual instruction paths. CPU utilization collapses; throughput drops to near zero.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">How it starts</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Too many processes are running<br>
+            <strong>2.</strong> Each process's working set doesn't fit<br>
+            <strong>3.</strong> Processes steal frames from each other<br>
+            <strong>4.</strong> Every access faults — pages get evicted before use<br>
+            <strong>5.</strong> System enters a death spiral<br>
+            <strong>6.</strong> CPU is 100% "busy" but does nothing useful
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Linux solution — the OOM killer</span>
+          <p>When thrashing reaches a critical point and no progress can be made, the Linux kernel invokes the <strong>OOM (Out-Of-Memory) killer</strong>. It selects the process consuming the most memory and kills it, freeing its pages for everyone else. Brutal, but it prevents the death spiral from taking down the entire system.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Detecting thrashing:</b> if <code style="font-family:var(--mono);color:#c9a7ff">vmstat</code> shows the CPU idle time near 0% but disk I/O is pegged at 100%, and no useful work is completing — you're thrashing. It's the classic symptom on any system that's run out of RAM.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Thrashing vs. healthy</div>
+        <div class="thrash-chart" id="thrashChart">
+          <svg viewBox="0 0 320 200" preserveAspectRatio="none">
+            <!-- Grid -->
+            <line x1="30" y1="180" x2="310" y2="180" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+            <line x1="30" y1="20" x2="30" y2="180" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+            <line x1="30" y1="20" x2="310" y2="20" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="30" y1="60" x2="310" y2="60" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="30" y1="100" x2="310" y2="100" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+            <line x1="30" y1="140" x2="310" y2="140" stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="2 4"/>
+
+            <!-- Y axis label -->
+            <text x="20" y="105" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter" font-weight="700" transform="rotate(-90 20 105)">CPU %</text>
+            <text x="170" y="196" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="Inter" font-weight="700"># of running processes</text>
+
+            <!-- Y labels -->
+            <text x="25" y="184" text-anchor="end" font-size="8" fill="rgba(132,148,180,.6)" font-family="Inter">0</text>
+            <text x="25" y="144" text-anchor="end" font-size="8" fill="rgba(132,148,180,.6)" font-family="Inter">25</text>
+            <text x="25" y="104" text-anchor="end" font-size="8" fill="rgba(132,148,180,.6)" font-family="Inter">50</text>
+            <text x="25" y="64" text-anchor="end" font-size="8" fill="rgba(132,148,180,.6)" font-family="Inter">75</text>
+            <text x="25" y="24" text-anchor="end" font-size="8" fill="rgba(132,148,180,.6)" font-family="Inter">100</text>
+
+            <!-- Healthy curve -->
+            <path d="M 40 160 Q 100 40 180 60 Q 260 80 290 90" fill="none" stroke="#2ee6a8" stroke-width="2.5" opacity="0.8"/>
+
+            <!-- Thrashing curve -->
+            <path d="M 40 160 Q 100 30 180 40 Q 220 60 240 120 L 280 175" fill="none" stroke="#ff4d6d" stroke-width="2.5"/>
+
+            <!-- Legend -->
+            <circle cx="200" cy="30" r="4" fill="#2ee6a8"/>
+            <text x="210" y="34" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">healthy</text>
+            <circle cx="260" cy="30" r="4" fill="#ff4d6d"/>
+            <text x="270" y="34" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">thrash</text>
+
+            <!-- Thrashing zone -->
+            <text x="260" y="155" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.85)" font-family="Inter" font-weight="700">thrashing</text>
+            <text x="260" y="168" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.6)" font-family="Inter" font-weight="700">zone</text>
+          </svg>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">CPU utilization rises with workload — then <strong style="color:#ff9fb1">collapses</strong> once thrashing begins. Adding more load makes it worse.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Working Set">
+  <div class="slide-inner">
+    <span class="badge violet">📖 The Working Set Model — Preventing Thrashing</span>
+    <h2 style="margin-bottom:16px;">How much RAM does a process <span class="grad-violet">actually need?</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The definition</span>
+          <p>The <strong>working set</strong> of a process at time t is the set of pages it has accessed in the last Δ time units. Δ is a tunable window (often 10,000–1,000,000 instructions). The working set approximates which pages must be in RAM for the process to make progress efficiently.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it matters</span>
+          <p>If the sum of all processes' working sets fits in physical RAM, no thrashing. If it exceeds RAM, thrashing. The OS uses this insight: <strong>admit a new process only if its working set fits</strong>. Otherwise, swap someone out or wait.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's approximate</span>
+          <p>Precise working set tracking requires knowing every access. Real systems approximate with <strong>reference bits</strong> — the hardware sets a bit on each page access, and the OS samples those bits periodically. A page with the reference bit set recently is "in the working set."</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The working set window</div>
+        <div class="ws-vis">
+          <div class="ws-timeline">
+            <div class="ws-cell cold">1</div>
+            <div class="ws-cell cold">2</div>
+            <div class="ws-cell warm">3</div>
+            <div class="ws-cell active">3</div>
+            <div class="ws-cell warm">1</div>
+            <div class="ws-cell active">4</div>
+            <div class="ws-cell warm">3</div>
+            <div class="ws-cell active">4</div>
+            <div class="ws-cell hot">4</div>
+            <div class="ws-cell hot">4</div>
+            <div class="ws-cell active">4</div>
+            <div class="ws-cell warm">2</div>
+            <div class="ws-cell active">4</div>
+            <div class="ws-cell hot">4</div>
+            <div class="ws-cell active">3</div>
+            <div class="ws-cell warm">1</div>
+            <div class="ws-cell active">1</div>
+            <div class="ws-cell cold">2</div>
+            <div class="ws-cell active">2</div>
+            <div class="ws-cell warm">3</div>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:10px;font-size:10px;color:var(--muted);font-family:var(--mono);font-weight:700">
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(255,77,109,.55);border-radius:2px;display:inline-block"></span>very active</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(255,182,72,.45);border-radius:2px;display:inline-block"></span>active</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(91,141,255,.40);border-radius:2px;display:inline-block"></span>warm</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(255,255,255,.08);border-radius:2px;display:inline-block"></span>cold</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Recent accesses (right side) show page 4 is hot, page 3 and 1 are warm, page 2 is cold. Working set = {1, 3, 4} approximately.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Swap Space">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Swap Space — The Disk Side of Virtual Memory</span>
+    <h2 style="margin-bottom:16px;">Where absent pages <span class="grad-amber">actually live</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What swap space is</span>
+          <p>A designated raw block sector layout on a hard drive or SSD used to cache evicted virtual page overflows. When the OS evicts a page from RAM, it writes it to swap — and when the process touches it again, it reads it back from swap.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it comes from</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Swap partition:</strong> a dedicated disk partition (fastest)<br>
+            <strong>Swap file:</strong> a regular file on an existing filesystem (flexible)<br>
+            <strong>Zram:</strong> a compressed RAM-based swap area (compresses pages before "swapping")
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Executable pages — the free lunch</span>
+          <p>If a page is <strong>clean</strong> (unmodified since loaded from the program's executable), it doesn't need to be written to swap — it can just be re-read from the original file later. Only <strong>dirty</strong> pages (modified in memory) need swap. This means program code pages are cheap to evict.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why SSDs changed the game:</b> with HDDs, swap was painful — 10–20 ms per swap. With SSDs, it's 0.1–1 ms. This made heavier swap usage tolerable and shifted the tradeoffs of memory management significantly.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">RAM ↔ swap</div>
+        <div class="swap-vis">
+          <div class="swap-diagram">
+            <div class="swap-ram">
+              <div class="swap-title">RAM · in use</div>
+              <div class="swap-item">page 5 <span>active</span></div>
+              <div class="swap-item">page 7 <span>active</span></div>
+              <div class="swap-item">page 9 <span>active</span></div>
+              <div class="swap-item evicted">page 3 → swap</div>
+            </div>
+            <div class="swap-disk">
+              <div class="swap-title">SWAP · on disk</div>
+              <div class="swap-item swapped">page 1 <span>cold</span></div>
+              <div class="swap-item swapped">page 2 <span>cold</span></div>
+              <div class="swap-item evicted">page 3 <span>← just evicted</span></div>
+              <div class="swap-item swapped">page 4 <span>cold</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real World · Linux">
+  <div class="slide-inner">
+    <span class="badge emerald">🌍 Real World — Linux Virtual Memory in Practice</span>
+    <h2 style="margin-bottom:16px;">What's actually <span class="grad-emerald">in your kernel</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The LRU approximation — clock algorithm</span>
+          <p>Linux doesn't do precise LRU (too expensive). It uses a <strong>two-list</strong> approach: an "active" list and an "inactive" list of pages. On each access, a page's reference bit is set by hardware. Periodically, the kernel scans pages, moving recently-referenced ones to active and demoting cold ones to inactive. Eviction happens from inactive.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The swappiness knob</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">/proc/sys/vm/swappiness</code> (0–100) controls how aggressively the kernel swaps anonymous pages vs. dropping file-backed clean pages. Default is 60. Lower it to 10 for systems with lots of RAM that shouldn't swap heavily.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The OOM killer</span>
+          <p>When swap is full AND RAM is full, the kernel's last resort is the <strong>OOM killer</strong>. It scans all processes, scores them by memory usage (with adjustments for priority, root status, etc.), and SIGKILLs the highest-scoring process. Logs to dmesg with the process name and RSS size.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>What this means for you:</b> if your process gets OOM-killed, it's not a bug — it's the kernel preventing system-wide failure. Reduce memory usage, add swap, or add RAM. The OOM killer doing its job is often the least-bad option.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Watching swap in action</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — swap inspection</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">free -h</span></span>
+            <span class="term-line dim">              total        used        free      shared  buff/cache   available</span>
+            <span class="term-line">Mem:           <span style="color:#88ffd8">15Gi</span>        <span style="color:#ffd18a">9.2Gi</span>       <span style="color:#88ffd8">2.1Gi</span>        312Mi       4.3Gi       5.4Gi</span>
+            <span class="term-line">Swap:          <span style="color:#b9d0ff">8.0Gi</span>       <span style="color:#ff9fb1">1.8Gi</span>       <span style="color:#88ffd8">6.2Gi</span></span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat /proc/sys/vm/swappiness</span></span>
+            <span class="term-line">60</span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat /proc/vmstat | grep -E 'pgpgin|pgpgout|pswpin|pswpout'</span></span>
+            <span class="term-line dim">pgpgin 1847293</span>
+            <span class="term-line dim">pgpgout 9283741</span>
+            <span class="term-line">pswpin 47238</span>
+            <span class="term-line">pswpout 18472</span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">dmesg | grep -i "killed process" | tail -3</span></span>
+            <span class="term-line warn">[...] Out of memory: Killed process 4821 (chrome) total-vm:3501840kB, anon-rss:1872000kB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Code · Page Fault Handler" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code — The Page Fault Handler</span>
+    <h2 style="margin-bottom:16px;">The kernel's response to <span class="grad-amber">a P=0 trap</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>page_fault.c · conceptual</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Simplified page fault handler (educational)</span></span><span class="code-line"><span class="c-type">void</span> <span class="c-name">handle_page_fault</span>(<span class="c-type">uint64_t</span> <span class="c-var">fault_addr</span>) {</span><span class="code-line">    <span class="c-com">// 1. Which page faulted?</span></span><span class="code-line">    <span class="c-type">uint64_t</span> <span class="c-var">page</span> = <span class="c-var">fault_addr</span> &gt;&gt; <span class="c-num">12</span>;</span><span class="code-line">    <span class="c-type">pte_t</span> *<span class="c-var">pte</span> = &amp;<span class="c-name">current</span>()-&gt;<span class="c-var">mm</span>-&gt;<span class="c-var">page_table</span>[<span class="c-var">page</span>];</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 2. Is it a valid virtual address at all?</span></span><span class="code-line">    <span class="c-kw">if</span> (!<span class="c-name">is_mapped</span>(<span class="c-var">page</span>)) {</span><span class="code-line">        <span class="c-name">send_signal</span>(<span class="c-name">current</span>(), <span class="c-var">SIGSEGV</span>);</span><span class="code-line">        <span class="c-kw">return</span>;</span><span class="code-line">    }</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 3. Find a physical frame (free or evicted)</span></span><span class="code-line">    <span class="c-type">frame_t</span> <span class="c-var">frame</span> = <span class="c-name">allocate_frame</span>();</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 4. Read the page from swap / executable</span></span><span class="code-line">    <span class="c-name">read_page_from_disk</span>(<span class="c-var">pte</span>-&gt;<span class="c-var">disk_block</span>, <span class="c-var">frame</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 5. Update page table: present = 1, frame filled</span></span><span class="code-line">    <span class="c-var">pte</span>-&gt;<span class="c-var">frame</span>   = <span class="c-var">frame</span>;</span><span class="code-line">    <span class="c-var">pte</span>-&gt;<span class="c-var">present</span> = <span class="c-num">1</span>;</span><span class="code-line">    <span class="c-name">invalidate_tlb_entry</span>(<span class="c-var">page</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 6. Return from trap → hardware retries the instruction</span></span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The check that keeps it safe</span>
+          <p>Step 2 is crucial: not every fault is a valid demand page. If the virtual address was never mapped (a wild pointer), the fault can't be fixed — the process gets SIGSEGV and dies. Only legitimate accesses to swapped-out pages get swapped back in.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The retry semantics</span>
+          <p>After step 6, the CPU re-executes the faulting instruction. Now the page is present, so the load/store succeeds. From the process's perspective, nothing happened — just a slow memory access.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost of a wrong eviction</span>
+          <p>If step 3 chooses badly (evicts a hot page), the next access to that page will fault again — potentially right after. That's thrashing: the same pages faulting in a loop. This is why replacement policy matters so much.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Code · LRU Implementation">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">💻 Code — The LRU Bookkeeping</span>
+    <h2 style="margin-bottom:16px;">What precise LRU <span class="grad-emerald">would need</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>lru.c · conceptual</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Precise LRU implementation (educational — real systems approximate)</span></span><span class="code-line"><span class="c-kw">struct</span> <span class="c-type">lru_node</span> {</span><span class="code-line">    <span class="c-type">uint64_t</span> <span class="c-var">page</span>;</span><span class="code-line">    <span class="c-kw">struct</span> <span class="c-type">lru_node</span> *<span class="c-var">prev</span>, *<span class="c-var">next</span>;</span><span class="code-line">};</span><span class="code-line"></span><span class="code-line"><span class="c-com">// On every memory access — move page to head</span></span><span class="code-line"><span class="c-type">void</span> <span class="c-name">lru_touch</span>(<span class="c-type">uint64_t</span> <span class="c-var">page</span>) {</span><span class="code-line">    <span class="c-kw">struct</span> <span class="c-type">lru_node</span> *<span class="c-var">n</span> = <span class="c-name">lookup</span>(<span class="c-var">page</span>);</span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">n</span>) {</span><span class="code-line">        <span class="c-name">list_remove</span>(<span class="c-var">n</span>);</span><span class="code-line">        <span class="c-name">list_insert_head</span>(<span class="c-var">n</span>);</span><span class="code-line">    }</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-com">// On a fault — evict the tail</span></span><span class="code-line"><span class="c-type">uint64_t</span> <span class="c-name">lru_evict</span>(<span class="c-type">void</span>) {</span><span class="code-line">    <span class="c-kw">struct</span> <span class="c-type">lru_node</span> *<span class="c-var">victim</span> = <span class="c-var">lru_tail</span>;</span><span class="code-line">    <span class="c-type">uint64_t</span> <span class="c-var">page</span> = <span class="c-var">victim</span>-&gt;<span class="c-var">page</span>;</span><span class="code-line">    <span class="c-name">list_remove</span>(<span class="c-var">victim</span>);</span><span class="code-line">    <span class="c-name">free</span>(<span class="c-var">victim</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">page</span>;  <span class="c-com">// evict this from RAM</span></span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The cost problem</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">lru_touch</code> runs on <strong>every single memory access</strong>. That's a lookup, list remove, and list insert — three operations per load/store. On a modern CPU running at 3 GHz, that's impossible to do in a clock cycle.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why real systems approximate</span>
+          <p>Linux's <strong>clock algorithm</strong> is the workaround. Each page has a reference bit set by hardware. The kernel periodically sweeps through pages: if the bit is 1, reset it and skip; if 0, evict. That's a "second chance" approximation of LRU — much cheaper, nearly as effective.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The lesson</span>
+          <p>Precise LRU is theoretically optimal for the given access pattern, but <strong>unimplementable at full speed</strong>. Real systems trade precision for speed. That tradeoff is a recurring theme in systems design.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Page Faults &amp; Swapping</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Demand Paging</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An optimization mechanism where virtual pages are loaded into physical RAM strictly on-demand only when an active instruction requests them.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Don't load the page until the program actually touches it. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">What makes it work</span>
+          <p>The present bit + page fault handler. Absent pages are marked P=0; the first access traps and loads them.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Page Fault</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A valid hardware exception interrupt triggered when a thread attempts an operation on a page marked as absent from physical RAM.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The CPU's way of saying "I need this page — go get it from disk." )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Cost</span>
+          <p>5–10 ms on SSD, 10–20 ms on HDD. 50,000–100,000× slower than a RAM access.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🏷️ System Lexicon — Swap &amp; Thrashing</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Swap Space</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A designated raw block sector layout on a hard drive or SSD used to cache evicted virtual page overflows.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The overflow area on disk where evicted pages go. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Forms</span>
+          <p>Swap partition (fast) · swap file (flexible) · zram (compressed in RAM)</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Thrashing</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A critical system failure state where a machine spends more time continuously swapping blocks back and forth to disk than executing actual instruction paths.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The system is doing nothing but swapping — CPU is pegged but no work completes. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The Linux fix</span>
+          <p>OOM killer — kills the worst offender. Last resort, but prevents total system death.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Human Reference String LRU Simulation</span>
+    <h2 style="margin-bottom:16px;">Three chairs = 3 frames. <span class="grad-violet">Students play the pages.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Line up <strong>three empty chairs</strong> at the front of the room to serve as a 3-frame RAM. Have a stack of cards numbered 1, 2, 3, 4, 5, 6, 7, 8. Shuffle them or use the syllabus string 1, 2, 3, 4, 1, 2.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The choreography</span>
+          <p>Call out numbers from the reference string. The student carrying that number's card rushes up and sits in an empty chair. If the number's chair is already occupied (the same student is up there), that's a <strong>hit</strong> — no change.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The LRU decision</span>
+          <p>When a new student arrives and all chairs are full, the class determines: <strong>which current sitter has been in their chair the longest without being "touched"</strong> (that is, whose number hasn't been re-called recently). That student vacates their seat back to the "disk lobby."</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> after the run, have the class count the misses (page faults) and hits. Ask: <em>"What's the difference between a cold miss and an eviction miss?"</em> Answer: cold misses are unavoidable (page never in RAM); eviction misses are the algorithm's fault (page was in RAM, got kicked out).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The three chairs</div>
+        <div class="act-chairs">
+          <div class="act-chair occupied-a">
+            <span>P1</span>
+            <div class="seat-label">recently used</div>
+          </div>
+          <div class="act-chair occupied-b">
+            <span>P2</span>
+            <div class="seat-label">recently used</div>
+          </div>
+          <div class="act-chair occupied-c">
+            <span>P3</span>
+            <div class="seat-label">least recent → evict</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Next reference is 4. All chairs full. LRU is P3 (bottom of the recency list).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Cohesion Full">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🧭 Full Module 3 View — Where L13 Fits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">capacity layer</span> on top of paging</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The complete Module 3 arc</span>
+          <p style="line-height:1.95;margin-top:4px;font-size:13.5px">
+            <strong style="color:#ffd18a">L10 · Base + Bound</strong> — translation and isolation<br>
+            <strong style="color:#88ffd8">L11 · Paging</strong> — fixed-size units, no fragmentation<br>
+            <strong style="color:#b9d0ff">L12 · TLB</strong> — caching translations for speed<br>
+            <strong style="color:#c9a7ff">L13 · Virtual Memory</strong> — pages on disk, capacity &gt; RAM
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The compounding effect</span>
+          <p>L10 gave isolation. L11 made memory shareable and fragmentation-free. L12 made it fast. L13 made it <strong>unbounded</strong> — a process can have a 64-bit address space with 8 GB of physical RAM. Each layer builds on the previous ones.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What comes next</span>
+          <p>Module 4 (Process Synchronization) picks up exactly where L13 leaves off. Virtual memory lets threads share pages — that's what enables concurrency. But shared pages mean shared data, and shared data means <strong>race conditions</strong>. L14 starts that journey.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Module 3 in one sentence:</b> every modern OS presents each process with a private, huge, fast, fragmentation-free address space — built from four layers (translation, paging, caching, demand paging) that each solve one limitation of the layer below.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Full picture</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="30" y="16" width="280" height="42" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">L10 · BASE + BOUND</text>
+          <text x="170" y="50" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">translation</text>
+
+          <line x1="170" y1="58" x2="170" y2="78" stroke="rgba(255,182,72,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="78" width="280" height="42" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="96" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="700">L11 · PAGING</text>
+          <text x="170" y="112" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">no fragmentation</text>
+
+          <line x1="170" y1="120" x2="170" y2="140" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="140" width="280" height="42" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="158" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L12 · TLB</text>
+          <text x="170" y="174" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">translation cache</text>
+
+          <line x1="170" y1="182" x2="170" y2="202" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="202" width="280" height="52" rx="10" fill="rgba(160,107,255,.16)" stroke="rgba(160,107,255,.85)" stroke-width="1.8"/>
+          <text x="170" y="222" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">L13 · VIRTUAL MEMORY</text>
+          <text x="170" y="240" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">pages on disk · swap · replacement</text>
+
+          <text x="170" y="288" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">each layer removes a limitation</text>
+          <text x="170" y="306" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">together they create the memory illusion</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L13 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p><strong>Virtual memory</strong> lets a process have a virtual address space larger than physical RAM. <strong>Demand paging</strong> loads pages only when accessed — no eager loading, instant startup.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>When a page is absent from RAM (P=0), accessing it triggers a <strong>page fault</strong>. The kernel loads the page from disk, updates the page table, and resumes the instruction. Transparent to the process, but ~10 ms per fault.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Page replacement</strong> decides which page to evict when RAM is full. <strong>FIFO</strong> evicts the oldest — simple but ignores usage. <strong>LRU</strong> evicts the least recently used — better, but expensive to track precisely. Real systems use approximations.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Thrashing</strong> is the failure state where the system spends all its time swapping. The Linux <strong>OOM killer</strong> terminates the worst offender to prevent total collapse. Working set tracking and swap tuning help avoid it.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next module</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">Module 4 — Process Synchronization (L14: Race Conditions &amp; Mutual Exclusion)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Virtual memory lets threads share pages — that's the whole point of threads from L09. But shared pages mean shared state, and shared state means <strong>race conditions</strong>. Module 4 picks up right here: mutexes, semaphores, deadlocks, and the classic synchronization problems.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L14: Race Conditions &amp; Mutual Exclusion &nbsp;|&nbsp; [L14.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad13" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad13)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad13)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : VM canvas ---------- */
+reg('vmcanvas', function(){
+  const c = document.getElementById('vmCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PAGES FLOW BETWEEN DISK AND RAM', W/2, 16);
+
+    // VM space (left)
+    const vmX = 40, vmY = 60, vmW = 160, vmH = 340;
+    ctx.fillStyle = 'rgba(91,141,255,0.05)';
+    ctx.fillRect(vmX, vmY, vmW, vmH);
+    ctx.strokeStyle = 'rgba(91,141,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(vmX, vmY, vmW, vmH);
+
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('VIRTUAL SPACE', vmX + vmW/2, vmY - 16);
+
+    // Virtual pages
+    const pageH = 34;
+    const pageGap = 6;
+    const activePage = Math.floor(t / 45) % 8;
+    for(let i = 0; i < 8; i++){
+      const py = vmY + 20 + i * (pageH + pageGap);
+      const isActive = i === activePage;
+      ctx.fillStyle = isActive ? 'rgba(255,182,72,0.20)' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(vmX + 14, py, vmW - 28, pageH);
+      ctx.strokeStyle = isActive ? '#ffb648' : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = isActive ? 2 : 1;
+      ctx.strokeRect(vmX + 14, py, vmW - 28, pageH);
+
+      ctx.fillStyle = isActive ? '#ffd18a' : 'rgba(185,208,255,0.6)';
+      ctx.font = '700 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('page ' + i, vmX + vmW/2, py + pageH/2);
+    }
+
+    // RAM (center)
+    const ramX = W/2 - 70, ramY = 100, ramW = 140, ramH = 260;
+    ctx.fillStyle = 'rgba(46,230,168,0.06)';
+    ctx.fillRect(ramX, ramY, ramW, ramH);
+    ctx.strokeStyle = 'rgba(46,230,168,0.65)';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(ramX, ramY, ramW, ramH);
+
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PHYSICAL RAM', ramX + ramW/2, ramY - 16);
+
+    // RAM frames (some occupied)
+    const ramOccupants = [0, 2, null, null, 4, 6];
+    for(let i = 0; i < 6; i++){
+      const ry = ramY + 20 + i * (pageH + pageGap);
+      const occupant = ramOccupants[i];
+      const isActive = occupant === activePage;
+      ctx.fillStyle = isActive ? 'rgba(46,230,168,0.30)' : (occupant !== null ? 'rgba(46,230,168,0.10)' : 'rgba(255,255,255,0.03)');
+      ctx.fillRect(ramX + 14, ry, ramW - 28, pageH);
+      ctx.strokeStyle = isActive ? '#2ee6a8' : (occupant !== null ? 'rgba(46,230,168,0.55)' : 'rgba(255,255,255,0.10)');
+      ctx.lineWidth = isActive ? 2 : 1;
+      ctx.strokeRect(ramX + 14, ry, ramW - 28, pageH);
+
+      if (occupant !== null) {
+        ctx.fillStyle = isActive ? '#fff' : '#88ffd8';
+        ctx.font = '700 11px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('p' + occupant, ramX + ramW/2, ry + pageH/2);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.20)';
+        ctx.font = '700 11px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('—', ramX + ramW/2, ry + pageH/2);
+      }
+    }
+
+    // Disk (right)
+    const dX = W - 200, dY = 60, dW = 160, dH = 340;
+    ctx.fillStyle = 'rgba(255,182,72,0.05)';
+    ctx.fillRect(dX, dY, dW, dH);
+    ctx.strokeStyle = 'rgba(255,182,72,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(dX, dY, dW, dH);
+
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('DISK · SWAP', dX + dW/2, dY - 16);
+
+    // Disk pages (not in RAM)
+    const diskPages = [1, 3, 5, 7];
+    for(let i = 0; i < diskPages.length; i++){
+      const dy = dY + 20 + i * (pageH + pageGap);
+      const isActive = diskPages[i] === activePage;
+      ctx.fillStyle = isActive ? 'rgba(255,182,72,0.20)' : 'rgba(255,182,72,0.05)';
+      ctx.fillRect(dX + 14, dy, dW - 28, pageH);
+      ctx.strokeStyle = isActive ? '#ffb648' : 'rgba(255,182,72,0.30)';
+      ctx.lineWidth = isActive ? 2 : 1;
+      ctx.strokeRect(dX + 14, dy, dW - 28, pageH);
+      ctx.fillStyle = isActive ? '#ffd18a' : 'rgba(255,209,138,0.55)';
+      ctx.font = '700 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('p' + diskPages[i], dX + dW/2, dy + pageH/2);
+    }
+
+    // Arrow: page fault from active VM to RAM
+    if (activePage % 2 === 1) {
+      // page is on disk
+      const faultY = vmY + 20 + activePage * (pageH + pageGap) + pageH/2;
+      ctx.strokeStyle = 'rgba(255,77,109,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(vmX + vmW + 4, faultY);
+      ctx.lineTo(ramX - 4, ramY + ramH + 20);
+      ctx.stroke();
+      ctx.fillStyle = '#ff9fb1';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FAULT', (vmX + vmW + ramX) / 2, (faultY + ramY + ramH)/2 - 12);
+    }
+
+    // Bottom hint
+    ctx.fillStyle = 'rgba(132,148,180,0.6)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('process sees continuous memory · OS moves pages behind the scenes', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 9 : page fault sequence ---------- */
+reg('pfseq', function(){
+  const steps = document.querySelectorAll('#pfSeq .pf-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active','done');
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','done')); } };
+});
+
+/* ---------- Slide 15 : interactive page replacement demo ---------- */
+reg('pagedemo', function(){
+  const refs = [1, 2, 3, 4, 1, 2];
+  const frames = 3;
+
+  // Precompute the state of both algorithms at each step
+  function computeFIFO(){
+    const states = [];
+    let frameArr = [null, null, null];
+    let queue = [];
+    let faults = 0;
+    for (let i = 0; i < refs.length; i++) {
+      const ref = refs[i];
+      let fault = false;
+      let evicted = null;
+      if (!frameArr.includes(ref)) {
+        // Miss
+        fault = true;
+        faults++;
+        if (queue.length < frames) {
+          // Load into next free frame
+          const idx = frameArr.indexOf(null);
+          frameArr[idx] = ref;
+          queue.push(idx);
+        } else {
+          // Evict from queue front
+          const evictIdx = queue.shift();
+          evicted = frameArr[evictIdx];
+          frameArr[evictIdx] = ref;
+          queue.push(evictIdx);
+        }
+      }
+      states.push({
+        ref, fault, evicted,
+        frameArr: [...frameArr],
+        faults
+      });
+    }
+    return states;
+  }
+
+  function computeLRU(){
+    const states = [];
+    let frameArr = [null, null, null];
+    let recency = []; // most recent first, indices into frameArr
+    let faults = 0;
+    for (let i = 0; i < refs.length; i++) {
+      const ref = refs[i];
+      let fault = false;
+      let evicted = null;
+      const existingIdx = frameArr.indexOf(ref);
+      if (existingIdx >= 0) {
+        // Hit — update recency
+        recency = recency.filter(x => x !== existingIdx);
+        recency.unshift(existingIdx);
+      } else {
+        // Miss
+        fault = true;
+        faults++;
+        if (frameArr.includes(null)) {
+          const freeIdx = frameArr.indexOf(null);
+          frameArr[freeIdx] = ref;
+          recency.unshift(freeIdx);
+        } else {
+          // Evict LRU — last in recency
+          const evictIdx = recency.pop();
+          evicted = frameArr[evictIdx];
+          frameArr[evictIdx] = ref;
+          recency.unshift(evictIdx);
+        }
+      }
+      states.push({
+        ref, fault, evicted,
+        frameArr: [...frameArr],
+        faults
+      });
+    }
+    return states;
+  }
+
+  const fifoStates = computeFIFO();
+  const lruStates = computeLRU();
+  // console.log('FIFO faults:', fifoStates[fifoStates.length-1].faults);
+  // console.log('LRU faults:', lruStates[lruStates.length-1].faults);
+
+  const refsContainer = document.getElementById('demoRefs');
+  const statusEl = document.getElementById('demoStatus');
+  const fifoFramesEl = document.getElementById('fifoFrames');
+  const lruFramesEl = document.getElementById('lruFrames');
+  const fifoFaultsEl = document.getElementById('fifoFaults');
+  const lruFaultsEl = document.getElementById('lruFaults');
+  const progressFill = document.getElementById('demoProgressFill');
+
+  if (!refsContainer) return { stop(){} };
+
+  // Build ref chips
+  refs.forEach((r, i) => {
+    const el = document.createElement('div');
+    el.className = 'demo-ref';
+    el.textContent = r;
+    el.dataset.idx = i;
+    refsContainer.appendChild(el);
+  });
+
+  let step = -1; // -1 = not started
+
+  function renderStep(s) {
+    // Update refs
+    document.querySelectorAll('.demo-ref').forEach((el, i) => {
+      el.classList.remove('past', 'current');
+      if (s < 0) return;
+      if (i < s) el.classList.add('past');
+      else if (i === s) el.classList.add('current');
+    });
+
+    // Update frames
+    if (s < 0) {
+      [fifoFramesEl, lruFramesEl].forEach(parent => {
+        Array.from(parent.children).forEach(f => {
+          f.className = 'demo-frame';
+          f.textContent = '—';
+        });
+      });
+      statusEl.className = 'demo-status';
+      statusEl.textContent = 'Ready — press play to trace';
+      fifoFaultsEl.textContent = '0';
+      lruFaultsEl.textContent = '0';
+      progressFill.style.width = '0%';
+      return;
+    }
+
+    const fifo = fifoStates[s];
+    const lru = lruStates[s];
+
+    // FIFO frames
+    Array.from(fifoFramesEl.children).forEach((el, i) => {
+      const val = fifo.frameArr[i];
+      el.className = 'demo-frame';
+      el.textContent = val === null ? '—' : val;
+      if (val !== null) el.classList.add('occupied-' + ['a', 'b', 'c'][i]);
+    });
+
+    // LRU frames
+    Array.from(lruFramesEl.children).forEach((el, i) => {
+      const val = lru.frameArr[i];
+      el.className = 'demo-frame';
+      el.textContent = val === null ? '—' : val;
+      if (val !== null) el.classList.add('occupied-' + ['a', 'b', 'c'][i]);
+    });
+
+    fifoFaultsEl.textContent = fifo.faults;
+    lruFaultsEl.textContent = lru.faults;
+
+    // Status
+    const faultEvent = fifo.fault;
+    if (faultEvent) {
+      statusEl.className = 'demo-status fault';
+      statusEl.textContent = `Reference ${fifo.ref} → MISS (page fault · load from disk)`;
+    } else {
+      statusEl.className = 'demo-status hit';
+      statusEl.textContent = `Reference ${fifo.ref} → HIT (in RAM)`;
+    }
+
+    // Progress
+    progressFill.style.width = `${((s + 1) / refs.length) * 100}%`;
+  }
+
+  renderStep(-1);
+
+  const timer = setInterval(() => {
+    step++;
+    if (step >= refs.length) {
+      setTimeout(() => { step = -1; renderStep(-1); }, 2400);
+      return;
+    }
+    renderStep(step);
+  }, 1400);
+
+  // Update counts on right side too
+  const demoCountFifo = document.getElementById('demoCountFifo');
+  const demoCountLru = document.getElementById('demoCountLru');
+  const countTimer = setInterval(() => {
+    if (demoCountFifo) demoCountFifo.textContent = fifoStates[Math.max(0, step)] ? fifoStates[Math.max(0, step)].faults : 0;
+    if (demoCountLru) demoCountLru.textContent = lruStates[Math.max(0, step)] ? lruStates[Math.max(0, step)].faults : 0;
+  }, 200);
+
+  return {
+    stop(){
+      clearInterval(timer);
+      clearInterval(countTimer);
+      step = -1;
+      renderStep(-1);
+    }
+  };
+});
+
+/* ---------- Slide 20 : code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,6,7,8,9,10,12,13,14,16,17,19,20,21,22,23,25];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    if(lines[seq[i % seq.length]]) lines[seq[i % seq.length]].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
