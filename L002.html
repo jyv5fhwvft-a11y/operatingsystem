@@ -1,0 +1,2139 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L03 — The Gatekeeper Mechanism</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;
+  --bg-2:#0b1120;
+  --panel:rgba(255,255,255,.038);
+  --panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);
+  --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;
+  --ink-2:#c4cfe6;
+  --muted:#8494b4;
+  --blue:#5b8dff;
+  --blue-2:#8fb4ff;
+  --blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;
+  --amber:#ffb648;
+  --crimson:#ff4d6d;
+  --violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(91,141,255,.16), transparent 62%),
+    radial-gradient(800px 560px at 100% 108%, rgba(160,107,255,.13), transparent 60%),
+    radial-gradient(700px 500px at 82% 4%, rgba(46,230,168,.07), transparent 58%);
+  pointer-events:none;z-index:0;
+}
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  pointer-events:none;z-index:0;
+}
+
+/* HUD */
+.hud{
+  position:fixed;top:0;left:0;right:0;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;z-index:60;
+  font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;pointer-events:none;
+}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));
+  transition:width .45s var(--ease);
+  box-shadow:0 0 14px rgba(91,141,255,.7);
+}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{
+  width:44px;height:44px;border-radius:14px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.05);
+  color:var(--ink);font-size:17px;cursor:pointer;
+  display:grid;place-items:center;backdrop-filter:blur(12px);
+  transition:.22s var(--ease);font-family:var(--font);
+}
+.controls button:hover{
+  background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);
+  transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);
+}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{
+  position:fixed;bottom:28px;left:26px;z-index:60;
+  font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;
+}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:80px 60px 92px;opacity:0;visibility:hidden;
+  transform:translateY(22px) scale(.988);
+  transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;
+  overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
+}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;
+  color:var(--blue-2);background:var(--blue-soft);
+  border:1px solid rgba(91,141,255,.32);
+  padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;
+}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{
+  border:1px solid var(--stroke);background:var(--panel);
+  border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);
+}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin-bottom:9px;display:block;
+}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:13px 16px;border-radius:14px;
+  border-left:3px solid var(--violet);background:rgba(160,107,255,.07);
+  font-size:13.5px;line-height:1.55;color:#bcc8e0;
+}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{
+  position:relative;border:1px solid var(--stroke);border-radius:var(--radius);
+  background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  padding:18px;overflow:hidden;
+  box-shadow:0 22px 60px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.vis-frame::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);
+}
+.vis-cap{
+  font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;
+}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* -------- Slide 2 : the gate wall -------- */
+.gate-vis{position:relative;width:100%;aspect-ratio:1/.85;display:flex;flex-direction:column;}
+.gate-zone{
+  flex:1;border-radius:14px;padding:14px;
+  display:flex;flex-direction:column;justify-content:center;gap:6px;
+  position:relative;
+}
+.gate-user{border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);}
+.gate-kernel{border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.06);}
+.gate-label{
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:900;margin-bottom:2px;
+}
+.gate-user .gate-label{color:var(--blue-2);}
+.gate-kernel .gate-label{color:var(--emerald);}
+.gate-user .gate-app{
+  font-size:11px;font-weight:700;color:#b9d0ff;
+  background:rgba(91,141,255,.10);border:1px solid rgba(91,141,255,.32);
+  border-radius:8px;padding:5px 10px;display:inline-block;
+}
+.gate-kernel .gate-dev{
+  font-size:10.5px;font-weight:700;color:#88ffd8;
+  background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.32);
+  border-radius:8px;padding:5px 10px;display:inline-block;
+  margin-right:6px;
+}
+.gate-wall{
+  position:absolute;left:0;right:0;top:50%;height:22px;
+  transform:translateY(-50%);
+  background:
+    repeating-linear-gradient(90deg,rgba(255,77,109,.55) 0 10px,transparent 10px 16px);
+  border-top:1px solid rgba(255,77,109,.7);
+  border-bottom:1px solid rgba(255,77,109,.7);
+  z-index:3;
+  animation:wallFlicker 2.6s ease-in-out infinite;
+}
+@keyframes wallFlicker{0%,100%{opacity:.65}50%{opacity:1}}
+.gate-slot{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:60px;height:60px;border-radius:14px;
+  background:radial-gradient(circle,rgba(255,182,72,.55),transparent 70%);
+  border:1.5px solid rgba(255,182,72,.85);
+  z-index:4;display:grid;place-items:center;
+  font-size:9px;font-weight:900;color:#ffd18a;letter-spacing:.06em;text-align:center;line-height:1.1;
+  animation:slotPulse 2.2s ease-in-out infinite;
+}
+@keyframes slotPulse{
+  0%,100%{box-shadow:0 0 12px rgba(255,182,72,.45);}
+  50%{box-shadow:0 0 30px rgba(255,182,72,.95);}
+}
+.gate-packet{
+  position:absolute;left:50%;top:6%;
+  transform:translateX(-50%);
+  padding:4px 10px;border-radius:8px;
+  background:rgba(255,182,72,.9);color:#1a1206;
+  font-family:var(--mono);font-size:10px;font-weight:800;
+  z-index:5;
+  animation:packetTravel 3.6s ease-in-out infinite;
+  white-space:nowrap;
+}
+@keyframes packetTravel{
+  0%,10%{top:6%;opacity:1;}
+  40%{top:50%;opacity:1;}
+  50%{top:50%;opacity:0;transform:translateX(-50%) scale(.5);}
+  50.01%{top:50%;opacity:0;transform:translateX(-50%) scale(.5);}
+  55%{top:50%;opacity:0;transform:translateX(-50%) scale(.5);}
+  65%{top:50%;opacity:1;transform:translateX(-50%) scale(1);}
+  90%,100%{top:88%;opacity:1;}
+}
+
+/* -------- Slides 3-4 : teller -------- */
+.teller{position:relative;width:100%;padding:14px;border-radius:14px;background:rgba(160,107,255,.05);border:1px solid rgba(160,107,255,.30);}
+.teller-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;}
+.teller-figure{
+  flex:1;padding:12px 10px;border-radius:12px;text-align:center;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--muted);
+}
+.teller-figure.on{animation:figGlow 3.2s ease-in-out infinite;}
+.teller-figure.customer{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.teller-figure.customer.on{animation-delay:0s;}
+.teller-figure.teller-pos{border-color:rgba(255,182,72,.45);background:rgba(255,182,72,.08);color:#ffd18a;}
+.teller-figure.teller-pos.on{animation-delay:.5s;}
+.teller-figure.vault{border-color:rgba(46,230,168,.45);background:rgba(46,230,168,.08);color:#88ffd8;}
+.teller-figure.vault.on{animation-delay:1s;}
+@keyframes figGlow{
+  0%,100%{box-shadow:none;}
+  50%{box-shadow:0 0 22px rgba(255,255,255,.25);}
+}
+.teller-figure .ic{font-size:26px;display:block;margin-bottom:5px;}
+.teller-figure small{display:block;font-size:8.5px;color:var(--muted);margin-top:2px;letter-spacing:.1em;font-weight:700;}
+.teller-arrow{
+  font-family:var(--mono);font-size:16px;color:var(--amber);
+  animation:arrowFlow 1.4s linear infinite;
+}
+@keyframes arrowFlow{0%{opacity:.3;transform:translateX(-2px)}50%{opacity:1;transform:translateX(0)}100%{opacity:.3;transform:translateX(-2px)}}
+
+.form-slip{
+  border-radius:12px;padding:12px 14px;margin-top:6px;
+  border:1px dashed rgba(255,182,72,.5);background:rgba(255,182,72,.06);
+  font-family:var(--mono);font-size:11px;line-height:1.8;color:#ffd18a;
+}
+.form-slip b{color:#fff;font-weight:800;}
+.form-row{display:flex;justify-content:space-between;gap:10px;}
+
+/* -------- Slide 5 : hashmap -------- */
+.hashmap{display:grid;grid-template-columns:80px 40px 1fr;gap:0;padding:12px;align-items:stretch;}
+.hm-key{
+  padding:9px 12px;border-radius:8px;margin-bottom:6px;
+  border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.10);
+  font-family:var(--mono);font-size:11px;font-weight:700;color:#b9d0ff;
+  text-align:center;
+  transition:.3s;
+}
+.hm-arrow{
+  display:grid;place-items:center;font-family:var(--mono);
+  font-size:14px;color:var(--emerald);
+  animation:hmPulse 2s ease-in-out infinite;
+  margin-bottom:6px;
+}
+@keyframes hmPulse{0%,100%{opacity:.5}50%{opacity:1;transform:translateX(2px);}}
+.hm-val{
+  padding:9px 12px;border-radius:8px;margin-bottom:6px;
+  border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.10);
+  font-family:var(--mono);font-size:11px;font-weight:700;color:#88ffd8;
+}
+.hm-key.active,.hm-val.active{
+  background:rgba(255,182,72,.22);
+  border-color:rgba(255,182,72,.85);
+  color:#ffd18a;
+  box-shadow:0 0 18px rgba(255,182,72,.5);
+}
+.hm-key.active{animation:hmPulseKey 1.6s ease-in-out infinite;}
+@keyframes hmPulseKey{0%,100%{box-shadow:0 0 18px rgba(255,182,72,.5)}50%{box-shadow:0 0 32px rgba(255,182,72,.9)}}
+.hm-arrow.active{color:var(--amber);animation-duration:.7s;}
+
+/* -------- Slide 8 : register rig -------- */
+.register-rig{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px 0;}
+.reg{
+  border-radius:12px;padding:12px 8px;text-align:center;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  transition:.3s;position:relative;
+}
+.reg .reg-name{
+  font-family:var(--mono);font-size:13px;font-weight:900;
+  color:var(--blue-2);letter-spacing:.06em;margin-bottom:8px;
+  display:block;
+}
+.reg .reg-val{
+  font-family:var(--mono);font-size:clamp(14px,1.4vw,18px);font-weight:800;
+  color:var(--ink);letter-spacing:.02em;
+  display:block;margin-bottom:6px;
+  min-height:26px;
+  opacity:0;transform:scale(.5);
+  transition:.5s cubic-bezier(.34,1.56,.64,1);
+}
+.reg.loaded .reg-val{opacity:1;transform:scale(1);}
+.reg .reg-label{
+  font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:800;
+}
+.reg.rax{border-color:rgba(255,182,72,.45);background:rgba(255,182,72,.07);}
+.reg.rax .reg-name{color:#ffd18a;}
+.reg.rdi{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.07);}
+.reg.rsi{border-color:rgba(160,107,255,.45);background:rgba(160,107,255,.07);}
+.reg.rsi .reg-name{color:#c9a7ff;}
+.reg.rdx{border-color:rgba(46,230,168,.45);background:rgba(46,230,168,.07);}
+.reg.rdx .reg-name{color:#88ffd8;}
+.reg.loaded.rax{box-shadow:0 0 20px -6px rgba(255,182,72,.7);}
+.reg.loaded.rdi{box-shadow:0 0 20px -6px rgba(91,141,255,.7);}
+.reg.loaded.rsi{box-shadow:0 0 20px -6px rgba(160,107,255,.7);}
+.reg.loaded.rdx{box-shadow:0 0 20px -6px rgba(46,230,168,.7);}
+
+/* -------- Slide 9 : trap -------- */
+.trap-vis{position:relative;padding:12px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);}
+.trap-zone{
+  padding:16px;border-radius:12px;display:flex;flex-direction:column;gap:6px;
+  position:relative;
+}
+.trap-user{border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);margin-bottom:22px;}
+.trap-kernel{border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.06);}
+.trap-zone-tag{
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;
+}
+.trap-user .trap-zone-tag{color:var(--blue-2);}
+.trap-kernel .trap-zone-tag{color:var(--emerald);}
+.trap-line{
+  position:absolute;left:16px;right:16px;top:50%;height:2px;
+  background:repeating-linear-gradient(90deg,rgba(255,182,72,.7) 0 8px,transparent 8px 12px);
+  z-index:2;
+}
+.trap-instruction{
+  display:inline-block;padding:6px 12px;border-radius:8px;
+  background:rgba(255,182,72,.85);color:#1a1206;
+  font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.04em;
+  margin-top:6px;align-self:flex-start;
+}
+.trap-chip{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  padding:6px 12px;border-radius:8px;
+  background:rgba(255,77,109,.95);color:#fff;
+  font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.05em;
+  z-index:3;opacity:0;
+  animation:trapFlash 3.2s ease-in-out infinite;
+  white-space:nowrap;
+}
+@keyframes trapFlash{
+  0%,40%{opacity:0;transform:translate(-50%,-50%) scale(.5);}
+  45%{opacity:1;transform:translate(-50%,-50%) scale(1.1);}
+  52%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  70%,100%{opacity:0;transform:translate(-50%,-50%) scale(.5);}
+}
+.trap-modebit{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 14px;border-radius:10px;margin-top:10px;
+  background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.4);
+  font-family:var(--mono);font-size:11px;font-weight:700;color:#88ffd8;
+}
+.trap-modebit .dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--blue-2);box-shadow:0 0 12px var(--blue-2);
+  animation:modeFlip 3.2s ease-in-out infinite;
+}
+@keyframes modeFlip{
+  0%,44%{background:var(--blue-2);box-shadow:0 0 12px var(--blue-2);}
+  48%,72%{background:var(--emerald);box-shadow:0 0 14px var(--emerald);}
+  76%,100%{background:var(--blue-2);box-shadow:0 0 12px var(--blue-2);}
+}
+
+/* -------- Slide 10 : IVT -------- */
+.ivt-wrap{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;padding:8px;}
+.ivt-column{
+  display:flex;flex-direction:column;gap:4px;
+  max-height:280px;overflow:hidden;
+  padding:8px;border-radius:12px;
+  border:1px solid var(--stroke);background:rgba(0,0,0,.25);
+}
+.ivt-row{
+  display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;
+  padding:4px 8px;border-radius:6px;
+  color:var(--muted);transition:.3s;
+}
+.ivt-row.active{
+  background:rgba(255,182,72,.22);color:#ffd18a;
+  box-shadow:0 0 14px rgba(255,182,72,.5);
+  animation:ivtPulse 1.4s ease-in-out infinite;
+}
+@keyframes ivtPulse{0%,100%{box-shadow:0 0 14px rgba(255,182,72,.5)}50%{box-shadow:0 0 24px rgba(255,182,72,.9)}}
+.ivt-idx{color:var(--blue-2);min-width:36px;}
+.ivt-row.active .ivt-idx{color:#ffd18a;}
+.ivt-handlers{display:flex;flex-direction:column;gap:8px;}
+.ivt-handler{
+  padding:9px 12px;border-radius:8px;
+  border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.06);
+  font-family:var(--mono);font-size:10.5px;color:#88ffd8;font-weight:700;
+  transition:.3s;
+}
+.ivt-handler.active{
+  background:rgba(255,182,72,.18);border-color:rgba(255,182,72,.75);
+  color:#ffd18a;box-shadow:0 0 16px rgba(255,182,72,.5);
+}
+
+/* -------- Slide 11 : roundtrip pipeline -------- */
+.rt-track{
+  position:relative;display:grid;grid-template-columns:repeat(4,1fr);
+  gap:8px;padding:14px 8px;margin-top:14px;
+}
+.rt-stage{
+  padding:14px 8px;border-radius:12px;text-align:center;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.035);
+  font-size:10.5px;font-weight:800;letter-spacing:.04em;
+  position:relative;z-index:2;
+}
+.rt-stage:nth-child(1){border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.rt-stage:nth-child(2){border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.rt-stage:nth-child(3){border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.08);color:#ffd18a;}
+.rt-stage:nth-child(4){border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.08);color:#88ffd8;}
+.rt-stage .num{
+  display:block;font-family:var(--mono);font-size:16px;font-weight:900;
+  margin-bottom:4px;
+}
+.rt-packet{
+  position:absolute;top:50%;left:0;
+  transform:translate(-50%,-50%);
+  width:22px;height:22px;border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 20px var(--amber),0 0 40px rgba(255,182,72,.4);
+  z-index:3;
+  animation:rtTravel 4.8s ease-in-out infinite;
+}
+@keyframes rtTravel{
+  0%,8%{left:12%;opacity:1;}
+  25%{left:37%;opacity:1;}
+  50%{left:62%;opacity:1;}
+  75%{left:87%;opacity:1;}
+  88%{left:12%;opacity:0;}
+  100%{left:12%;opacity:0;}
+}
+.rt-flow{
+  position:absolute;left:12%;right:12%;top:50%;height:2px;
+  background:linear-gradient(90deg,rgba(91,141,255,.5),rgba(255,77,109,.5),rgba(255,182,72,.5),rgba(46,230,168,.5));
+  z-index:1;
+}
+
+/* -------- Code -------- */
+.code-block{
+  border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;
+}
+.code-head{
+  padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;
+  border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;
+}
+.code-head.sys{color:#ffd18a;background:rgba(255,182,72,.08);}
+.code-head.sys2{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* -------- Terminal -------- */
+.terminal{
+  border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;
+  font-family:var(--mono);
+  box-shadow:0 24px 70px -30px rgba(0,0,0,.95);
+}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);
+}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:260px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-line.strace{color:#b9d0ff;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* -------- Dispatcher (slide 17) -------- */
+.dispatch-scene{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:16px 8px;position:relative;
+}
+.dispatch-fig{
+  flex:1;padding:14px 10px;text-align:center;border-radius:12px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  font-size:10.5px;font-weight:800;letter-spacing:.05em;
+}
+.dispatch-fig.user{border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.dispatch-fig.router{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.08);color:#ffd18a;}
+.dispatch-fig.kernel{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.08);color:#88ffd8;}
+.dispatch-fig .ic{font-size:28px;display:block;margin-bottom:6px;}
+.dispatch-card{
+  position:absolute;top:50%;left:16%;
+  transform:translate(-50%,-50%);
+  padding:4px 10px;border-radius:8px;
+  background:rgba(255,182,72,.95);color:#1a1206;
+  font-family:var(--mono);font-size:10px;font-weight:900;
+  z-index:5;
+  animation:dispatchTravel 4.4s ease-in-out infinite;
+  white-space:nowrap;
+  box-shadow:0 0 20px rgba(255,182,72,.7);
+}
+@keyframes dispatchTravel{
+  0%,10%{left:16%;opacity:1;}
+  35%{left:50%;opacity:1;}
+  45%,55%{left:50%;opacity:1;transform:translate(-50%,-50%) scale(1.1);}
+  70%{left:84%;opacity:1;}
+  85%,100%{left:84%;opacity:0;}
+}
+
+/* -------- Syscall table (slide 18) -------- */
+.syscall-table{
+  display:grid;grid-template-columns:80px 1fr 200px;gap:1px;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);
+  border-radius:14px;overflow:hidden;
+}
+.st-cell{background:#0a0f1c;padding:11px 13px;font-size:12.5px;line-height:1.45;}
+.st-head{background:#0d1425;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);}
+.st-num{font-family:var(--mono);font-size:14px;font-weight:900;color:#ffd18a;text-align:center;}
+.st-name{font-family:var(--mono);font-size:12.5px;color:#b9d0ff;font-weight:700;}
+.st-desc{color:var(--muted);font-size:11.5px;}
+
+/* -------- Latency bars (slide 19) -------- */
+.latency-rig{padding:16px 8px;display:flex;flex-direction:column;gap:14px;}
+.lat-row{display:flex;flex-direction:column;gap:6px;}
+.lat-head{display:flex;justify-content:space-between;align-items:baseline;}
+.lat-name{font-size:11.5px;font-weight:800;letter-spacing:.05em;}
+.lat-val{font-family:var(--mono);font-size:13px;font-weight:800;}
+.lat-bar{
+  height:14px;border-radius:6px;background:rgba(255,255,255,.05);
+  position:relative;overflow:hidden;
+}
+.lat-fill{
+  position:absolute;top:0;left:0;bottom:0;border-radius:6px;
+  transform-origin:left center;
+  transform:scaleX(0);
+  transition:transform 1.2s cubic-bezier(.4,0,.2,1);
+}
+.lat-row.loaded .lat-fill{transform:scaleX(1);}
+.lat-row:nth-child(1) .lat-fill{background:linear-gradient(90deg,#2ee6a8,#88ffd8);width:2%;}
+.lat-row:nth-child(2) .lat-fill{background:linear-gradient(90deg,#ffb648,#ffd18a);width:18%;}
+.lat-row:nth-child(3) .lat-fill{background:linear-gradient(90deg,#ff4d6d,#ff9fb1);width:100%;}
+
+/* -------- Summary pipeline -------- */
+.summary-pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;}
+.sp-stage{
+  padding:14px 12px;border-radius:12px;position:relative;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  font-size:11.5px;line-height:1.5;
+}
+.sp-stage .sp-num{
+  font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.1em;
+  display:block;margin-bottom:6px;
+}
+.sp-stage .sp-title{font-weight:800;margin-bottom:4px;color:var(--ink);}
+.sp-stage .sp-body{color:var(--muted);font-size:11px;}
+.sp-stage:nth-child(1){border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.08);}
+.sp-stage:nth-child(1) .sp-num{color:var(--blue-2);}
+.sp-stage:nth-child(2){border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.08);}
+.sp-stage:nth-child(2) .sp-num{color:var(--crimson);}
+.sp-stage:nth-child(3){border-color:rgba(255,182,72,.45);background:rgba(255,182,72,.08);}
+.sp-stage:nth-child(3) .sp-num{color:var(--amber);}
+.sp-stage:nth-child(4){border-color:rgba(46,230,168,.45);background:rgba(46,230,168,.08);}
+.sp-stage:nth-child(4) .sp-num{color:var(--emerald);}
+
+/* -------- Lexicon -------- */
+.lex-card{
+  border-radius:24px;padding:clamp(22px,2.8vw,40px);
+  border:1px solid rgba(91,141,255,.34);
+  background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));
+  box-shadow:0 30px 80px -40px rgba(91,141,255,.85), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.lex-term{
+  font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;
+  margin-bottom:8px;
+  background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* -------- Mindmap -------- */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{
+  padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;
+}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{
+  border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;
+  box-shadow:0 0 26px -4px rgba(91,141,255,.85);
+  animation:nodeActive 2.4s ease-in-out infinite;
+}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+
+/* -------- Gateway -------- */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+.next-file{
+  display:inline-flex;align-items:center;gap:10px;margin-top:18px;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  padding:11px 18px;border-radius:12px;
+  border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;
+}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway{grid-template-columns:1fr;}
+  .two-lex{grid-template-columns:1fr;}
+  .summary-pipeline{grid-template-columns:repeat(2,1fr);}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .register-rig{grid-template-columns:repeat(2,1fr);}
+  .summary-pipeline{grid-template-columns:1fr;}
+  .rt-stage{font-size:9px;padding:10px 6px;}
+  .syscall-table{grid-template-columns:60px 1fr 130px;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L03 The Gatekeeper Mechanism</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- ============ SLIDE 01 ============ -->
+<section class="slide" data-chapter="L03 · Overview">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L03 · The Gatekeeper Mechanism</span>
+    <div class="split">
+      <div class="stack">
+        <h1>How does a user program <span class="grad-blue">reach hardware</span> without ever touching it directly?</h1>
+        <p class="lead">Trace a system call pathway from its user-space declaration down through hardware trap handling and kernel interrupt vector lookup.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L03</span>
+          <p>Ring 3 code is <strong>hardware-forbidden</strong> from touching devices, memory registers, or kernel state. So when you call <code style="font-family:var(--mono);color:#b9d0ff">printf("hi")</code> — how does a character ever appear on your screen?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the gate wall on the right. Ask: <em>"What happens between the moment you press a key and the moment the letter appears?"</em> That whole journey is one syscall round trip.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The only legal gate in the wall</div>
+        <div class="gate-vis" id="gateVis">
+          <div class="gate-zone gate-user">
+            <span class="gate-label">Ring 3 · User Space</span>
+            <span class="gate-app">💻 your_program.exe</span>
+            <span class="gate-app" style="margin-top:4px">🌐 chrome · 🎵 spotify</span>
+          </div>
+          <div class="gate-zone gate-kernel">
+            <span class="gate-label">Ring 0 · Kernel Space</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+              <span class="gate-dev">🖨️ printer</span>
+              <span class="gate-dev">⌨️ keyboard</span>
+              <span class="gate-dev">💾 disk</span>
+              <span class="gate-dev">🖥️ display</span>
+            </div>
+          </div>
+          <div class="gate-wall"></div>
+          <div class="gate-slot">SYSCALL<br>GATE</div>
+          <div class="gate-packet">sys_write(1, "hi", 2)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 02 ============ -->
+<section class="slide" data-chapter="The Gate Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🚧 The Gate Problem — Why Syscalls Exist</span>
+    <div class="split wide-left">
+      <div class="stack">
+        <h2>Software cannot <span class="grad-crimson">"just"</span> touch the hardware</h2>
+        <div class="panel crimson">
+          <span class="panel-label">What the CPU physically forbids in Ring 3</span>
+          <p>Reading or writing memory-mapped device registers · issuing device commands · altering page tables · disabling interrupts · altering the CPU mode bit itself. Any attempt fires a hardware exception, not a polite refusal.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What that means for real code</span>
+          <p>Your program <strong>cannot</strong> open a file, read a keystroke, or draw a pixel by itself. Every single one of those operations must be requested through the kernel.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">So we need one legal doorway</span>
+          <p>A <strong>controlled, auditable, single entrypoint</strong> from Ring 3 into Ring 0 — where the kernel can inspect the request, verify arguments, and only then perform the privileged action on the caller's behalf.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>That doorway is the system call interface.</b> Everything above it (libraries, shells, GUIs) is built on top of this single primitive.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">What the CPU will reject vs. what it permits</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="126" rx="14" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.5)" stroke-width="1.5"/>
+          <text x="170" y="36" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800" letter-spacing="1.4">RING 3 · LEGAL OPERATIONS</text>
+
+          <rect x="26" y="50" width="140" height="26" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="96" y="68" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono">int x = 5 + 10</text>
+
+          <rect x="174" y="50" width="140" height="26" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="244" y="68" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono">malloc(1024)</text>
+
+          <rect x="26" y="86" width="288" height="26" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="170" y="104" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono">write to my OWN data segment</text>
+
+          <text x="170" y="128" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">all in user memory · no privileged access needed</text>
+
+          <rect x="14" y="164" width="312" height="140" rx="14" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.5"/>
+          <text x="170" y="186" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800" letter-spacing="1.4">RING 3 · HARDWARE FORBIDDEN</text>
+
+          <rect x="26" y="200" width="288" height="26" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="170" y="218" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">out 0x60, al — write to device port</text>
+
+          <rect x="26" y="232" width="288" height="26" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="170" y="250" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">cli — disable CPU interrupts</text>
+
+          <rect x="26" y="264" width="288" height="26" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.6)" stroke-width="1.2"/>
+          <text x="170" y="282" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">mov cr3, %rax — rewrite page tables</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 03 ============ -->
+<section class="slide" data-chapter="Analogy · Bank Teller">
+  <div class="slide-inner">
+    <span class="badge violet">🏦 Analogy 1 · The Bank Teller Counter</span>
+    <h2 style="margin-bottom:16px;">You cannot walk past the guards <span class="grad-violet">into the vault</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The Setup</span>
+          <p>You want to withdraw cash from your savings account. Because of security protocols, <strong>you cannot simply walk past the security guards and open the steel vault yourself</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Interface</span>
+          <p>Instead, you approach a <strong>secure bulletproof teller window</strong>. That window is the only legal point of contact — and it has a slot you can push paper through.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Constraint</span>
+          <p>Everything happens <em>through</em> the window. You speak, the teller listens, the teller acts. You never touch the vault, the cash drawer, or the internal ledger system.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The bank layout</div>
+        <div class="teller">
+          <div class="teller-row">
+            <div class="teller-figure customer on"><span class="ic">🧑</span>YOU<small>Ring 3</small></div>
+            <span class="teller-arrow">→</span>
+            <div class="teller-figure teller-pos on"><span class="ic">🧑‍💼</span>TELLER<small>Ring 0</small></div>
+            <span class="teller-arrow">→</span>
+            <div class="teller-figure vault on"><span class="ic">🏦</span>VAULT<small>hardware</small></div>
+          </div>
+          <div class="form-slip">
+            <div class="form-row"><span>request type:</span><b>WITHDRAW</b></div>
+            <div class="form-row"><span>account:</span><b>#1 (savings)</b></div>
+            <div class="form-row"><span>amount:</span><b>$37.00</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 04 ============ -->
+<section class="slide" data-chapter="Analogy · Bank Teller">
+  <div class="slide-inner">
+    <span class="badge violet">🏦 Analogy 1 · The Bank Teller — Full Walkthrough</span>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The four-step teller flow</div>
+        <div class="summary-pipeline" style="grid-template-columns:repeat(2,1fr)">
+          <div class="sp-stage">
+            <span class="sp-num">STEP 01</span>
+            <div class="sp-title">Fill the slip</div>
+            <div class="sp-body">You write down your request on the official form — the argument sheet.</div>
+          </div>
+          <div class="sp-stage">
+            <span class="sp-num">STEP 02</span>
+            <div class="sp-title">Push through the slot</div>
+            <div class="sp-body">You push the form through the bulletproof window slot — the trap instruction.</div>
+          </div>
+          <div class="sp-stage">
+            <span class="sp-num">STEP 03</span>
+            <div class="sp-title">Teller reads &amp; verifies</div>
+            <div class="sp-body">The teller checks your ID and the slip, then opens the vault safely on your behalf.</div>
+          </div>
+          <div class="sp-stage">
+            <span class="sp-num">STEP 04</span>
+            <div class="sp-title">Cash returned</div>
+            <div class="sp-body">The teller passes the result back through the slot — the return value.</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Every piece of the analogy maps to a real mechanism</h2>
+        <div class="panel emerald">
+          <span class="panel-label">Map</span>
+          <p style="font-size:13.5px;line-height:1.85">
+            <strong>You</strong> → the user-space application<br>
+            <strong>Teller window</strong> → the syscall interface<br>
+            <strong>Form</strong> → registers (rdi, rsi, rdx) + rax<br>
+            <strong>Slot</strong> → the trap instruction (<code style="font-family:var(--mono);color:#88ffd8">syscall</code>)<br>
+            <strong>Teller</strong> → the kernel handler<br>
+            <strong>Vault</strong> → the actual hardware device<br>
+            <strong>Cash back</strong> → the return value in rax
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole point:</b> one uniform interface. Whether you're asking for cash (read), depositing (write), or closing the account (exit), the same window handles it — only the form content changes.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 05 ============ -->
+<section class="slide" data-chapter="Analogy · Hash Map">
+  <div class="slide-inner">
+    <span class="badge">🔑 Analogy 2 · Hash Map Function Lookup</span>
+    <h2 style="margin-bottom:16px;">A syscall is just a <span class="grad-blue">key → pointer</span> lookup</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The kernel's handler lookup array</div>
+        <div id="hashmapVis">
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:6px;padding:14px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--stroke)">
+            <div class="hm-key">0</div>
+            <div class="hm-val">ptr → sys_read</div>
+            <div class="hm-key">1</div>
+            <div class="hm-val">ptr → sys_write</div>
+            <div class="hm-key">39</div>
+            <div class="hm-val">ptr → sys_getpid</div>
+            <div class="hm-key">57</div>
+            <div class="hm-val">ptr → sys_fork</div>
+            <div class="hm-key">60</div>
+            <div class="hm-val">ptr → sys_exit</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">The key is the number in <code style="font-family:var(--mono);color:#ffd18a">rax</code>. The value is the address of the compiled kernel function.</p>
+      </div>
+      <div class="stack">
+        <h2>Software API routing via <span class="grad-blue">hash map function lookups</span></h2>
+        <div class="panel blue">
+          <span class="panel-label">What the kernel actually does</span>
+          <p>A system call behaves identically to a secure hash map router. The <strong>index key is a positive numeric ID</strong> (e.g., syscall #1 for write). The <strong>value paired with that key</strong> is a strict pointer to a verified, compiled inner kernel function array location.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this design works</span>
+          <p>Adding a new syscall means adding one entry to the array — no dispatch chain, no if/else tree, no branch mispredictions. <strong>O(1) lookup</strong>, bounded by array access speed.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The security aspect</span>
+          <p>The array lives in kernel memory. A user process <strong>cannot</strong> edit it or force the kernel to call an arbitrary address — it can only supply a legal index. Out-of-range = invalid syscall = EINVAL.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 06 ============ -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where This Sits</span>
+    <h2 style="margin-bottom:20px;">Everything in L01 and L02 comes together here</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Relies On · L02 (Dual-Mode Barrier)</span>
+          <p>The syscall mechanism is the <strong>only legal way</strong> to cross the Ring 3 / Ring 0 barrier. It relies on hardware interrupt handling paths to shift the CPU mode bit securely.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Relies On · L01 (Architecture Matrix)</span>
+          <p>Every paradigm on that spectrum — monolithic, microkernel, hybrid, layered, modular — must provide a syscall interface. The <em>cost</em> of each call differs hugely (as we saw in slide 21 of L01).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Feeds Into · All Future Modules</span>
+          <p>Forms the structural pathway used to <strong>open files</strong> (<code style="font-family:var(--mono);color:#ffd18a">sys_open</code>), <strong>spin up child processes</strong> (<code style="font-family:var(--mono);color:#ffd18a">sys_fork</code>), and <strong>request memory buffers</strong> (<code style="font-family:var(--mono);color:#ffd18a">sys_brk</code>). Every module from here on depends on syscalls.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="100" y="120" width="140" height="60" rx="12" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.75)" stroke-width="1.8"/>
+          <text x="170" y="146" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">L03 · SYSCALL</text>
+          <text x="170" y="164" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">the Gatekeeper</text>
+
+          <rect x="30" y="30" width="120" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L01 · Architecture</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">kernel layout</text>
+
+          <rect x="190" y="30" width="120" height="48" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L02 · Dual-Mode</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">Ring 3 / Ring 0</text>
+
+          <rect x="30" y="230" width="280" height="48" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.5)" stroke-width="1.3"/>
+          <text x="170" y="250" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="700">FEEDS INTO · ALL FUTURE MODULES</text>
+          <text x="170" y="266" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">open · fork · brk · mmap · ioctl</text>
+
+          <line x1="90" y1="78" x2="150" y2="120" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="190" y2="120" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="170" y1="180" x2="170" y2="230" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 07 ============ -->
+<section class="slide" data-chapter="Core Breakdown">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Syscall Contract</span>
+    <h2 style="margin-bottom:16px;">Four registers hold the <span class="grad-amber">entire request</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The register contract (x86_64 Linux)</span>
+          <p style="font-size:14px;line-height:1.8;margin-top:6px">
+            <code style="font-family:var(--mono);color:#ffd18a">rax</code> — syscall number (the key)<br>
+            <code style="font-family:var(--mono);color:#b9d0ff">rdi</code> — argument 1<br>
+            <code style="font-family:var(--mono);color:#c9a7ff">rsi</code> — argument 2<br>
+            <code style="font-family:var(--mono);color:#88ffd8">rdx</code> — argument 3<br>
+            <span style="color:var(--muted);font-size:12px">(r10, r8, r9 hold args 4–6 when needed)</span>
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What the user code does</span>
+          <p>Loads the four registers, then fires a specific assembly trap instruction (<code style="font-family:var(--mono);color:#b9d0ff">syscall</code> or <code style="font-family:var(--mono);color:#b9d0ff">int 0x80</code>).</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What the CPU does in response</span>
+          <p>Flips the mode bit to Ring 0, saves the return address, and jumps to the kernel's pre-registered trap entry point. <strong>No other ring transition is permitted.</strong></p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Registers loading for a write() call</div>
+        <div class="register-rig" id="regRig">
+          <div class="reg rax">
+            <span class="reg-name">rax</span>
+            <span class="reg-val">1</span>
+            <span class="reg-label">syscall #</span>
+          </div>
+          <div class="reg rdi">
+            <span class="reg-name">rdi</span>
+            <span class="reg-val">1</span>
+            <span class="reg-label">arg 1 (fd)</span>
+          </div>
+          <div class="reg rsi">
+            <span class="reg-name">rsi</span>
+            <span class="reg-val">0x7FF…</span>
+            <span class="reg-label">arg 2 (buf)</span>
+          </div>
+          <div class="reg rdx">
+            <span class="reg-name">rdx</span>
+            <span class="reg-val">37</span>
+            <span class="reg-label">arg 3 (len)</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Sequential load order matters: values must all be in place <em>before</em> the trap fires — otherwise the handler reads garbage.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 08 ============ -->
+<section class="slide" data-chapter="Core Breakdown">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — The Trap Instruction</span>
+    <h2 style="margin-bottom:16px;">The one instruction that <span class="grad-crimson">changes the CPU's mode bit</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Mode bit flip at the boundary</div>
+        <div class="trap-vis">
+          <div class="trap-zone trap-user">
+            <span class="trap-zone-tag">Ring 3 · User</span>
+            <span style="font-size:11px;color:#b9d0ff;margin-top:4px">your code is executing here</span>
+            <span class="trap-instruction">syscall</span>
+          </div>
+          <div class="trap-line"></div>
+          <div class="trap-chip">⚡ MODE BIT → RING 0</div>
+          <div class="trap-zone trap-kernel">
+            <span class="trap-zone-tag">Ring 0 · Kernel</span>
+            <span style="font-size:11px;color:#88ffd8;margin-top:4px">handler code now executes</span>
+          </div>
+          <div class="trap-modebit">
+            <span class="dot"></span>
+            <span id="modeBitText">CPL = 3 → flipping</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the instruction physically does</span>
+          <p>When the CPU decodes <code style="font-family:var(--mono);color:#ff9fb1">syscall</code>, it loads the <strong>LSTAR</strong> MSR (a hardware register holding the trap entry address), saves the return address in RCX, saves flags in R11, and sets the current privilege level to Ring 0.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The two variants</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">syscall</code> — modern x86_64 fast path, ~100–300 cycles.<br>
+          <code style="font-family:var(--mono);color:#ffd18a">int 0x80</code> — legacy software interrupt, slower, still used on 32-bit.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this can't be forged</span>
+          <p>The user cannot choose where to jump. The trap entry address is set once by the kernel at boot, in a register the user cannot write. <strong>The destination is immutable from Ring 3.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 09 ============ -->
+<section class="slide" data-chapter="Core Breakdown">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Interrupt Vector Table</span>
+    <h2 style="margin-bottom:16px;">The kernel's master <span class="grad-amber">handler address book</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What the IVT actually is</span>
+          <p>A memory array holding code pointers to specialized driver and kernel function routines. On x86_64, the analog is the <strong>IDT</strong> (Interrupt Descriptor Table) — but the mechanism is the same: index in, handler address out.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What the CPU does with it</span>
+          <p>After the trap fires, the CPU uses the trap type as an index into this table, reads the stored handler address, and jumps there — <strong>into Ring 0 code</strong>, with the caller's context saved.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">For syscalls specifically</span>
+          <p>The syscall instruction lands at a single fixed entry point (<code style="font-family:var(--mono);color:#88ffd8">entry_SYSCALL_64</code> in Linux). That entry stub then uses the number in <code style="font-family:var(--mono);color:#ffd18a">rax</code> to index a <strong>second</strong> table — the syscall table — to find the specific handler.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Handler pointer lookup by syscall number</div>
+        <div class="ivt-wrap" id="ivtVis">
+          <div class="ivt-column">
+            <div class="ivt-row" data-idx="0"><span class="ivt-idx">[0]</span>read</div>
+            <div class="ivt-row" data-idx="1"><span class="ivt-idx">[1]</span>write</div>
+            <div class="ivt-row" data-idx="2"><span class="ivt-idx">[2]</span>open</div>
+            <div class="ivt-row" data-idx="3"><span class="ivt-idx">[3]</span>close</div>
+            <div class="ivt-row" data-idx="39"><span class="ivt-idx">[39]</span>getpid</div>
+            <div class="ivt-row" data-idx="57"><span class="ivt-idx">[57]</span>fork</div>
+            <div class="ivt-row" data-idx="60"><span class="ivt-idx">[60]</span>exit</div>
+          </div>
+          <div class="ivt-handlers">
+            <div class="ivt-handler" data-h="0">0xFFFF_8000_A4C0 → sys_read</div>
+            <div class="ivt-handler" data-h="1">0xFFFF_8000_A6E0 → sys_write</div>
+            <div class="ivt-handler" data-h="39">0xFFFF_8000_C120 → sys_getpid</div>
+            <div class="ivt-handler" data-h="57">0xFFFF_8000_D440 → sys_fork</div>
+            <div class="ivt-handler" data-h="60">0xFFFF_8000_E880 → sys_exit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 10 ============ -->
+<section class="slide" data-chapter="Core Breakdown">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — The Full Round Trip</span>
+    <h2 style="margin-bottom:12px;">Four stages, one user request</h2>
+    <div class="vis-frame" style="margin-bottom:18px">
+      <div class="vis-cap">Live · Request packet travelling through the pipeline</div>
+      <div style="position:relative">
+        <div class="rt-track" id="rtTrack">
+          <div class="rt-flow"></div>
+          <div class="rt-packet"></div>
+          <div class="rt-stage"><span class="num">01</span>User app fills registers</div>
+          <div class="rt-stage"><span class="num">02</span>syscall trap fires</div>
+          <div class="rt-stage"><span class="num">03</span>IVT lookup → handler</div>
+          <div class="rt-stage"><span class="num">04</span>return value in rax</div>
+        </div>
+      </div>
+    </div>
+    <div class="split">
+      <div class="panel blue">
+        <span class="panel-label">Stage 01 · Preparation</span>
+        <p>The user code loads rax = syscall number, rdi/rsi/rdx = arguments. <strong>No privilege change yet.</strong> The data is just sitting in registers.</p>
+      </div>
+      <div class="panel crimson">
+        <span class="panel-label">Stage 02 · The trap</span>
+        <p>The <code style="font-family:var(--mono);color:#ff9fb1">syscall</code> instruction executes. The CPU flips the mode bit, saves the return address, and jumps to the kernel's trap entry point. <strong>Hardware transition.</strong></p>
+      </div>
+      <div class="panel amber">
+        <span class="panel-label">Stage 03 · Dispatch</span>
+        <p>The kernel entry stub reads rax, validates the number, indexes the syscall table, and jumps to the specific handler. <strong>Software dispatch.</strong></p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">Stage 04 · Return</span>
+        <p>The handler performs the privileged action, writes its result into rax, and executes <code style="font-family:var(--mono);color:#88ffd8">sysret</code> — the CPU flips the mode bit back to Ring 3.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 11 ============ -->
+<section class="slide" data-chapter="Lexicon">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — The Core Terms</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">System Call</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The programmatic interface used by applications to request core kernel services.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The official form you hand through the teller window. Your only legal way to ask the vault to do anything. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p style="font-family:var(--mono);font-size:13px;color:#ffd18a">read · write · open · close · fork · exit</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Hardware Trap</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An exceptional condition generated by software that shifts control back to the operating system.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The electronic "ding" that tells the CPU to stop what it's doing and go ask the kernel. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why "trap"</span>
+          <p>The CPU treats the transition as an exceptional event — meaning the mode bit flip is guaranteed by hardware, not cooperatively by software.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 12 ============ -->
+<section class="slide" data-chapter="Lexicon">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — The Table Terms</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">IVT</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Interrupt Vector Table — a memory array holding code pointers to specialized driver and kernel function routines.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The kernel's phone book: dial the number, get connected to the right department. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Modern form</span>
+          <p>x86_64 uses the <strong>IDT</strong> (Interrupt Descriptor Table), but the concept is identical: index → handler address.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Syscall #</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Syscall Register Number — the specific integer key loaded into the processor to tell the OS which system service to route to.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The 3-digit extension you dial after the main number. Same phone, different department. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>The <code style="font-family:var(--mono);color:#88ffd8">rax</code> register, loaded <strong>before</strong> the trap instruction fires.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 13 ============ -->
+<section class="slide" data-chapter="Code" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code Dissection — A Raw x86_64 write()</span>
+    <h2 style="margin-bottom:16px;">Bypassing libc, calling the <span class="grad-amber">kernel directly</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head sys"><span>raw_write_syscall.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Bypassing the standard printf library wrapper to invoke a raw x86_64 write syscall</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;unistd.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-fn">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">char</span>* <span class="c-var">msg</span> = <span class="c-str">"Hello from a raw x86_64 system call\n"</span>;</span><span class="code-line"></span><span class="code-line">    __asm__ <span class="c-kw">volatile</span> (</span><span class="code-line">        <span class="c-str">"movq $1, %%rax\n"</span>      <span class="c-com">// Syscall number 1 = write</span></span><span class="code-line">        <span class="c-str">"movq $1, %%rdi\n"</span>      <span class="c-com">// arg 1: fd = stdout</span></span><span class="code-line">        <span class="c-str">"movq %0, %%rsi\n"</span>      <span class="c-com">// arg 2: buffer pointer</span></span><span class="code-line">        <span class="c-str">"movq $37, %%rdx\n"</span>     <span class="c-com">// arg 3: message length</span></span><span class="code-line">        <span class="c-str">"syscall\n"</span>              <span class="c-com">// fire hardware trap → Ring 0</span></span><span class="code-line">        : <span class="c-com">/* no outputs */</span></span><span class="code-line">        : <span class="c-str">"r"</span>(<span class="c-var">msg</span>)</span><span class="code-line">        : <span class="c-str">"rax"</span>, <span class="c-str">"rdi"</span>, <span class="c-str">"rsi"</span>, <span class="c-str">"rdx"</span></span><span class="code-line">    );</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p>The four <code style="font-family:var(--mono);color:#ffd18a">movq</code> instructions <strong>load the register contract</strong>. Then one <code style="font-family:var(--mono);color:#ffd18a">syscall</code> instruction performs the entire gate crossing.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why no printf?</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">printf</code> is a libc wrapper that formats text into a buffer and then calls <code style="font-family:var(--mono);color:#b9d0ff">write</code>. We're skipping the formatting and calling the syscall directly.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The clobber list</span>
+          <p>Listing "rax", "rdi", "rsi", "rdx" tells the compiler those registers will be modified — so it doesn't keep live values in them across the trap.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 14 ============ -->
+<section class="slide" data-chapter="Code" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="badge">💻 Code Walkthrough — Line by Line</span>
+    <h2 style="margin-bottom:16px;">Reading the raw asm like a <span class="grad-blue">register choreography</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">What each line does to the CPU</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <rect x="20" y="16" width="300" height="34" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="34" y="37" font-size="10" fill="#ffd18a" font-family="JetBrains Mono">1. movq $1, %rax</text>
+          <text x="290" y="37" text-anchor="end" font-size="9" fill="rgba(255,209,138,.7)" font-family="Inter">set syscall #</text>
+
+          <rect x="20" y="58" width="300" height="34" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="34" y="79" font-size="10" fill="#b9d0ff" font-family="JetBrains Mono">2. movq $1, %rdi</text>
+          <text x="290" y="79" text-anchor="end" font-size="9" fill="rgba(185,208,255,.7)" font-family="Inter">arg 1 = fd 1</text>
+
+          <rect x="20" y="100" width="300" height="34" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="34" y="121" font-size="10" fill="#c9a7ff" font-family="JetBrains Mono">3. movq %0, %rsi</text>
+          <text x="290" y="121" text-anchor="end" font-size="9" fill="rgba(201,167,255,.7)" font-family="Inter">arg 2 = msg ptr</text>
+
+          <rect x="20" y="142" width="300" height="34" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="34" y="163" font-size="10" fill="#88ffd8" font-family="JetBrains Mono">4. movq $37, %rdx</text>
+          <text x="290" y="163" text-anchor="end" font-size="9" fill="rgba(136,255,216,.7)" font-family="Inter">arg 3 = 37 bytes</text>
+
+          <rect x="20" y="184" width="300" height="42" rx="8" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-pulse"/>
+          <text x="34" y="208" font-size="11" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">5. syscall</text>
+          <text x="290" y="208" text-anchor="end" font-size="9" fill="rgba(255,159,177,.85)" font-family="Inter" font-weight="700">⚡ TRAP</text>
+
+          <rect x="20" y="234" width="300" height="34" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="34" y="255" font-size="10" fill="#88ffd8" font-family="JetBrains Mono">6. kernel executes handler</text>
+          <text x="290" y="255" text-anchor="end" font-size="9" fill="rgba(136,255,216,.7)" font-family="Inter">Ring 0</text>
+
+          <rect x="20" y="276" width="300" height="34" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="34" y="297" font-size="10" fill="#b9d0ff" font-family="JetBrains Mono">7. sysret back to Ring 3</text>
+          <text x="290" y="297" text-anchor="end" font-size="9" fill="rgba(185,208,255,.7)" font-family="Inter">rax = bytes written</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>Three things that matter here</h2>
+        <div class="panel amber">
+          <span class="panel-label">Order matters</span>
+          <p>All four register writes must complete before line 5. If the trap fires with rax still uninitialized, the kernel will dispatch to whatever number happens to be in there — often producing an EINVAL or, worse, a nonsensical syscall.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The trap is the entire crossing</span>
+          <p>Lines 1–4 are ordinary user-space instructions. Line 5 is the only line that <strong>cannot be emulated in user space</strong>. That single instruction is the Gatekeeper.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Return value</span>
+          <p>After <code style="font-family:var(--mono);color:#88ffd8">sysret</code>, rax holds either the number of bytes written (success) or a negative error code (failure). The caller reads rax — end of story.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 15 ============ -->
+<section class="slide" data-chapter="Live Demo" data-anim="straceDemo">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Watching a Syscall Fire</span>
+    <h2 style="margin-bottom:16px;">A real syscall, <span class="grad-emerald">traced live</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · strace-style output, restarting every ~9 seconds</div>
+        <div class="terminal" id="straceTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — strace ./hello</span>
+          </div>
+          <div class="term-body" id="straceBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -e trace=write ./hello</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What strace shows you</span>
+          <p><code style="font-family:var(--mono);color:#88ffd8">strace</code> runs a process under a tracer and logs every single syscall — its number, its arguments, and its return value. It's the fastest way to see the Gatekeeper in action.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The line you're looking for</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">write(1, "Hello from a raw x86_64 system call\n", 37) = 37</code><br>That's syscall #1, fd = 1, 37 bytes, returning 37. Same contract we just loaded into registers by hand.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why this matters as a debugging tool</span>
+          <p>When a program "hangs", "fails silently", or "can't find a file", strace usually reveals the exact syscall that went wrong — and what error code it returned.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 16 ============ -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Classroom Activity — The Human Syscall Dispatcher</span>
+    <h2 style="margin-bottom:16px;">Three roles. One card. One round trip.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">Roles</span>
+          <p><strong>Student A</strong> — the User App (yells out a syscall number)<br>
+             <strong>Student B</strong> — the CPU Syscall Router (matches number → handler)<br>
+             <strong>Student C</strong> — the Kernel Core (performs the actual task)</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The props</span>
+          <p>Three cards labelled <code style="font-family:var(--mono);color:#ffd18a">sys_read</code>, <code style="font-family:var(--mono);color:#ffd18a">sys_write</code>, and <code style="font-family:var(--mono);color:#ffd18a">sys_exit</code>. A chalkboard matrix mapping numbers (0, 1, 60) to handler names.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The run</span>
+          <p>Student A shouts a number. Student B checks the matrix, announces the handler name. Student C steps forward, mimes the action ("I read a file" / "I wrote text" / "I terminate"), and hands back a result. Repeat for a full sequence.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> Ask the class why Student A can't just walk over to Student C directly. Answer: that's the whole point of the barrier.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The dispatch flow</div>
+        <div class="dispatch-scene">
+          <div class="dispatch-fig user"><span class="ic">🧑</span>USER APP</div>
+          <div class="dispatch-fig router"><span class="ic">🖥️</span>CPU ROUTER</div>
+          <div class="dispatch-fig kernel"><span class="ic">🧑‍💼</span>KERNEL CORE</div>
+          <div class="dispatch-card">#1 → sys_write</div>
+        </div>
+        <p style="font-size:11.5px;margin-top:10px;color:var(--muted);line-height:1.55;text-align:center">Card travels left → right → back, exactly as the register packet travels through the real pipeline.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 17 ============ -->
+<section class="slide" data-chapter="Reference">
+  <div class="slide-inner">
+    <span class="badge">📋 Syscall Numbers — Common x86_64 Reference</span>
+    <h2 style="margin-bottom:18px;">The table the kernel dispatches against</h2>
+    <div class="syscall-table">
+      <div class="st-cell st-head">Number</div>
+      <div class="st-cell st-head">Name</div>
+      <div class="st-cell st-head">Purpose</div>
+
+      <div class="st-cell st-num">0</div>
+      <div class="st-cell st-name">sys_read</div>
+      <div class="st-cell st-desc">Read bytes from a file descriptor</div>
+
+      <div class="st-cell st-num">1</div>
+      <div class="st-cell st-name">sys_write</div>
+      <div class="st-cell st-desc">Write bytes to a file descriptor</div>
+
+      <div class="st-cell st-num">2</div>
+      <div class="st-cell st-name">sys_open</div>
+      <div class="st-cell st-desc">Open or create a file</div>
+
+      <div class="st-cell st-num">3</div>
+      <div class="st-cell st-name">sys_close</div>
+      <div class="st-cell st-desc">Close a file descriptor</div>
+
+      <div class="st-cell st-num">39</div>
+      <div class="st-cell st-name">sys_getpid</div>
+      <div class="st-cell st-desc">Return the calling process's PID</div>
+
+      <div class="st-cell st-num">57</div>
+      <div class="st-cell st-name">sys_fork</div>
+      <div class="st-cell st-desc">Clone the current process</div>
+
+      <div class="st-cell st-num">59</div>
+      <div class="st-cell st-name">sys_execve</div>
+      <div class="st-cell st-desc">Replace the process image with a new binary</div>
+
+      <div class="st-cell st-num">60</div>
+      <div class="st-cell st-name">sys_exit</div>
+      <div class="st-cell st-desc">Terminate the calling process</div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>Note:</b> these numbers are <em>x86_64 Linux-specific</em>. ARM, RISC-V, and even 32-bit x86 use different tables — because the ABI contract is per-architecture, not per-universe.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 18 ============ -->
+<section class="slide" data-chapter="Cost" data-anim="latency">
+  <div class="slide-inner">
+    <span class="badge amber">⏱️ The Cost of Crossing the Gate</span>
+    <h2 style="margin-bottom:16px;">Not free — but often <span class="grad-amber">cheaper than you think</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The three costs of a syscall</span>
+          <p style="line-height:1.85;margin-top:6px">
+            <strong>1.</strong> Mode bit flip — hardware transition Ring 3 → Ring 0 → Ring 3<br>
+            <strong>2.</strong> Register save / restore — the kernel must preserve the caller's context<br>
+            <strong>3.</strong> Handler dispatch — entry stub → validate → table lookup → target function
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Typical numbers on modern hardware</span>
+          <p>A simple <code style="font-family:var(--mono);color:#b9d0ff">getpid</code> syscall costs about <strong>100–300 nanoseconds</strong>. A <code style="font-family:var(--mono);color:#b9d0ff">read</code> or <code style="font-family:var(--mono);color:#b9d0ff">write</code> costs more because it touches devices.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Where this hurts</span>
+          <p>A loop that calls <code style="font-family:var(--mono);color:#ff9fb1">read</code> one byte at a time pays the crossing cost <strong>once per byte</strong>. That's why buffered I/O exists.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Relative costs (log scale)</div>
+        <div class="latency-rig" id="latencyRig">
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#88ffd8">Direct function call</span><span class="lat-val" style="color:#88ffd8">~5 ns</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#ffd18a">Simple syscall (getpid)</span><span class="lat-val" style="color:#ffd18a">~250 ns</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#ff9fb1">Full syscall + device I/O</span><span class="lat-val" style="color:#ff9fb1">~10 µs</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Each step costs ~50× the last. That's the price of safety — and why every kernel designer obsesses over reducing syscall count.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 19 ============ -->
+<section class="slide" data-chapter="Security">
+  <div class="slide-inner">
+    <span class="badge emerald">🛡️ Why This Is a Security Boundary</span>
+    <h2 style="margin-bottom:16px;">The gate is also the <span class="grad-emerald">guard post</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What the gate guarantees</span>
+          <p>Every privileged action passes through one auditable interface. The kernel can <strong>inspect every argument</strong>, validate pointers, check permissions, and reject anything malicious — before the operation happens.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What the kernel checks on every call</span>
+          <p style="line-height:1.85;margin-top:4px">
+            ✓ Is the syscall number in range?<br>
+            ✓ Does the caller have permission to touch that fd?<br>
+            ✓ Is the pointer inside the caller's own address space?<br>
+            ✓ Is the length field consistent with the buffer?
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What happens if a check fails</span>
+          <p>The kernel returns an error code (like EFAULT, EINVAL, EPERM) <strong>without performing the operation</strong>. No exception to the user — just a negative return value in rax.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The gate as a checkpoint</div>
+        <svg viewBox="0 0 320 300" style="width:100%;height:auto">
+          <rect x="20" y="16" width="280" height="88" rx="12" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.45)" stroke-width="1.4"/>
+          <text x="160" y="40" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">USER REQUESTS</text>
+          <rect x="36" y="52" width="110" height="24" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="91" y="68" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">✓ legal read</text>
+          <rect x="156" y="52" width="110" height="24" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.6)" stroke-width="1"/>
+          <text x="211" y="68" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono">✗ forge ptr</text>
+          <rect x="36" y="82" width="230" height="14" rx="4" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+          <text x="151" y="93" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.6)" font-family="JetBrains Mono">(queue of pending requests)</text>
+
+          <rect x="90" y="120" width="140" height="48" rx="10" fill="rgba(255,182,72,.16)" stroke="rgba(255,182,72,.85)" stroke-width="1.8" class="svg-pulse"/>
+          <text x="160" y="140" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">GATE · CHECKPOINT</text>
+          <text x="160" y="156" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.8)" font-family="JetBrains Mono">validate args · permissions · bounds</text>
+
+          <line x1="91" y1="104" x2="140" y2="120" stroke="rgba(46,230,168,.85)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="140" y1="168" x2="91" y2="196" stroke="rgba(46,230,168,.85)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="211" y1="104" x2="180" y2="120" stroke="rgba(255,77,109,.85)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="180" y1="168" x2="211" y2="196" stroke="rgba(255,77,109,.6)" stroke-width="1.4" stroke-dasharray="3 4"/>
+
+          <rect x="20" y="196" width="130" height="88" rx="12" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="85" y="218" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">HANDLER RUNS</text>
+          <text x="85" y="238" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">device access</text>
+          <text x="85" y="256" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">data returned</text>
+          <text x="85" y="274" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">rax = 37</text>
+
+          <rect x="170" y="196" width="130" height="88" rx="12" fill="rgba(255,77,109,.08)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="235" y="218" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">REJECTED</text>
+          <text x="235" y="238" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">no device touch</text>
+          <text x="235" y="256" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">no state change</text>
+          <text x="235" y="274" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">rax = -EFAULT</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 20 ============ -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Student Pitfalls — The Three Big Ones</span>
+    <h2 style="margin-bottom:20px;">Three misconceptions to kill early</h2>
+    <div class="stack" style="gap:14px">
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 01 — "printf is a syscall"</span>
+        <p>It isn't. <code style="font-family:var(--mono);color:#ff9fb1">printf</code> is a <strong>libc formatting function</strong>. It builds a buffer in user space, then calls <code style="font-family:var(--mono);color:#ff9fb1">write</code> once. One <code style="font-family:var(--mono);color:#ff9fb1">printf("hello %d\n", x)</code> can cost <strong>zero or one</strong> syscalls depending on buffering. Never confuse a library function with a kernel entry.</p>
+      </div>
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 02 — "I can call the kernel function by address"</span>
+        <p>No. The kernel's address space is not mapped in your process. Even if you knew the address of <code style="font-family:var(--mono);color:#ff9fb1">sys_write</code>, you couldn't call it — the page isn't there. <strong>The only path in is through the trap.</strong></p>
+      </div>
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 03 — "syscalls are slow, so avoid them"</span>
+        <p>They're <strong>cheap relative to I/O</strong>. The reason to avoid them is <em>redundancy</em> — calling <code style="font-family:var(--mono);color:#ff9fb1">read(fd, buf, 1)</code> in a loop is slow not because the trap is slow, but because you're paying it a thousand times. Buffer at the library level, and 1000 reads become one <code style="font-family:var(--mono);color:#ff9fb1">read</code> of 4096 bytes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 21 ============ -->
+<section class="slide" data-chapter="Real World">
+  <div class="slide-inner">
+    <span class="badge blue">🌍 Real-World — Where You've Already Seen This</span>
+    <h2 style="margin-bottom:16px;">Every "operation not permitted" you've ever seen</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">"Permission denied" on a file</span>
+          <p>You called <code style="font-family:var(--mono);color:#b9d0ff">open()</code>. The kernel's <code style="font-family:var(--mono);color:#b9d0ff">sys_open</code> handler checked your UID/GID against the file's permission bits, saw a mismatch, and returned <code style="font-family:var(--mono);color:#b9d0ff">-EACCES</code> without opening anything.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">"Segmentation fault" from a bad pointer</span>
+          <p>You passed a pointer to <code style="font-family:var(--mono);color:#b9d0ff">write()</code> that pointed outside your address space. The handler tried to read it, the MMU raised a fault, and the kernel terminated your process rather than leak a kernel memory address.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Docker / container boundaries</span>
+          <p>Containers use <code style="font-family:var(--mono);color:#ffd18a">seccomp</code> filters — a whitelist of <em>which syscall numbers are allowed</em>. A blocked syscall returns EPERM immediately, without ever reaching the real handler.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The strace output you've probably seen</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — strace -e trace=open ./app</span>
+          </div>
+          <div class="term-body" style="min-height:auto">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -e trace=open ./app</span></span>
+            <span class="term-line strace">open("/etc/passwd", O_RDONLY) = 3</span>
+            <span class="term-line strace">open("/etc/shadow", O_RDONLY) = <span class="term-line err" style="display:inline">-1 EACCES</span></span>
+            <span class="term-line dim">— process exits with code 1 —</span>
+            <span class="term-line warn">app: error: cannot open /etc/shadow</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">The first <code style="font-family:var(--mono);color:#88ffd8">open</code> succeeded; the second was rejected. Same program, different permission bits on the target file.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 22 ============ -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="badge emerald">📌 The 4-Step Syscall Journey — Recap</span>
+    <h2 style="margin-bottom:16px;">If you remember nothing else, remember this</h2>
+    <div class="summary-pipeline">
+      <div class="sp-stage">
+        <span class="sp-num">STAGE 01</span>
+        <div class="sp-title">Fill the registers</div>
+        <div class="sp-body">rax = syscall number · rdi/rsi/rdx = arguments. Order matters.</div>
+      </div>
+      <div class="sp-stage">
+        <span class="sp-num">STAGE 02</span>
+        <div class="sp-title">Fire the trap</div>
+        <div class="sp-body">The syscall instruction flips the mode bit to Ring 0 and jumps to the kernel entry point.</div>
+      </div>
+      <div class="sp-stage">
+        <span class="sp-num">STAGE 03</span>
+        <div class="sp-title">Look up the handler</div>
+        <div class="sp-body">The kernel reads rax, validates it, and indexes the syscall table to find the target function.</div>
+      </div>
+      <div class="sp-stage">
+        <span class="sp-num">STAGE 04</span>
+        <div class="sp-title">Return through rax</div>
+        <div class="sp-body">The handler runs, writes the result into rax, and sysret flips back to Ring 3.</div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="panel blue">
+        <span class="panel-label">The big idea</span>
+        <p>Every interaction with hardware — file I/O, keyboard, network, display — is a <strong>syscall</strong>. There is no other legal path from Ring 3 to Ring 0.</p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">Why it matters</span>
+        <p>This is the <strong>foundation</strong> for the next 25 lectures. Every module (processes, memory, files, drivers, security) is built on top of this single mechanism.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 23 ============ -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="badge violet">🌿 Mindmap — Where L03 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 1: OS Structure &amp; Design</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L01: The Architecture Matrix</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L02: The Dual-Mode Barrier</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L03: The Gatekeeper Mechanism 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Traps &amp; Trap Handlers</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Interrupt Vector Table (IDT)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf">The Syscall Dispatcher</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>What comes next</h2>
+        <div class="panel blue">
+          <span class="panel-label">Next lecture preview — L04: The Boot Process</span>
+          <p>The syscall interface exists because the kernel is already running. But how does the kernel start? L04 follows the four-stage chain from power-on → POST → bootloader → kernel init → PID 1.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Where this fits downstream</span>
+          <p>Once you know how a syscall fires, everything else has a familiar shape: process creation is <code style="font-family:var(--mono);color:#88ffd8">sys_fork</code>, memory allocation is <code style="font-family:var(--mono);color:#88ffd8">sys_brk</code>, file access is <code style="font-family:var(--mono);color:#88ffd8">sys_open</code>. <strong>Everything routes through the gate.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 24 ============ -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L03 Key Takeaways</span>
+    <h2 style="margin-bottom:20px;">Three things to walk out with</h2>
+    <div class="stack" style="gap:14px">
+      <div class="takeaway" style="display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid rgba(255,182,72,.32);background:rgba(255,182,72,.055)">
+        <div style="flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(255,182,72,.16);border:1px solid rgba(255,182,72,.4);color:#ffd18a">01</div>
+        <p>The system call is the <strong>only legal interface</strong> between user space and kernel space. It is small, well-defined, and impossible to bypass from Ring 3.</p>
+      </div>
+      <div class="takeaway" style="display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid rgba(91,141,255,.32);background:rgba(91,141,255,.055)">
+        <div style="flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.16);border:1px solid rgba(91,141,255,.4);color:#b9d0ff">02</div>
+        <p>The mechanism is <strong>register-driven and trap-based</strong>: rax/rdi/rsi/rdx hold the request, syscall fires the trap, the CPU flips the mode bit, and the kernel dispatches via a lookup table.</p>
+      </div>
+      <div class="takeaway" style="display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid rgba(46,230,168,.32);background:rgba(46,230,168,.055)">
+        <div style="flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(46,230,168,.16);border:1px solid rgba(46,230,168,.4);color:#88ffd8">03</div>
+        <p>The gate is also the <strong>security checkpoint</strong> — the kernel validates every argument before acting. Failures return negative error codes; successes return results in rax.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 25 ============ -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Extended Activity — The Full Syscall Sequence</span>
+    <h2 style="margin-bottom:16px;">Run the whole lifecycle <span class="grad-violet">in front of the class</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The scenario</span>
+          <p>Walk the class through a single program that does: <strong>open → read → write → close → exit</strong>. That's five syscalls, five trap fires, five register packages.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The choreography</span>
+          <p>Assign five students as User A (open), User B (read), User C (write), User D (close), User E (exit). Each has to fill an index card with the correct register values <em>before</em> firing the trap card.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief question</span>
+          <p><em>"Which of these five could have been done without a syscall?"</em> Answer: none. Every single one requires kernel mediation because every one touches kernel-owned state.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The full sequence, visualized</div>
+        <div style="padding:12px 0;font-family:var(--mono);font-size:12.5px;line-height:2.4;color:var(--ink-2)">
+          <div><span style="color:#ffd18a;font-weight:900">open()</span> <span style="color:var(--muted)">→ rax=2, rdi=path, rsi=flags</span></div>
+          <div><span style="color:#ffd18a;font-weight:900">read()</span> <span style="color:var(--muted)">→ rax=0, rdi=fd, rsi=buf, rdx=size</span></div>
+          <div><span style="color:#ffd18a;font-weight:900">write()</span> <span style="color:var(--muted)">→ rax=1, rdi=fd, rsi=buf, rdx=size</span></div>
+          <div><span style="color:#ffd18a;font-weight:900">close()</span> <span style="color:var(--muted)">→ rax=3, rdi=fd</span></div>
+          <div><span style="color:#ffd18a;font-weight:900">exit()</span> <span style="color:var(--muted)">→ rax=60, rdi=status</span></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">Five syscalls. Five traps. Five mode bit flips. <em>Every one of them</em> is a full round trip through the Gatekeeper.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 26 ============ -->
+<section class="slide" data-chapter="Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🚀 Next Gateway — L04 · The Boot Process</span>
+    <div class="gateway">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What we just learned</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">The syscall mechanism is how user code asks the kernel to do things.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What comes next — L04: The Boot Process</span>
+          <p>Before a single syscall can fire, the kernel has to be running. L04 traces the four-stage chain: <strong>UEFI/BIOS POST → bootloader → kernel init → PID 1 (systemd)</strong>. We'll see exactly how each stage hands the baton to the next.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L04: The Boot Process &nbsp;|&nbsp; [L4.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad3" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad3)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad3)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 7 : Register rig loader ---------- */
+reg('regload', function(){
+  const rig = document.getElementById('regRig');
+  if(!rig) return { stop(){} };
+  const regs = rig.querySelectorAll('.reg');
+  let timer = null;
+  let step = 0;
+
+  function reset(){
+    regs.forEach(r => r.classList.remove('loaded'));
+    step = 0;
+  }
+  function tick(){
+    if(step < regs.length){
+      regs[step].classList.add('loaded');
+      step++;
+    } else {
+      // pause then reset
+      setTimeout(() => {
+        if(!rig.isConnected) return;
+        reset();
+        setTimeout(() => tick(), 400);
+      }, 1400);
+      step = regs.length + 1; // hold
+    }
+  }
+  reset();
+  timer = setInterval(() => {
+    if(step <= regs.length){ tick(); }
+  }, 380);
+
+  return {
+    stop(){ clearInterval(timer); reset(); }
+  };
+});
+
+/* ---------- Slide 8 : Mode bit text ---------- */
+reg('modebit', function(){
+  const el = document.getElementById('modeBitText');
+  if(!el) return { stop(){} };
+  const phases = [
+    'CPL = 3 · user space',
+    'CPL = 3 · trap fires',
+    'CPL = 0 · kernel space',
+    'CPL = 0 · handler running',
+    'CPL = 3 · sysret returns'
+  ];
+  let i = 0;
+  const timer = setInterval(() => {
+    el.textContent = phases[i % phases.length];
+    i++;
+  }, 640);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 9 : IVT lookup ---------- */
+reg('ivt', function(){
+  const wrap = document.getElementById('ivtVis');
+  if(!wrap) return { stop(){} };
+  const rows = wrap.querySelectorAll('.ivt-row');
+  const handlers = wrap.querySelectorAll('.ivt-handler');
+  const sequence = [1, 0, 39, 57, 60]; // highlight order
+  let i = 0;
+  function clearAll(){
+    rows.forEach(r => r.classList.remove('active'));
+    handlers.forEach(h => h.classList.remove('active'));
+  }
+  function tick(){
+    clearAll();
+    const id = sequence[i % sequence.length];
+    rows.forEach(r => {
+      if(+r.dataset.idx === id) r.classList.add('active');
+    });
+    handlers.forEach(h => {
+      if(+h.dataset.h === id) h.classList.add('active');
+    });
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1100);
+  return { stop(){ clearInterval(timer); clearAll(); } };
+});
+
+/* ---------- Slide 13 : Code stepper ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [6, 7, 8, 9, 10, 11];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1000);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 14 : Code walkthrough stepper ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  // Highlight the movq lines + syscall line
+  const seq = [0, 1, 2, 3, 4];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 15 : strace demo ---------- */
+reg('straceDemo', function(){
+  const body = document.getElementById('straceBody');
+  if(!body) return { stop(){} };
+  const baseHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -e trace=write ./hello</span></span>';
+  const extraLines = [
+    '<span class="term-line dim">execve("./hello", ["./hello"], 0x7ffd...) = 0</span>',
+    '<span class="term-line strace">write(1, "Hello from a raw x86_64 system call\\n", 37) = <span class="term-line ok" style="display:inline">37</span></span>',
+    '<span class="term-line dim">exit_group(0) = ?</span>',
+    '<span class="term-line dim">+++ exited with 0 +++</span>'
+  ];
+  let step = 0;
+  function reset(){
+    body.innerHTML = baseHTML;
+    step = 0;
+  }
+  function tick(){
+    if(step < extraLines.length){
+      body.insertAdjacentHTML('beforeend', extraLines[step]);
+      step++;
+    } else {
+      setTimeout(() => {
+        if(!body.isConnected) return;
+        reset();
+      }, 2200);
+      step = extraLines.length + 1;
+    }
+  }
+  reset();
+  tick();
+  const timer = setInterval(tick, 800);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 18 : Latency bars ---------- */
+reg('latency', function(){
+  const rig = document.getElementById('latencyRig');
+  if(!rig) return { stop(){} };
+  const rows = rig.querySelectorAll('.lat-row');
+  function reset(){ rows.forEach(r => r.classList.remove('loaded')); }
+  function run(){
+    reset();
+    requestAnimationFrame(() => {
+      rows.forEach((r, i) => {
+        setTimeout(() => r.classList.add('loaded'), 100 + i * 220);
+      });
+    });
+  }
+  run();
+  const timer = setInterval(run, 3800);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 7 register rig — register anim name ---------- */
+// Re-register the slide 7 animation name to 'regload'
+(function(){
+  const s = document.querySelectorAll('.slide');
+  s.forEach(el => {
+    // slide index 6 (0-indexed) is slide 7 (0-based)
+    if(el.querySelector('#regRig')) el.dataset.anim = 'regload';
+  });
+  // Also register modebit on slide 8 (slide 8 has .trap-modebit)
+  s.forEach(el => {
+    if(el.querySelector('#modeBitText')) el.dataset.anim = 'modebit';
+  });
+  // IVT slide
+  s.forEach(el => {
+    if(el.querySelector('#ivtVis')) el.dataset.anim = 'ivt';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
