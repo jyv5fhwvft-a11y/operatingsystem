@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L10 — Relocation Models &amp; Base-Bound Isolation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#relocCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Hotel visualization */
+.hotel-vis{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);position:relative;min-height:280px;}
+.hotel-building{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;padding:14px;}
+.hotel-floor{display:contents;}
+.hotel-room{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;color:var(--muted);font-weight:700;transition:.4s;}
+.hotel-room.occupied-a{border-color:rgba(91,141,255,.75);background:rgba(91,141,255,.20);color:#b9d0ff;}
+.hotel-room.occupied-b{border-color:rgba(46,230,168,.75);background:rgba(46,230,168,.20);color:#88ffd8;}
+.hotel-room.occupied-c{border-color:rgba(160,107,255,.75);background:rgba(160,107,255,.20);color:#c9a7ff;}
+.hotel-label{position:absolute;top:8px;right:14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--muted);}
+.hotel-legend{display:flex;gap:14px;margin-top:10px;font-size:10px;font-family:var(--mono);font-weight:700;}
+.hotel-legend span{display:flex;align-items:center;gap:5px;}
+.hotel-legend .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* Array analogy */
+.array-vis{padding:14px 0;}
+.array-rig{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);font-family:var(--mono);}
+.array-row{display:flex;align-items:center;gap:10px;}
+.array-label{width:100px;font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;}
+.array-cells{display:flex;gap:3px;flex:1;}
+.array-cell{padding:8px 4px;border-radius:4px;border:1px solid;text-align:center;font-size:10.5px;font-weight:700;min-width:32px;transition:.3s;}
+.array-cell.base{background:rgba(91,141,255,.15);border-color:rgba(91,141,255,.55);color:#b9d0ff;}
+.array-cell.bound{background:rgba(255,182,72,.15);border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.array-cell.valid{background:rgba(46,230,168,.15);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.array-cell.invalid{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.55);color:#ff9fb1;opacity:.5;}
+
+/* Base/Bound register view */
+.reg-view{padding:14px 0;}
+.reg-row{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding:14px 16px;border-radius:10px;margin-bottom:10px;}
+.reg-row.base{border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.06);}
+.reg-row.bound{border:1px solid rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.reg-row .reg-tag{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.06em;padding:5px 10px;border-radius:6px;}
+.reg-row.base .reg-tag{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.reg-row.bound .reg-tag{background:rgba(255,182,72,.20);color:#ffd18a;}
+.reg-row .reg-val{font-family:var(--mono);font-size:clamp(20px,2vw,28px);font-weight:900;letter-spacing:-.02em;}
+.reg-row.base .reg-val{color:#b9d0ff;}
+.reg-row.bound .reg-val{color:#ffd18a;}
+.reg-row .reg-desc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;}
+
+/* Translation flow */
+.trans-flow{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);}
+.tf-step{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid;transition:.4s;}
+.tf-step.pending{border-color:var(--stroke);background:rgba(255,255,255,.03);}
+.tf-step.active{border-color:rgba(91,141,255,.75);background:rgba(91,141,255,.10);box-shadow:0 0 20px -6px rgba(91,141,255,.75);}
+.tf-step.success{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);}
+.tf-step.fail{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);}
+.tf-step .tf-num{font-family:var(--mono);font-size:12px;font-weight:900;color:var(--muted);min-width:22px;}
+.tf-step .tf-body{flex:1;}
+.tf-step .tf-title{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:2px;}
+.tf-step .tf-desc{font-size:10.5px;color:var(--muted);line-height:1.4;font-family:var(--mono);}
+
+/* Memory map */
+.mem-map{padding:12px;border-radius:12px;background:rgba(0,0,0,.30);border:1px solid var(--stroke);}
+.mem-track{position:relative;height:80px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);overflow:hidden;}
+.mem-process{position:absolute;top:8px;bottom:8px;border-radius:6px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.04em;color:#0a0f1c;transition:.4s;}
+.mem-process.a{background:rgba(91,141,255,.75);color:#eaf0fc;}
+.mem-process.b{background:rgba(46,230,168,.75);color:#eaf0fc;}
+.mem-process.c{background:rgba(160,107,255,.75);color:#eaf0fc;}
+.mem-process small{font-size:8px;font-weight:700;opacity:.8;margin-top:2px;}
+.mem-axis{display:flex;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:9.5px;color:var(--muted);font-weight:700;}
+
+/* Bounds check visualization */
+.bounds-check{padding:14px 0;}
+.bc-row{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;margin-bottom:10px;transition:.4s;}
+.bc-row.valid{border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.bc-row.invalid{border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.bc-row .bc-icon{font-size:24px;flex:none;}
+.bc-row .bc-body{flex:1;}
+.bc-row .bc-expr{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink);}
+.bc-row .bc-result{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:600;}
+.bc-row.valid .bc-result{color:#88ffd8;}
+.bc-row.invalid .bc-result{color:#ff9fb1;}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.20);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Problems grid */
+.prob-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.prob-card{padding:16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.prob-card.frag{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.prob-card.limit{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.prob-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.prob-card.frag h4{color:var(--crimson);}
+.prob-card.limit h4{color:var(--amber);}
+.prob-card p{font-size:12.5px;line-height:1.6;}
+
+/* Activity */
+.activity-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;padding:12px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);}
+.act-cell{aspect-ratio:1;border-radius:3px;display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;font-weight:700;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);color:var(--muted);transition:.3s;}
+.act-cell.lit-a{background:rgba(91,141,255,.35);border-color:rgba(91,141,255,.75);color:#eaf0fc;}
+.act-cell.lit-b{background:rgba(46,230,168,.35);border-color:rgba(46,230,168,.75);color:#eaf0fc;}
+.act-cell.fail{background:rgba(255,77,109,.35);border-color:rgba(255,77,109,.75);color:#eaf0fc;animation:failPulse .6s ease-in-out infinite;}
+@keyframes failPulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.prob-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .hotel-building{grid-template-columns:repeat(6,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .activity-grid{grid-template-columns:repeat(6,1fr);}
+  .hotel-building{grid-template-columns:repeat(5,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L10 Relocation Models</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L10 · Overview" data-anim="reloccanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L10 · Relocation Models &amp; Base-Bound Isolation</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Programs think they start at address 0. <span class="grad-blue">The hardware translates every access.</span></h1>
+        <p class="lead">Manually derive valid physical memory address locations from logical addresses given specific Base and Bound hardware register limits, and catch security bounds exceptions.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L10</span>
+          <p>Every program you compile assumes it owns all of memory and starts at address 0. But five programs are running simultaneously on one machine. How does each one get its own private view of memory — <strong>without any of them knowing about the other four?</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the translation canvas on the right. Ask: <em>"If two programs both write to address 1000, how do they not overwrite each other?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Every logical access gets translated</div>
+        <canvas id="relocCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Illusion">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Illusion of Private Memory</span>
+    <h2 style="margin-bottom:16px;">Every program <span class="grad-crimson">genuinely believes</span> it starts at address 0</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the compiler emits</span>
+          <p>When you compile <code style="font-family:var(--mono);color:#ff9fb1">int x = 5;</code>, the compiler emits something like <code style="font-family:var(--mono);color:#ff9fb1">movl $5, 0x400500(%rip)</code>. That address is a <strong>logical address</strong> — not the real physical RAM address. It's the address the program <em>thinks</em> it's using.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What actually needs to happen</span>
+          <p>The CPU must translate every logical address into a real physical RAM address <strong>before</strong> issuing the actual memory access. This translation is invisible to the program — that's the whole point.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this must be hardware, not software</span>
+          <p>Software translation would require executing code on every memory access — impossibly slow. The MMU (Memory Management Unit) does it in hardware, in parallel with the memory access itself. <strong>Zero overhead in the common case.</strong></p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Two programs, same logical address, different physical</div>
+        <div class="mem-map">
+          <div class="mem-track">
+            <div class="mem-process a" style="left:2%;width:30%;">
+              PROC A
+              <small>phys base 0x10000</small>
+            </div>
+            <div class="mem-process b" style="left:34%;width:30%;">
+              PROC B
+              <small>phys base 0x50000</small>
+            </div>
+            <div class="mem-process c" style="left:66%;width:30%;">
+              PROC C
+              <small>phys base 0x90000</small>
+            </div>
+          </div>
+          <div class="mem-axis">
+            <span>0</span>
+            <span>0x40000</span>
+            <span>0x80000</span>
+            <span>0xC0000</span>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">All three processes believe their code starts at logical address 0. The hardware maps each one to a different physical region.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Hotel">
+  <div class="slide-inner">
+    <span class="badge violet">🏨 Analogy 1 · The Hotel Room Numbering Illusion</span>
+    <h2 style="margin-bottom:16px;">Every guest thinks they're in <span class="grad-violet">Room 100</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Imagine a large hotel resort. Every single guest checking in receives an automated room booklet that says they're staying in <strong>"Room 100"</strong> — the same number for every guest. When they go to find their room, they use a master keycard lock.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The mechanism</span>
+          <p>The hotel's physical architecture silently maps each guest's "Room 100" to a completely different floor. <strong>Guest A's Room 100 → physical Room 500</strong>. <strong>Guest B's Room 100 → physical Room 800</strong>. Neither guest knows about the other.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The bound check</span>
+          <p>Guest A paid for a <strong>10-room suite</strong> starting at Room 500 (Base = 500, Bound = 10). If Guest A tries to open "Room 115", their keycard fails — 15 &gt; 10, out of their allotted range. That's a <strong>bounds exception</strong>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole point:</b> the hotel is <em>shared</em> (one physical building), but each guest experiences a <em>private</em> view (their "Room 100"). The master keycard lock (hardware) enforces the mapping and the boundary.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Same "Room 100" maps to different physical rooms</div>
+        <div class="hotel-vis">
+          <div class="hotel-label">PHYSICAL HOTEL · 100 rooms</div>
+          <div class="hotel-building" id="hotelGrid">
+            <!-- 100 rooms generated by JS -->
+          </div>
+          <div class="hotel-legend">
+            <span><span class="dot" style="background:rgba(91,141,255,.75)"></span> Guest A · Room 500 + 100</span>
+            <span><span class="dot" style="background:rgba(46,230,168,.75)"></span> Guest B · Room 800 + 100</span>
+            <span><span class="dot" style="background:rgba(160,107,255,.75)"></span> Guest C · Room 200 + 100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy · Hotel Detail">
+  <div class="slide-inner">
+    <span class="badge amber">🏨 Analogy 1 · The Base and Bound Registers</span>
+    <h2 style="margin-bottom:16px;">Two numbers per guest: <span class="grad-amber">where they start, how big their suite is</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The keycard lock knows two values</div>
+        <div class="reg-view">
+          <div class="reg-row base">
+            <div>
+              <div class="reg-tag">BASE</div>
+              <div class="reg-desc">Starting physical room</div>
+            </div>
+            <div class="reg-val" id="hotelBase">500</div>
+          </div>
+          <div class="reg-row bound">
+            <div>
+              <div class="reg-tag">BOUND</div>
+              <div class="reg-desc">Number of rooms in suite</div>
+            </div>
+            <div class="reg-val" id="hotelBound">10</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.06);margin-top:10px">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--emerald);font-weight:900;margin-bottom:6px">THE RULE</div>
+            <div style="font-family:var(--mono);font-size:12.5px;color:#88ffd8;line-height:1.7">
+              if (logical &lt; 0 || logical &gt;= bound) → <span style="color:#ff9fb1;font-weight:800">BOUNDS EXCEPTION</span><br>
+              physical = logical + base
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The bound check, in hotel terms</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            Guest requests "Room 100"<br>
+            <strong style="color:#88ffd8">100 &lt; 10?</strong> Yes — wait, guest only paid for 10 rooms<br>
+            <strong style="color:#ff9fb1">100 &gt;= 10 → EXCEPTION</strong>
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Every access is checked</span>
+          <p>The check happens on <strong>every single memory access</strong> — every load, every store, every instruction fetch. The hardware adds zero overhead in the common case, but catches every violation the moment it happens.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The isolation guarantee</span>
+          <p>Because Guest A's bound is only 10 rooms, they <strong>cannot</strong> accidentally access Guest B's rooms. Even if their program has a buggy pointer, the hardware catches it before any damage happens.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy · Array">
+  <div class="slide-inner">
+    <span class="badge">🔢 Analogy 2 · Array Pointer Index</span>
+    <h2 style="margin-bottom:16px;">Base is the array start. <span class="grad-blue">Bound is the length check.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>Base-and-bound protection behaves identically to a safe compiler runtime wrapper around a raw byte array pointer. The <strong>Base register</strong> functions as the absolute starting array memory address (<code style="font-family:var(--mono);color:#b9d0ff">Array[0]</code>), while the <strong>Bound register</strong> acts as a strict <code style="font-family:var(--mono);color:#b9d0ff">if (index &gt;= length)</code> array bounds check.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What C code looks like</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.7;margin-top:4px;background:rgba(0,0,0,.30);padding:10px 12px;border-radius:6px">
+            <span class="c-type">int</span> arr[<span class="c-num">10</span>];<br>
+            <span class="c-type">int</span> i = <span class="c-num">5</span>;<br>
+            <span class="c-kw">if</span> (i &gt;= <span class="c-num">10</span>) <span class="c-name">error</span>();<br>
+            arr[i] = <span class="c-num">42</span>;  <span class="c-com">// safe</span>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The difference</span>
+          <p>In C, the bounds check is <strong>your responsibility</strong> — the compiler doesn't enforce it. In hardware, the bound check is <strong>mandatory on every access</strong> — the CPU enforces it. Same concept, impossible to bypass.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Array indices mapped to physical rooms</div>
+        <div class="array-vis">
+          <div class="array-rig">
+            <div class="array-row">
+              <div class="array-label">Logical</div>
+              <div class="array-cells">
+                <div class="array-cell base">0</div>
+                <div class="array-cell base">1</div>
+                <div class="array-cell base">2</div>
+                <div class="array-cell base">3</div>
+                <div class="array-cell base">4</div>
+                <div class="array-cell base">5</div>
+                <div class="array-cell base">6</div>
+                <div class="array-cell base">7</div>
+                <div class="array-cell base">8</div>
+                <div class="array-cell base">9</div>
+                <div class="array-cell invalid">10</div>
+                <div class="array-cell invalid">11</div>
+              </div>
+            </div>
+            <div class="array-row">
+              <div class="array-label">Physical</div>
+              <div class="array-cells">
+                <div class="array-cell valid">500</div>
+                <div class="array-cell valid">501</div>
+                <div class="array-cell valid">502</div>
+                <div class="array-cell valid">503</div>
+                <div class="array-cell valid">504</div>
+                <div class="array-cell valid">505</div>
+                <div class="array-cell valid">506</div>
+                <div class="array-cell valid">507</div>
+                <div class="array-cell valid">508</div>
+                <div class="array-cell valid">509</div>
+                <div class="array-cell invalid">—</div>
+                <div class="array-cell invalid">—</div>
+              </div>
+            </div>
+            <div style="text-align:center;padding:8px 0;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.06em">
+              base = 500 · bound = 10 · index 10 or 11 = FAULT
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L10 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">first memory mechanism</span> — and the one paging will replace</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L02 (Dual-Mode Barrier)</h4>
+            <p>Relies on Ring 0 privileges to <strong>lock the physical Base and Bound registers</strong> so user threads cannot change their own memory space walls. Without the barrier, base/bound protection is worthless — the program could just rewrite its own limit.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L11 (The Paging Model)</h4>
+            <p>Serves as the <strong>historical precursor</strong> that proves contiguous variable-sized memory allocations lead to severe external fragmentation, driving the invention of fixed-size paging.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The trajectory of Module 3</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>L10</strong> — base + bound (contiguous, one region per process)<br>
+            <strong>L11</strong> — paging (fixed-size pages, eliminates external fragmentation)<br>
+            <strong>L12</strong> — TLB (hardware cache for address translation)<br>
+            <strong>L13</strong> — virtual memory (demand paging, page replacement)
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Base and bound is obsolete</b> in modern systems — but it's the <em>simplest possible</em> translation mechanism, and it establishes the vocabulary (logical, physical, bounds check) that every later mechanism reuses.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 3 dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L02 · Dual-Mode</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 0 registers</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">L05 · Process</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">pcb mm_struct</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L10 · BASE + BOUND</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">logical → physical</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L11 · Paging</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">fixed-size pages</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">L12 · TLB</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">translation cache</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(160,107,255,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Formula">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Translation Formula</span>
+    <h2 style="margin-bottom:16px;">One addition. One comparison. <span class="grad-amber">That's the whole mechanism.</span></h2>
+    <div class="split">
+      <div class="panel amber" style="padding:24px">
+        <div class="panel-label">The formula</div>
+        <div style="font-family:var(--mono);font-size:clamp(16px,1.5vw,22px);font-weight:800;line-height:1.9;margin-top:12px">
+          <div style="color:#88ffd8">Physical Address</div>
+          <div style="color:var(--muted);font-size:0.8em;margin:6px 0">=</div>
+          <div style="color:#b9d0ff">Logical Address</div>
+          <div style="color:var(--muted);font-size:0.8em;margin:4px 0">+</div>
+          <div style="color:#ffd18a">Base Register</div>
+        </div>
+      </div>
+      <div class="panel crimson" style="padding:24px">
+        <div class="panel-label">The check that precedes it</div>
+        <div style="font-family:var(--mono);font-size:clamp(13px,1.2vw,16px);font-weight:800;line-height:1.9;margin-top:12px">
+          <div style="color:#ff9fb1">if (logical &lt; 0 ||</div>
+          <div style="color:#ff9fb1">&nbsp;&nbsp;&nbsp;&nbsp;logical &gt;= bound)</div>
+          <div style="color:#fff">→ <strong style="color:#ff4d6d">segmentation fault</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="panel blue">
+        <span class="panel-label">Why the check comes first</span>
+        <p>If you translate first and check later, an out-of-bounds access could overwrite another process's memory <strong>before</strong> you catch it. The check must gate the translation — the illegal write must never reach physical RAM.</p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">Where this runs</span>
+        <p>In the MMU, in parallel with the memory access, before the physical address goes out on the bus. If the check fails, the MMU fires a trap and the access never happens — the physical memory is untouched.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Base Register">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown — The Base Register</span>
+    <h2 style="margin-bottom:16px;">Where this process's memory <span class="grad-blue">actually starts</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Base register in the MMU</div>
+        <div class="reg-view">
+          <div class="reg-row base">
+            <div>
+              <div class="reg-tag">BASE REG</div>
+              <div class="reg-desc">Physical starting address · 32/64-bit</div>
+            </div>
+            <div class="reg-val">0x10000</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(91,141,255,.35);background:rgba(91,141,255,.06)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue-2);font-weight:900;margin-bottom:6px">PHYSICAL RANGE</div>
+            <div style="font-family:var(--mono);font-size:12px;color:#b9d0ff;line-height:1.6">
+              0x10000 → 0x10000 + bound<br>
+              <span style="color:var(--muted)">all memory accesses from this process land here</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What the base register holds</span>
+          <p>A physical CPU tracking chip that stores the <strong>absolute starting physical address</strong> of a program's active memory slot. When the OS loads your program at physical address <code style="font-family:var(--mono);color:#b9d0ff">0x10000</code>, that value goes into the base register.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">How it gets set</span>
+          <p>When the OS schedules your process onto the CPU, it does a context switch — and part of that switch is <strong>loading your base register value</strong> from your PCB. That's why the register is per-process, even though the CPU has only one.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The magic</span>
+          <p>The program never knows what value is in its base register. It only ever sees logical addresses. The base is a <strong>translation offset</strong> applied transparently by hardware.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Bound Register">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Bound Register</span>
+    <h2 style="margin-bottom:16px;">How big is this process's territory? <span class="grad-amber">Don't touch beyond.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What the bound register holds</span>
+          <p>The <strong>maximum allowable logical address</strong> (or equivalently, the size of the program's memory region). Every logical address is checked against it before translation.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The check</span>
+          <p>If <code style="font-family:var(--mono);color:#ff9fb1">logical &gt;= bound</code>, the MMU raises a trap. The kernel catches it, sees a SIGSEGV, and terminates the process. The physical memory beyond the bound was <strong>never touched</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this is the security primitive</span>
+          <p>Without the bound check, base-only translation would let a buggy pointer access <em>any</em> physical memory — including other processes' code. The bound is what turns translation into <strong>isolation</strong>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The complete package:</b> base gives you relocation. bound gives you protection. Together they're the minimum viable memory isolation mechanism — the ancestor of every modern memory protection scheme.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Bound register in the MMU</div>
+        <div class="reg-view">
+          <div class="reg-row bound">
+            <div>
+              <div class="reg-tag">BOUND REG</div>
+              <div class="reg-desc">Length of process's memory region</div>
+            </div>
+            <div class="reg-val">0x4000</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(255,182,72,.35);background:rgba(255,182,72,.06)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);font-weight:900;margin-bottom:6px">CHECK</div>
+            <div style="font-family:var(--mono);font-size:12px;color:#ffd18a;line-height:1.6">
+              valid: 0x0000 .. 0x3FFF<br>
+              invalid: 0x4000 .. 0x7FFF<br>
+              <span style="color:var(--muted)">anything ≥ 0x4000 → trap</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Bounds Exception">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — The Bounds Exception</span>
+    <h2 style="margin-bottom:16px;">The hardware trap that <span class="grad-crimson">stops illegal writes</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">What happens on a bounds violation</div>
+        <div class="bounds-check">
+          <div class="bc-row valid">
+            <span class="bc-icon">✅</span>
+            <div class="bc-body">
+              <div class="bc-expr">logical = 450 · bound = 2000</div>
+              <div class="bc-result">450 &lt; 2000 → translate → physical = 450 + 14000 = 14450</div>
+            </div>
+          </div>
+          <div class="bc-row invalid">
+            <span class="bc-icon">🛑</span>
+            <div class="bc-body">
+              <div class="bc-expr">logical = 2100 · bound = 2000</div>
+              <div class="bc-result">2100 ≥ 2000 → <strong style="color:#ff9fb1">BOUNDS EXCEPTION</strong> → process killed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The sequence, in order</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Program issues a load/store to logical address X<br>
+            <strong>2.</strong> MMU compares X against the bound register<br>
+            <strong>3.</strong> If X ≥ bound: fire trap, don't translate, don't touch memory<br>
+            <strong>4.</strong> Kernel trap handler runs in Ring 0<br>
+            <strong>5.</strong> Kernel sees offending process, sends SIGSEGV<br>
+            <strong>6.</strong> Process terminates, siblings survive
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The key guarantee</span>
+          <p>Step 3 is critical: the fault happens <strong>before</strong> any physical memory access. There is no moment where a rogue pointer could sneak a write into another process's memory. Isolation is <strong>absolute</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Worked Example">
+  <div class="slide-inner">
+    <span class="badge">🧮 Worked Example — Base=14000, Bound=2000</span>
+    <h2 style="margin-bottom:16px;">The canonical textbook example, <span class="grad-blue">step by step</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Setup</div>
+        <div class="reg-view">
+          <div class="reg-row base">
+            <div>
+              <div class="reg-tag">BASE</div>
+              <div class="reg-desc">Physical start</div>
+            </div>
+            <div class="reg-val">14000</div>
+          </div>
+          <div class="reg-row bound">
+            <div>
+              <div class="reg-tag">BOUND</div>
+              <div class="reg-desc">Length</div>
+            </div>
+            <div class="reg-val">2000</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.22)">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:6px">VALID RANGE</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--ink-2)">logical 0 → 1999 → physical 14000 → 15999</div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Access #1 · logical = 450</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Bounds check:</strong> 450 &lt; 2000 ✓ pass<br>
+            <strong>Translate:</strong> 450 + 14000 = <strong style="color:#88ffd8">14450</strong><br>
+            <strong>Result:</strong> read/write physical address 14450 ✓
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Access #2 · logical = 2100</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Bounds check:</strong> 2100 &lt; 2000? <strong style="color:#ff9fb1">NO</strong> ✗ fail<br>
+            <strong>Result:</strong> BOUNDS EXCEPTION<br>
+            <strong>Kernel action:</strong> kill process, print SIGSEGV
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The takeaway</span>
+          <p>Every access is <strong>independently checked</strong>. There's no "remember the last valid access" — every single load and store walks through the same two-step process. Fast in hardware, bulletproof in effect.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Multiple Processes">
+  <div class="slide-inner">
+    <span class="badge violet">🔀 Multiple Processes — Same Logical, Different Physical</span>
+    <h2 style="margin-bottom:16px;">The whole point: <span class="grad-violet">each process gets its own base</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three processes, same logical address 1000</div>
+        <div class="mem-map">
+          <div class="mem-track" style="height:120px">
+            <div class="mem-process a" style="left:2%;width:22%;">
+              PROC A
+              <small>base=0x10000 · bound=0x4000</small>
+            </div>
+            <div class="mem-process b" style="left:30%;width:22%;">
+              PROC B
+              <small>base=0x50000 · bound=0x4000</small>
+            </div>
+            <div class="mem-process c" style="left:58%;width:22%;">
+              PROC C
+              <small>base=0x90000 · bound=0x4000</small>
+            </div>
+          </div>
+          <div class="mem-axis">
+            <span>0</span>
+            <span>0x40000</span>
+            <span>0x80000</span>
+            <span>0xC0000</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.06)">
+          <div style="font-family:var(--mono);font-size:11.5px;line-height:1.8;color:#88ffd8">
+            logical addr 1000 in PROC A → phys 0x10000 + 1000 = <strong>0x10400</strong><br>
+            logical addr 1000 in PROC B → phys 0x50000 + 1000 = <strong>0x50400</strong><br>
+            logical addr 1000 in PROC C → phys 0x90000 + 1000 = <strong>0x90400</strong>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">Same address, three destinations</span>
+          <p>All three programs <strong>think</strong> they're writing to address 1000. Each one is actually writing to a completely different physical location. None of them can see the others' data.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The illusion maintained</span>
+          <p>From the program's perspective, memory looks identical in every process. It has no way to detect that its "address 1000" is not the same as another process's "address 1000".</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this works</span>
+          <p>The MMU holds the current process's base in a register. When the OS context-switches, it saves one base register and loads another. The next instruction from the new process gets translated with a different base — <strong>instantly, transparently</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Live Demo · Translation" data-anim="transdemo">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Address Translation in Action</span>
+    <h2 style="margin-bottom:16px;">Watch the MMU <span class="grad-emerald">translate each request</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Translation sequence</div>
+        <div class="trans-flow" id="transFlow">
+          <div class="tf-step pending" data-idx="0">
+            <span class="tf-num">→</span>
+            <div class="tf-body">
+              <div class="tf-title">Program issues access</div>
+              <div class="tf-desc">load logical address 450</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="1">
+            <span class="tf-num">1</span>
+            <div class="tf-body">
+              <div class="tf-title">MMU checks bound</div>
+              <div class="tf-desc">450 &lt; 2000? ✓ pass</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="2">
+            <span class="tf-num">2</span>
+            <div class="tf-body">
+              <div class="tf-title">MMU adds base</div>
+              <div class="tf-desc">450 + 14000 = 14450</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="3">
+            <span class="tf-num">3</span>
+            <div class="tf-body">
+              <div class="tf-title">Physical access</div>
+              <div class="tf-desc">read/write physical RAM at 14450</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="4">
+            <span class="tf-num">→</span>
+            <div class="tf-body">
+              <div class="tf-title">Program issues access</div>
+              <div class="tf-desc">load logical address 2100</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="5">
+            <span class="tf-num">1</span>
+            <div class="tf-body">
+              <div class="tf-title">MMU checks bound</div>
+              <div class="tf-desc">2100 &lt; 2000? ✗ fail</div>
+            </div>
+          </div>
+          <div class="tf-step pending" data-idx="6">
+            <span class="tf-num">→</span>
+            <div class="tf-body">
+              <div class="tf-title">BOUNDS EXCEPTION</div>
+              <div class="tf-desc">fire trap, kernel terminates process</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're watching</span>
+          <p>First access: legal, all four stages complete. Second access: illegal, stops at the bound check. <strong>Notice that step 2 (add base) never happens for the illegal access</strong> — the translation is gated.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Timing in hardware</span>
+          <p>All of this — bound check + add base — happens <strong>in parallel</strong> with the DRAM access, in a single clock cycle in the MMU. You don't pay extra for the check.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Try it yourself</span>
+          <p>Trace a few more: <code style="font-family:var(--mono);color:#b9d0ff">logical=1999</code> (valid, phys 15999), <code style="font-family:var(--mono);color:#b9d0ff">logical=2000</code> (fault), <code style="font-family:var(--mono);color:#b9d0ff">logical=0</code> (valid, phys 14000).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Code · Address Check" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code — Base/Bound Check in C</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">logic the MMU implements in hardware</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>base_bound.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// This logic runs in the MMU hardware on every access.</span></span><span class="code-line"><span class="c-com">// Shown here in C for clarity.</span></span><span class="code-line"></span><span class="code-line"><span class="c-kw">typedef struct</span> {</span><span class="code-line">    <span class="c-type">uint64_t</span> <span class="c-var">base</span>;</span><span class="code-line">    <span class="c-type">uint64_t</span> <span class="c-var">bound</span>;</span><span class="code-line">} <span class="c-type">mmu_context_t</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-com">// The one operation that makes isolation work</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">translate</span>(<span class="c-type">mmu_context_t</span>* <span class="c-var">ctx</span>,</span><span class="code-line">              <span class="c-type">uint64_t</span> <span class="c-var">logical</span>,</span><span class="code-line">              <span class="c-type">uint64_t</span>* <span class="c-var">physical</span>) {</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Bound check — must happen BEFORE translation</span></span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">logical</span> &gt;= <span class="c-var">ctx</span>-&gt;<span class="c-var">bound</span>) {</span><span class="code-line">        <span class="c-kw">return</span> <span class="c-num">-1</span>;  <span class="c-com">// BOUNDS EXCEPTION</span></span><span class="code-line">    }</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Translate</span></span><span class="code-line">    *<span class="c-var">physical</span> = <span class="c-var">logical</span> + <span class="c-var">ctx</span>-&gt;<span class="c-var">base</span>;</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;  <span class="c-com">// success</span></span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-com">// On failure, the kernel does something like this:</span></span><span class="code-line"><span class="c-type">void</span> <span class="c-name">handle_trap</span>(<span class="c-type">task_t</span>* <span class="c-var">t</span>) {</span><span class="code-line">    <span class="c-name">printk</span>(<span class="c-str">"segfault at logical addr, pid %d\n"</span>, <span class="c-var">t</span>-&gt;<span class="c-var">pid</span>);</span><span class="code-line">    <span class="c-name">send_signal</span>(<span class="c-var">t</span>, <span class="c-var">SIGSEGV</span>);</span><span class="code-line">    <span class="c-name">kill_process</span>(<span class="c-var">t</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The critical ordering</span>
+          <p>Note that the bound check is <strong>first</strong>. If it were after the translation, an illegal access could be translated to a valid-looking physical address and the write would happen before the fault. The order is the security property.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What "in hardware" really means</span>
+          <p>The MMU does this in <strong>parallel with the memory access</strong> — the check and the translation happen simultaneously, and only if both succeed does the read/write reach the RAM chip. Software version shown here is just for clarity.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why the program can't bypass it</span>
+          <p>The program doesn't execute <code style="font-family:var(--mono);color:#ff9fb1">translate()</code>. The hardware executes it on the program's behalf, before the program's instruction completes. The program has no code path that skips this.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Problems · Fragmentation">
+  <div class="slide-inner">
+    <span class="badge crimson">⚠️ Problem 1 — External Fragmentation</span>
+    <h2 style="margin-bottom:16px;">Base/bound works <span class="grad-crimson">only if you can find contiguous space</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The fragmentation problem</div>
+        <div class="mem-map">
+          <div class="mem-track" style="height:100px">
+            <div class="mem-process a" style="left:2%;width:18%;">PROC A<small>100 MB</small></div>
+            <div style="position:absolute;left:20%;width:8%;top:8px;bottom:8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.20);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">gap</div>
+            <div class="mem-process b" style="left:28%;width:20%;">PROC B<small>120 MB</small></div>
+            <div style="position:absolute;left:48%;width:10%;top:8px;bottom:8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.20);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">gap</div>
+            <div class="mem-process c" style="left:58%;width:22%;">PROC C<small>150 MB</small></div>
+            <div style="position:absolute;left:80%;width:18%;top:8px;bottom:8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.20);display:grid;place-items:center;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">gap (200MB)</div>
+          </div>
+        </div>
+        <div class="note" style="margin-top:14px">
+          <span class="ic">💡</span>
+          <div>Process D needs 250 MB contiguous. There is 200 MB free — but split across multiple gaps. <strong>Process D cannot run</strong> despite enough total memory existing.</div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The problem</span>
+          <p>Base/bound requires each process to occupy a <strong>single contiguous region</strong> of physical memory. When processes start and stop, memory becomes fragmented — small gaps between allocated regions.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it's severe</span>
+          <p>Over time, fragmentation can consume 30–50% of physical memory. The system runs out of usable space even though there's plenty of free memory scattered in gaps. This is <strong>external fragmentation</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The mitigation (partial)</span>
+          <p>Compaction — periodically shift all processes together to consolidate free space. But this is <strong>expensive</strong> (copy hundreds of MB) and requires stopping everything during the copy.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The real fix</span>
+          <p>Give up on contiguity entirely. Split memory into fixed-size pages and let any page be anywhere. That's <strong>paging</strong> — L11.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Problems · Limits">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">⚠️ Problem 2 — Rigid Allocation Limits</span>
+    <h2 style="margin-bottom:16px;">A process <span class="grad-amber">can't easily grow or share</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The problem</span>
+          <p>A process's bound is set at load time. If the process needs <strong>more memory</strong> later (e.g., grows its heap), the OS must find a bigger contiguous region and <strong>move the entire process</strong> — expensive, and impossible if the adjacent region is occupied.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Sharing is impossible</span>
+          <p>Two processes running the same binary (e.g., 30 Chrome processes) each need their own full copy of the code. The base/bound model has <strong>no way to share physical memory</strong> between processes — every byte is private.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The waste</span>
+          <p>30 Chrome processes × 50 MB shared code = 1.5 GB wasted. On a modern system with paging, that same scenario uses 50 MB total — one shared copy, 30 page tables pointing to it.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The pattern:</b> base/bound was designed for a single-program world. As soon as you need dynamic sizing or sharing, the model breaks. Every subsequent mechanism (paging, segmentation, virtual memory) exists to fix these two limitations.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two fatal limitations</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="140" rx="12" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="170" y="38" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">PROBLEM: NO SHARING</text>
+
+          <rect x="34" y="60" width="60" height="50" rx="6" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="64" y="80" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">chrome</text>
+          <text x="64" y="96" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">code copy</text>
+
+          <rect x="110" y="60" width="60" height="50" rx="6" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="140" y="80" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">chrome</text>
+          <text x="140" y="96" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">code copy</text>
+
+          <rect x="186" y="60" width="60" height="50" rx="6" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="216" y="80" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">chrome</text>
+          <text x="216" y="96" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">code copy</text>
+
+          <rect x="262" y="60" width="50" height="50" rx="6" fill="rgba(160,107,255,.15)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="287" y="80" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">chrome</text>
+          <text x="287" y="96" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">code copy</text>
+
+          <text x="170" y="132" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">4 identical copies · 4× the memory</text>
+
+          <rect x="14" y="166" width="312" height="140" rx="12" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.5)" stroke-width="1.4"/>
+          <text x="170" y="190" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">PROBLEM: NO DYNAMIC GROWTH</text>
+
+          <rect x="40" y="212" width="180" height="40" rx="6" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="130" y="236" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">current region</text>
+
+          <rect x="226" y="212" width="60" height="40" rx="6" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="256" y="236" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">occupied</text>
+
+          <text x="170" y="272" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">can't grow right — blocked</text>
+          <text x="170" y="292" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">must relocate entire process</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Addresses</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Logical Address</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A virtual address generated by the compiler and CPU instruction stream during development and runtime execution.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The address the program thinks it's using. Fake — it doesn't correspond to real RAM. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Also called</span>
+          <p>Virtual address. In x86, before paging, it's the address produced by the instruction decoder.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Physical Address</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The actual, hardware-wired slot location inside the physical RAM chip matrix.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The real address. When the CPU puts this on the address bus, a specific DRAM chip responds. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Who sees it</span>
+          <p>Only the MMU and the physical DRAM controller. Programs never see physical addresses.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🏷️ System Lexicon — Registers</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Base Register</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A physical CPU tracking chip that stores the absolute starting physical address of a program's active memory slot.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Where the process's memory starts in real RAM. Added to every logical address. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>The MMU holds a base register per CPU core. The OS updates it on every context switch.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Bound Register</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The hardware register that stores the maximum allowable logical address of a process's memory region, checked against every access.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( How big the process's memory is allowed to be. Any access at or above this limit fires an exception. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The security role</span>
+          <p>Without a bound check, an out-of-range logical address could translate to another process's physical memory. The bound is what makes translation safe.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real World · x86">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — x86 Segmentation</span>
+    <h2 style="margin-bottom:16px;">Base/bound <span class="grad-emerald">did ship in real hardware</span> — as x86 segmentation</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What x86 did</span>
+          <p>The original Intel 8086 introduced <strong>segmentation</strong>: a segment base + limit pair, essentially base-and-bound per segment. Programs referenced memory as <code style="font-family:var(--mono);color:#88ffd8">segment:offset</code> — the offset is the logical address, the segment base is where that region starts.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it's called base/bound</span>
+          <p>Each segment has a <strong>base</strong> (where it starts in physical memory) and a <strong>limit</strong> (its size). The 80286 introduced hardware protection using these — an access beyond the limit fires a general protection fault. This is textbook base-and-bound.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it didn't survive</span>
+          <p>Segmentation had the same fragmentation problem as pure base/bound. And managing 6 segments (code, data, stack × local/global) was complex. Linux famously ran with <strong>a single flat segment</strong> covering all of memory, effectively disabling segmentation in favor of paging.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Modern x86_64</b> still has segment registers, but they're mostly vestigial — the only one that still does something is FS/GS, used for thread-local storage. Paging is what actually isolates memory now.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Segment base + limit</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="60" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">SEGMENT SELECTOR</text>
+          <text x="170" y="56" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">index into segment table</text>
+
+          <line x1="170" y1="74" x2="170" y2="100" stroke="rgba(91,141,255,.75)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="14" y="100" width="312" height="90" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.5)" stroke-width="1.4"/>
+          <text x="170" y="124" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">SEGMENT DESCRIPTOR</text>
+
+          <rect x="34" y="138" width="130" height="36" rx="6" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="99" y="154" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">BASE</text>
+          <text x="99" y="167" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">0x10000</text>
+
+          <rect x="176" y="138" width="130" height="36" rx="6" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="241" y="154" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">LIMIT</text>
+          <text x="241" y="167" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">0x4000</text>
+
+          <line x1="170" y1="190" x2="170" y2="216" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="34" y="216" width="272" height="40" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="234" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">CHECK</text>
+          <text x="170" y="250" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">offset &lt; limit ? ok : #GP</text>
+
+          <line x1="170" y1="256" x2="170" y2="284" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+
+          <text x="170" y="304" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">phys = base + offset</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Live Demo · Multi-process">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — Three Processes, One MMU</span>
+    <h2 style="margin-bottom:16px;">Watch the base register <span class="grad-amber">change on every context switch</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Context switches update the base register</div>
+        <div class="terminal" id="mmuTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">kernel — MMU trace</span>
+          </div>
+          <div class="term-body" id="mmuBody">
+            <span class="term-line dim">Press play — watching the MMU base register across context switches</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What to watch</span>
+          <p>Each line shows: which process is running, what logical address it's accessing, and what the base register currently holds. The base changes on every context switch, and the physical address changes with it.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The pattern</span>
+          <p>Same logical address (e.g., <code style="font-family:var(--mono);color:#b9d0ff">0x100</code>), different physical addresses each time. That's the whole illusion — same address, different base, different reality.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Behind the scenes</span>
+          <p>The kernel does this via the PCB's saved base value. On context switch: save old base to PCB, load new base from PCB. Simple, fast, bulletproof.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Path Forward">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🔮 The Path to Paging</span>
+    <h2 style="margin-bottom:16px;">Base/bound works — <span class="grad-violet">until it doesn't</span></h2>
+    <div class="split">
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">What base/bound got right</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13.5px">
+          ✓ Concept of logical vs physical addresses<br>
+          ✓ Translation on every access<br>
+          ✓ Hardware-enforced bounds check<br>
+          ✓ Per-process context via base register<br>
+          ✓ The vocabulary every later mechanism reuses
+        </p>
+      </div>
+      <div class="panel crimson" style="padding:18px">
+        <span class="panel-label">What it got wrong</span>
+        <p style="line-height:1.85;margin-top:6px;font-size:13.5px">
+          ✗ Requires contiguous physical memory<br>
+          ✗ Leads to severe external fragmentation<br>
+          ✗ No sharing between processes<br>
+          ✗ Process growth requires relocation<br>
+          ✗ Fixed-size region allocated at load
+        </p>
+      </div>
+    </div>
+    <div class="panel violet" style="margin-top:20px;padding:18px">
+      <span class="panel-label">The insight that changes everything</span>
+      <p>Every one of those problems comes from <strong>requiring contiguity</strong>. If a process's memory didn't have to occupy a single physical region, all of these constraints would dissolve. <strong>Paging</strong> is the mechanism that removes contiguity — and it's the subject of L11.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Chalkboard Relocation Machine</span>
+    <h2 style="margin-bottom:16px;">Students physically <span class="grad-violet">translate addresses on the board</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Draw a grid of numbers 0 to 100 on the board to represent physical RAM. Hand two students dry-erase markers. Assign:</p>
+          <p style="line-height:1.85;margin-top:8px;font-size:13px">
+            <strong>Student 1</strong> — Base = 20, Bound = 10<br>
+            <strong>Student 2</strong> — Base = 50, Bound = 15
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The task</span>
+          <p>Shout out logical addresses:</p>
+          <p style="line-height:1.85;margin-top:6px;font-size:13px">
+            "Student 1, modify location 5!" → they write at physical square 20+5=25<br>
+            "Student 2, access location 20!" → <strong style="color:#ff9fb1">fault! 20 ≥ 15</strong><br>
+            "Student 1, access location 9!" → physical 29 ✓<br>
+            "Student 2, modify location 12!" → physical 62 ✓
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The audit</span>
+          <p>Have the class verify each move — is the student writing on the correct physical grid square, or must they freeze and yell "Segmentation Fault!"? This makes base+bound visceral.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> Ask <em>"What would happen if we forgot to check the bound?"</em> Student 2 would write at 50+20=70 — into Student 1's territory if S1's base were 60+. That's the entire point of the bound.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The chalkboard grid</div>
+        <div class="activity-grid" id="chalkGrid">
+          <!-- 100 cells generated by JS -->
+        </div>
+        <div style="display:flex;gap:14px;margin-top:14px;font-size:10px;font-family:var(--mono);font-weight:700;justify-content:center">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(91,141,255,.55);border-radius:2px;display:inline-block"></span> Student 1 (base 20)</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:rgba(46,230,168,.55);border-radius:2px;display:inline-block"></span> Student 2 (base 50)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🌿 Mindmap — Where L10 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 3: Memory Management</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L10: Relocation Models 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf blue">Logical vs Physical Spaces</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf amber">Base Register</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf emerald">Bound Register + Hardware Check</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Where this leads</h2>
+        <div class="panel blue">
+          <span class="panel-label">L11 — The Paging Model</span>
+          <p>We'll replace contiguous base/bound with <strong>fixed-size pages</strong>. Memory becomes a grid, not a single block. Fragmentation disappears. Sharing becomes possible. This is the modern mechanism.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">L12 — TLB Acceleration</span>
+          <p>Paging isn't free — every access requires a lookup. L12 shows how hardware caches translations to make it fast (and what happens on a TLB miss).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">L13 — Virtual Memory</span>
+          <p>Demand paging, page faults, swap space, page replacement. The mechanism that lets your system run programs larger than physical RAM.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about relocation</h2>
+    <div class="pitfall-stack" style="display:flex;flex-direction:column;gap:14px">
+      <div class="pitfall-card" style="padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06)">
+        <div class="pc-num" style="font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px">PITFALL 01</div>
+        <div class="pc-title" style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px">"The base register holds the logical starting address"</div>
+        <div class="pc-desc" style="font-size:12px;line-height:1.55;color:var(--ink-2)">No — the base register holds the <strong>physical</strong> starting address. The logical start is always 0 (that's why every process thinks it starts at 0). The base tells the MMU where to translate address 0 <em>to</em> in physical RAM.</div>
+      </div>
+      <div class="pitfall-card" style="padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06)">
+        <div class="pc-num" style="font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px">PITFALL 02</div>
+        <div class="pc-title" style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px">"Bounds checks happen in the kernel"</div>
+        <div class="pc-desc" style="font-size:12px;line-height:1.55;color:var(--ink-2)">No — the check is <strong>in hardware</strong>. The MMU checks on every access. The kernel is only invoked <em>after</em> the trap fires. If the check were software, a program could simply skip it.</div>
+      </div>
+      <div class="pitfall-card" style="padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06)">
+        <div class="pc-num" style="font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px">PITFALL 03</div>
+        <div class="pc-title" style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px">"Physical address = logical × base"</div>
+        <div class="pc-desc" style="font-size:12px;line-height:1.55;color:var(--ink-2)">It's addition, not multiplication. <strong>phys = logical + base</strong>. If you see any textbook using multiplication, it's wrong. (Segments in x86 are also additive, though some ARM segments use scaling — but that's not what we're covering here.)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Real World">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — Where You've Seen This in Action</span>
+    <h2 style="margin-bottom:16px;">Base/bound concepts <span class="grad-emerald">still appear</span> everywhere</h2>
+    <div class="split">
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">Modern x86 segments</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">Still present in the architecture. FS and GS segments are used by Linux and Windows for <strong>thread-local storage</strong> — each thread's FS base points to its own TLS block. Same concept, narrow use.</p>
+      </div>
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">Watchdog timers in hardware</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">Some embedded SoCs use base/bound-style hardware firewalls. A DMA controller can only write to addresses between base and bound — enforced in silicon, unmodifiable from software.</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:16px">
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">Sanitizer tools</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">AddressSanitizer, HWASan, and Memory Sanitizer use the same conceptual model — every pointer dereference is checked against a known-safe region. Same idea as base/bound, applied at compiler-runtime scale.</p>
+      </div>
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">Modern MMU entries</span>
+        <p style="line-height:1.75;margin-top:6px;font-size:13.5px">Every page table entry has a <strong>base</strong> (frame number) and <strong>permissions</strong> (a form of bound). The base/bound model is the conceptual ancestor of every modern entry.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L10 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p><strong>Logical vs physical addresses</strong>: programs see logical addresses (starting at 0). The MMU translates each to a physical address. Programs never see physical addresses.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>Base and bound</strong> is the simplest translation mechanism: <code style="font-family:var(--mono);color:#88ffd8">physical = logical + base</code>, with a bound check first to reject out-of-range accesses.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>The <strong>bound check is the security primitive</strong>. Without it, translation alone would let buggy pointers corrupt other processes' memory. With it, isolation is absolute.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>Base/bound has <strong>fatal limitations</strong>: external fragmentation, no sharing, no dynamic growth. Paging (L11) fixes all of these by removing the contiguity requirement.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L11 — The Paging Model &amp; Fixed-Size Translation Matrix</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We've seen why contiguous allocation fails. L11 introduces <strong>paging</strong>: split memory into fixed-size pages, eliminate external fragmentation, enable sharing, and unlock the whole modern memory management stack. The base register becomes a page table pointer; the bound check becomes a present bit + permission bits.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L11: The Paging Model &nbsp;|&nbsp; [L11.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad10" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad10)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad10)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : relocation canvas ---------- */
+reg('reloccanvas', function(){
+  const c = document.getElementById('relocCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('EVERY ACCESS TRANSLATED BY HARDWARE', W/2, 16);
+
+    // Program box (left)
+    const progX = 60, progY = 100, progW = 160, progH = 260;
+    ctx.fillStyle = 'rgba(91,141,255,0.08)';
+    ctx.fillRect(progX, progY, progW, progH);
+    ctx.strokeStyle = 'rgba(91,141,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(progX, progY, progW, progH);
+
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PROGRAM VIEW', progX + progW/2, progY + 10);
+    ctx.fillStyle = 'rgba(185,208,255,0.6)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.fillText('logical addresses', progX + progW/2, progY + 24);
+
+    // Logical cells
+    const cellColors = ['#5b8dff', '#8fb4ff'];
+    for(let i = 0; i < 6; i++){
+      const cy = progY + 50 + i * 32;
+      const active = (Math.floor(t / 40) % 6) === i;
+      ctx.fillStyle = active ? cellColors[0] + '60' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(progX + 20, cy, progW - 40, 24);
+      ctx.strokeStyle = active ? cellColors[0] : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = active ? 1.8 : 1;
+      ctx.strokeRect(progX + 20, cy, progW - 40, 24);
+
+      ctx.fillStyle = active ? '#fff' : 'rgba(185,208,255,0.5)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('LA ' + (i * 0x1000).toString(16).padStart(4, '0'), progX + progW/2, cy + 12);
+    }
+
+    // MMU box (center)
+    const mmuX = W/2 - 40, mmuY = 180, mmuW = 80, mmuH = 100;
+    ctx.fillStyle = 'rgba(255,182,72,0.15)';
+    ctx.fillRect(mmuX, mmuY, mmuW, mmuH);
+    ctx.strokeStyle = 'rgba(255,182,72,0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mmuX, mmuY, mmuW, mmuH);
+
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('MMU', W/2, mmuY + 30);
+    ctx.fillStyle = 'rgba(255,209,138,0.8)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('+ BASE', W/2, mmuY + 50);
+    ctx.fillText('BOUND', W/2, mmuY + 64);
+    ctx.fillText('CHECK', W/2, mmuY + 78);
+
+    // Arrow from program to MMU
+    ctx.strokeStyle = 'rgba(91,141,255,0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(progX + progW + 6, 230);
+    ctx.lineTo(mmuX - 6, 230);
+    ctx.stroke();
+    // Arrow head
+    ctx.beginPath();
+    ctx.moveTo(mmuX - 6, 230);
+    ctx.lineTo(mmuX - 14, 224);
+    ctx.moveTo(mmuX - 6, 230);
+    ctx.lineTo(mmuX - 14, 236);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(185,208,255,0.7)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('LA', (progX + progW + mmuX) / 2, 224);
+
+    // Physical box (right)
+    const physX = W - 220, physY = 100, physW = 160, physH = 260;
+    ctx.fillStyle = 'rgba(46,230,168,0.08)';
+    ctx.fillRect(physX, physY, physW, physH);
+    ctx.strokeStyle = 'rgba(46,230,168,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(physX, physY, physW, physH);
+
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PHYSICAL RAM', physX + physW/2, physY + 10);
+    ctx.fillStyle = 'rgba(136,255,216,0.6)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.fillText('physical addresses', physX + physW/2, physY + 24);
+
+    // Physical cells
+    const activeIdx = Math.floor(t / 40) % 6;
+    for(let i = 0; i < 6; i++){
+      const cy = physY + 50 + i * 32;
+      const active = activeIdx === i;
+      ctx.fillStyle = active ? 'rgba(46,230,168,0.35)' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(physX + 20, cy, physW - 40, 24);
+      ctx.strokeStyle = active ? '#2ee6a8' : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = active ? 1.8 : 1;
+      ctx.strokeRect(physX + 20, cy, physW - 40, 24);
+
+      ctx.fillStyle = active ? '#fff' : 'rgba(136,255,216,0.5)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const pa = 0x10000 + i * 0x1000;
+      ctx.fillText('PA 0x' + pa.toString(16), physX + physW/2, cy + 12);
+    }
+
+    // Arrow from MMU to physical
+    ctx.strokeStyle = 'rgba(46,230,168,0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(mmuX + mmuW + 6, 230);
+    ctx.lineTo(physX - 6, 230);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(physX - 6, 230);
+    ctx.lineTo(physX - 14, 224);
+    ctx.moveTo(physX - 6, 230);
+    ctx.lineTo(physX - 14, 236);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(136,255,216,0.7)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('PA', (mmuX + mmuW + physX) / 2, 224);
+
+    // Bottom hint
+    ctx.fillStyle = 'rgba(132,148,180,0.6)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('every single access goes through this translation', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 3 : hotel grid ---------- */
+(function buildHotel(){
+  const grid = document.getElementById('hotelGrid');
+  if(!grid) return;
+  for(let i = 0; i < 100; i++){
+    const cell = document.createElement('div');
+    cell.className = 'hotel-room';
+    cell.textContent = String(i);
+    // Guest A occupies rooms 20-29 (base 20, bound 10)
+    if(i >= 20 && i < 30) cell.classList.add('occupied-a');
+    // Guest B occupies 50-64 (base 50, bound 15)
+    if(i >= 50 && i < 65) cell.classList.add('occupied-b');
+    // Guest C occupies 75-89 (base 75, bound 15)
+    if(i >= 75 && i < 90) cell.classList.add('occupied-c');
+    grid.appendChild(cell);
+  }
+})();
+
+/* ---------- Slide 13 : translation demo ---------- */
+reg('transdemo', function(){
+  const steps = document.querySelectorAll('#transFlow .tf-step');
+  if(!steps.length) return { stop(){} };
+  const states = [
+    'active', 'success', 'success', 'success',
+    'active', 'fail', 'fail'
+  ];
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active','success','fail');
+      if(i < idx){
+        if(states[i] === 'active') s.classList.add('success');
+        else if(states[i] === 'success') s.classList.add('success');
+        else if(states[i] === 'fail') s.classList.add('fail');
+      } else if(i === idx){
+        s.classList.add('active');
+      }
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 800);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','success','fail')); } };
+});
+
+/* ---------- Slide 14 : code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,5,6,8,9,10,12,13,14,15,16,18,19,21,22,23,24,26,27,28,29];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    if(lines[seq[i % seq.length]]) lines[seq[i % seq.length]].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 20 : MMU terminal ---------- */
+reg('mmudemo', function(){
+  const body = document.getElementById('mmuBody');
+  if(!body) return { stop(){} };
+
+  const procs = [
+    {name:'A', base:'0x10000'},
+    {name:'B', base:'0x50000'},
+    {name:'C', base:'0x90000'}
+  ];
+  let step = 0;
+
+  function tick(){
+    if(step === 0){
+      body.innerHTML = '<span class="term-line dim">Press play — watching the MMU base register across context switches</span>';
+      step = 1;
+      return;
+    }
+    // Cycle through processes
+    const p = procs[(step - 1) % procs.length];
+    const logAddr = '0x100';
+    const physAddr = '0x' + (parseInt(p.base, 16) + 0x100).toString(16);
+
+    body.insertAdjacentHTML('beforeend',
+      `<span class="term-line dim">─── context switch ───</span>` +
+      `<span class="term-line ok">[proc ${p.name}] base = ${p.base}</span>` +
+      `<span class="term-line">[proc ${p.name}] access LA ${logAddr} → PA ${physAddr}</span>`
+    );
+    step++;
+
+    // Reset after 12 lines
+    if(step > 13){
+      setTimeout(() => {
+        if(!body.isConnected) return;
+        body.innerHTML = '<span class="term-line dim">Press play — watching the MMU base register across context switches</span>';
+        step = 0;
+      }, 3000);
+    }
+  }
+  const timer = setInterval(tick, 600);
+  return { stop(){ clearInterval(timer); body.innerHTML = '<span class="term-line dim">Press play — watching the MMU base register across context switches</span>'; } };
+});
+
+/* ---------- Slide 22 : chalkboard grid ---------- */
+(function buildChalkGrid(){
+  const grid = document.getElementById('chalkGrid');
+  if(!grid) return;
+  for(let i = 0; i < 100; i++){
+    const cell = document.createElement('div');
+    cell.className = 'act-cell';
+    cell.textContent = String(i);
+    // Student 1: base 20, bound 10 → physical 20-29
+    if(i >= 20 && i < 30) cell.classList.add('lit-a');
+    // Student 2: base 50, bound 15 → physical 50-64
+    if(i >= 50 && i < 65) cell.classList.add('lit-b');
+    grid.appendChild(cell);
+  }
+})();
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s) => {
+    if(s.querySelector('#transFlow') && !s.dataset.anim) s.dataset.anim = 'transdemo';
+    if(s.querySelector('#mmuBody') && !s.dataset.anim) s.dataset.anim = 'mmudemo';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
