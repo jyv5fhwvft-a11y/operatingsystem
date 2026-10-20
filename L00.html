@@ -5,630 +5,660 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CS 301 · L00 · Course Introduction</title>
 <style>
-  /* ====== GLOBAL RESET & VARIABLES ====== */
+  /* ====== GLOBAL STYLES ====== */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg-color: #0F172A;
-    --text-main: #E2E8F0;
-    --text-muted: #94A3B8;
-    --accent-blue: #3B82F6;
-    --accent-cyan: #06B6D4;
-    --accent-amber: #F59E0B;
-    --accent-emerald: #10B981;
-    --card-bg: #111C33;
-    --border-color: #1E293B;
-  }
-
-  html, body {
-    height: 100%; overflow: hidden;
-    background: var(--bg-color);
-    color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* ====== DECK & SLIDE LAYOUT ====== */
+  html, body { height: 100%; overflow: hidden; background: #0a0f1c; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  
   .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-  .slide {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    display: flex; flex-direction: column; justify-content: center; align-items: center;
-    padding: 5vh 7vw; opacity: 0; pointer-events: none;
-    transition: opacity 0.35s ease; text-align: center; overflow-y: auto;
-  }
+  .slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 5vh 7vw; opacity: 0; pointer-events: none; transition: opacity 0.35s ease; text-align: center; overflow-y: auto; }
   .slide.active { opacity: 1; pointer-events: auto; }
 
   /* ====== TYPOGRAPHY & BADGES ====== */
-  .badge {
-    display: inline-block; font-size: 0.85rem; letter-spacing: 0.15em;
-    text-transform: uppercase; font-weight: 700; padding: 10px 22px;
-    border-radius: 999px; margin-bottom: 2.5vh; border: 2px solid;
-  }
-  .badge-blue { color: #60A5FA; border-color: #3B82F6; background: rgba(59,130,246,0.08); }
-  .badge-amber { color: #FBBF24; border-color: #F59E0B; background: rgba(245,158,11,0.08); }
-  .badge-cyan { color: #67E8F9; border-color: #06B6D4; background: rgba(6,182,212,0.08); }
-  .badge-emerald { color: #34D399; border-color: #10B981; background: rgba(16,185,129,0.08); }
+  h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 900; line-height: 1.1; margin-bottom: 2vh; letter-spacing: -0.02em; color: #f8fafc; }
+  h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; line-height: 1.2; margin-bottom: 2vh; color: #f8fafc; }
+  .subtitle { font-size: clamp(1rem, 1.5vw, 1.25rem); color: #94a3b8; max-width: 900px; line-height: 1.6; margin-bottom: 3vh; }
+  .badge { display: inline-block; font-size: 0.85rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 800; padding: 10px 24px; border-radius: 999px; margin-bottom: 3vh; border: 2px solid; }
   
-  h1 { font-size: clamp(1.8rem, 4.5vw, 3.4rem); font-weight: 800; line-height: 1.15; margin-bottom: 1.8vh; letter-spacing: -0.02em; }
-  h2 { font-size: clamp(1.3rem, 2.6vw, 2rem); font-weight: 700; line-height: 1.25; margin-bottom: 2vh; color: #F1F5F9; }
-  .subtitle { font-size: clamp(0.95rem, 1.4vw, 1.15rem); color: var(--text-muted); max-width: 900px; line-height: 1.55; margin-bottom: 2vh; }
-  .accent-line { width: 80px; height: 4px; background: var(--accent-cyan); border-radius: 2px; margin: 1.5vh auto; }
+  .badge-cyan { color: #22d3ee; border-color: #06b6d4; background: rgba(6,182,212,0.1); }
+  .badge-amber { color: #fbbf24; border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+  .badge-blue { color: #60a5fa; border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+  .badge-green { color: #34d399; border-color: #10b981; background: rgba(16,185,129,0.1); }
 
-  /* ====== CALLOUTS & CARDS ====== */
-  .callout {
-    max-width: 850px; padding: 18px 24px; border-left: 4px solid var(--accent-amber);
-    background: rgba(245,158,11,0.06); border-radius: 6px; color: #FCD34D;
-    font-size: clamp(0.9rem, 1.2vw, 1.05rem); line-height: 1.55; margin-top: 2.5vh; text-align: left;
-  }
-  .card-grid { display: grid; gap: 1.3vw; width: 100%; max-width: 1150px; margin-top: 2vh; text-align: left; }
-  .grid-2 { grid-template-columns: 1fr 1fr; }
-  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .card {
-    padding: 2.5vh 1.8vw; border: 2px solid var(--border-color);
-    border-radius: 12px; background: var(--card-bg);
-  }
-  .card h3 { font-size: clamp(1rem, 1.5vw, 1.25rem); font-weight: 700; color: #60A5FA; margin-bottom: 1.2vh; }
-  .card p { font-size: clamp(0.8rem, 1vw, 0.95rem); color: var(--text-muted); line-height: 1.5; margin-bottom: 0.8vh; }
+  /* ====== LAYOUT BLUEPRINT 1: AIR TRAFFIC CONTROL ====== */
+  .atc-container { position: relative; width: 100%; max-width: 900px; height: 250px; background: #0f172a; border-radius: 16px; border: 1px solid #1e293b; margin-bottom: 3vh; overflow: hidden; }
+  .runway { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; height: 40px; background: #334155; border-top: 2px dashed #64748b; border-bottom: 2px dashed #64748b; display: flex; justify-content: center; align-items: center; }
+  .runway::after { content: 'CPU CORE'; color: #475569; font-family: monospace; font-weight: bold; letter-spacing: 0.2em; font-size: 0.7rem; }
+  .tower { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); width: 40px; height: 80px; background: #3b82f6; border-radius: 4px 4px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 10px; }
+  .tower::before { content: 'OS'; color: white; font-size: 0.7rem; font-weight: 900; }
+  .radar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; border: 2px solid #3b82f6; border-radius: 50%; opacity: 0.2; animation: spin 4s linear infinite; }
+  .radar::before { content: ''; position: absolute; top: 50%; left: 50%; width: 50%; height: 2px; background: #3b82f6; transform-origin: left center; }
+  @keyframes spin { 100% { transform: translateX(-50%) rotate(360deg); } }
+  .plane { position: absolute; font-size: 1.5rem; transition: all 1s ease; }
+  .p-chrome { top: 20%; left: 10%; color: #60a5fa; animation: circle1 6s ease-in-out infinite alternate; }
+  .p-vscode { top: 60%; left: 15%; color: #3b82f6; animation: circle2 7s ease-in-out infinite alternate; }
+  .p-spotify { top: 30%; right: 15%; color: #34d399; animation: circle3 5s ease-in-out infinite alternate; }
+  .p-discord { top: 70%; right: 10%; color: #a78bfa; animation: circle4 8s ease-in-out infinite alternate; }
+  .p-term { top: 40%; left: 40%; color: #fbbf24; animation: circle5 6s ease-in-out infinite alternate; }
+  .plane-label { position: absolute; font-size: 0.6rem; background: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #1e293b; top: 20px; left: 20px; font-weight: bold; }
+  
+  @keyframes circle1 { 100% { transform: translate(200px, 20px); } }
+  @keyframes circle2 { 100% { transform: translate(180px, -20px); } }
+  @keyframes circle3 { 100% { transform: translate(-200px, 30px); } }
+  @keyframes circle4 { 100% { transform: translate(-180px, -10px); } }
+  @keyframes circle5 { 100% { transform: translate(100px, 30px); } }
 
-  /* ====== LAYOUT BLUEPRINTS (Specific Visuals) ====== */
-  .metaphor-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5vw; max-width: 1200px; text-align: left; margin-top: 2vh; }
-  .metaphor-visual {
-    display: flex; align-items: center; justify-content: center;
-    padding: 4vh 2vw; border: 2px dashed #1E293B; border-radius: 12px;
-    background: #0B1327; min-height: 240px; font-size: 3.5rem;
-  }
-  .metaphor-text h3 { font-size: clamp(1rem, 1.3vw, 1.15rem); font-weight: 700; color: #FBBF24; margin-bottom: 1.2vh; text-transform: uppercase; letter-spacing: 0.05em; }
-  .metaphor-text p { font-size: clamp(0.85rem, 1.15vw, 1rem); color: #CBD5E1; line-height: 1.55; margin-bottom: 1.8vh; }
-  .metaphor-label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: #F59E0B; margin-bottom: 0.4vh; font-weight: 700; }
+  /* ====== LAYOUT BLUEPRINT 2: THE SELFISH APPLICATION (TWO-ROW AMBER CARD) ====== */
+  .amber-card { width: 100%; max-width: 900px; border: 2px solid #d97706; border-radius: 12px; background: #fffbeb; padding: 32px; text-align: left; color: #451a03; margin-bottom: 3vh; }
+  .amber-badge { display: inline-flex; align-items: center; gap: 8px; background: #fef3c7; border: 1px solid #fcd34d; color: #b45309; padding: 6px 16px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 16px; }
+  .amber-card h3 { font-size: 1.5rem; color: #78350f; margin-bottom: 8px; font-weight: 800; }
+  .amber-card p { font-size: 1rem; color: #92400e; margin-bottom: 24px; line-height: 1.5; }
+  .execution-row { border: 1px solid #fcd34d; background: #fef3c7; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .execution-row:last-child { margin-bottom: 0; background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .execution-row h4 { font-size: 1rem; margin-bottom: 12px; font-weight: 700; }
+  .app-box { display: flex; align-items: center; justify-content: space-between; background: #e0f2fe; padding: 12px; border-radius: 6px; border: 1px solid #bae6fd; color: #0369a1; font-weight: bold; margin-bottom: 12px; }
+  .app-box.bad { background: #fee2e2; border-color: #fecaca; color: #b91c1c; }
+  .app-box.good { background: #dcfce7; border-color: #bbf7d0; color: #15803d; }
+  .buffer-strip { display: flex; gap: 8px; margin-bottom: 12px; }
+  .buffer-cell { flex: 1; text-align: center; font-size: 0.75rem; padding: 6px; border-radius: 4px; border: 1px solid #cbd5e1; font-weight: 600; }
+  .buffer-cell.red { background: #fecaca; border-color: #ef4444; color: #991b1b; }
+  .buffer-cell.blue { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+  .buffer-cell.green { background: #dcfce7; border-color: #22c55e; color: #166534; }
 
-  /* ====== LIVE TERMINAL ====== */
-  .terminal {
-    background: #020617; border: 1px solid #1E293B; border-radius: 12px;
-    padding: 2vh 1.8vw; font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: clamp(0.7rem, 0.95vw, 0.85rem); color: #86EFAC;
-    text-align: left; max-width: 1000px; width: 100%; line-height: 1.65;
-  }
-  .terminal .cmd { color: #60A5FA; }
-  .terminal .out { color: #94A3B8; }
+  /* ====== LAYOUT BLUEPRINT 3: THE CAR DASHBOARD (ABSTRACTION) ====== */
+  .dashboard-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 1000px; text-align: left; }
+  .dash-visual { background: #1e293b; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: center; border: 2px solid #334155; }
+  .gauge-row { display: flex; justify-content: space-between; margin-bottom: 24px; }
+  .gauge { width: 80px; height: 80px; border-radius: 50%; border: 4px solid #475569; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #cbd5e1; }
+  .gauge.g1 { border-color: #3b82f6; color: #60a5fa; }
+  .gauge.g2 { border-color: #ef4444; color: #f87171; }
+  .pedals { display: flex; gap: 12px; justify-content: center; }
+  .pedal { width: 40px; height: 60px; background: #334155; border-radius: 6px; border-bottom: 4px solid #0f172a; }
+  .engine-box { background: #0f172a; border-radius: 16px; padding: 24px; border: 2px dashed #334155; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #475569; }
+  .engine-box span { font-size: 3rem; margin-bottom: 12px; }
+
+  /* ====== LAYOUT BLUEPRINT 4: MULTI-TENANT BUILDING ====== */
+  .building-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 1000px; text-align: left; }
+  .bldg-visual { background: #0f172a; border-radius: 16px; padding: 24px; border: 1px solid #1e293b; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .tenant { background: #1e293b; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6; display: flex; flex-direction: column; gap: 8px; }
+  .tenant-icon { font-size: 1.5rem; }
+  .tenant-info h4 { color: #e2e8f0; font-size: 0.9rem; margin-bottom: 4px; }
+  .tenant-info p { color: #64748b; font-size: 0.75rem; }
+  .shared-infra { grid-column: span 2; background: #1e293b; padding: 16px; border-radius: 8px; border: 2px dashed #10b981; text-align: center; font-weight: bold; color: #34d399; font-size: 0.9rem; }
+
+  /* ====== LAYOUT BLUEPRINT 5: THE STACK ====== */
+  .stack-layout { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 800px; margin-top: 2vh; }
+  .stack-layer { padding: 16px; text-align: center; font-weight: 800; font-size: 1rem; border-radius: 6px; border: 2px solid transparent; }
+  .layer-user { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .layer-kernel { background: #fef2f2; border-color: #fecaca; color: #991b1b; transform: scale(1.02); box-shadow: 0 4px 12px rgba(239,68,68,0.2); }
+  .layer-hw { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+  .stack-divider { text-align: center; font-size: 0.75rem; font-weight: bold; color: #ef4444; letter-spacing: 0.2em; margin: 4px 0; }
+
+  /* ====== LAYOUT BLUEPRINT 6: TIMELINE ====== */
+  .timeline { display: flex; width: 100%; max-width: 1000px; justify-content: space-between; position: relative; margin-top: 4vh; }
+  .timeline::before { content: ''; position: absolute; top: 20px; left: 0; width: 100%; height: 4px; background: #1e293b; z-index: 0; }
+  .t-node { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; width: 22%; }
+  .t-dot { width: 44px; height: 44px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; margin-bottom: 16px; border: 4px solid #0a0f1c; }
+  .t-node h4 { font-size: 1rem; color: #f8fafc; margin-bottom: 4px; }
+  .t-node p { font-size: 0.8rem; color: #94a3b8; }
+
+  /* ====== LAYOUT BLUEPRINT 7: HEX DIAGRAM ====== */
+  .hex-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; max-width: 900px; width: 100%; margin-top: 2vh; }
+  .hex-cell { background: #1e293b; padding: 20px; border-radius: 8px; border-top: 3px solid #3b82f6; text-align: left; }
+  .hex-cell h4 { color: #60a5fa; font-size: 0.9rem; margin-bottom: 8px; }
+  .hex-cell p { color: #94a3b8; font-size: 0.8rem; }
+
+  /* ====== LAYOUT BLUEPRINT 8: CODE BLOCK & TERMINAL ====== */
+  .code-block { background: #020617; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; font-family: "SF Mono", monospace; font-size: 0.85rem; color: #94a3b8; text-align: left; max-width: 900px; width: 100%; overflow-x: auto; }
+  .code-block .kw { color: #c084fc; } .code-block .str { color: #86efac; } .code-block .cm { color: #475569; font-style: italic; } .code-block .fn { color: #60a5fa; } .code-block .num { color: #fbbf24; }
+  .terminal { background: #000000; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; font-family: "SF Mono", monospace; font-size: 0.85rem; text-align: left; max-width: 900px; width: 100%; line-height: 1.6; }
+  .terminal .cmd { color: #60a5fa; font-weight: bold; } .terminal .out { color: #64748b; }
 
   /* ====== MINDMAP ====== */
-  .mindmap {
-    font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: clamp(0.7rem, 0.95vw, 0.9rem);
-    color: #94A3B8; text-align: left; background: #020617; border: 1px solid #1E293B;
-    border-radius: 12px; padding: 2.5vh 2vw; max-width: 900px; width: 100%; line-height: 1.65; white-space: pre-wrap;
-  }
-  .mindmap .active { color: #60A5FA; font-weight: 700; }
+  .mindmap { font-family: "SF Mono", monospace; font-size: 0.9rem; color: #94a3b8; text-align: left; background: #020617; border: 1px solid #1e293b; border-radius: 12px; padding: 32px; max-width: 800px; width: 100%; line-height: 1.8; white-space: pre-wrap; }
+  .mindmap .active { color: #60a5fa; font-weight: bold; }
 
-  /* ====== TAKEAWAYS & NAVIGATION ====== */
-  .takeaway-list { display: flex; flex-direction: column; gap: 1.8vh; max-width: 900px; width: 100%; text-align: left; }
-  .takeaway-item { display: flex; gap: 1.3vw; padding: 2vh 1.8vw; border-left: 4px solid var(--accent-blue); background: rgba(59,130,246,0.05); border-radius: 6px; }
-  .takeaway-num { font-size: 1.4rem; font-weight: 800; color: #60A5FA; min-width: 40px; }
-  .takeaway-item p { font-size: clamp(0.85rem, 1.1vw, 1rem); color: #CBD5E1; line-height: 1.5; }
-
-  /* ====== FIXED UI ELEMENTS ====== */
-  .nav {
-    position: fixed; bottom: 20px; right: 30px; display: flex; align-items: center; gap: 12px;
-    font-size: 0.85rem; color: #475569; z-index: 100; font-family: "SF Mono", "Menlo", monospace;
-  }
-  .nav-btn {
-    background: #1E293B; color: #CBD5E1; border: 1px solid #334155;
-    border-radius: 8px; padding: 8px 14px; font-size: 1rem; cursor: pointer; transition: all 0.15s ease;
-  }
-  .nav-btn:hover { background: #334155; color: #fff; }
-  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  .progress { position: fixed; bottom: 0; left: 0; width: 100%; height: 3px; background: #1E293B; z-index: 100; }
-  .progress-bar { height: 100%; background: linear-gradient(90deg, #3B82F6, #06B6D4); transition: width 0.35s ease; }
-  .slide-title-tag { position: fixed; top: 20px; left: 30px; font-size: 0.8rem; color: #475569; font-family: "SF Mono", "Menlo", monospace; letter-spacing: 0.1em; z-index: 100; }
-  .hint { font-size: 0.85rem; color: #475569; margin-top: 2vh; font-style: italic; }
-
-  @media (max-width: 768px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .metaphor-layout { grid-template-columns: 1fr; }
-    .slide { padding: 4vh 5vw; }
-  }
+  /* ====== NAVIGATION UI ====== */
+  .nav-controls { position: fixed; bottom: 20px; right: 30px; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: #475569; z-index: 100; font-family: monospace; }
+  .btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; border-radius: 8px; padding: 8px 16px; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+  .btn:hover { background: #334155; color: white; }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .progress { position: fixed; bottom: 0; left: 0; width: 100%; height: 4px; background: #1e293b; z-index: 100; }
+  .progress-bar { height: 100%; background: #3b82f6; transition: width 0.3s ease; }
+  .slide-tag { position: fixed; top: 20px; left: 30px; font-size: 0.8rem; color: #475569; font-family: monospace; letter-spacing: 0.1em; z-index: 100; }
+  .hint { color: #475569; font-style: italic; font-size: 0.9rem; margin-top: 2vh; }
 </style>
 </head>
 <body>
 
-<!-- COURSE MAP RETURN LINK -->
-<a href="index.html" style="position: fixed; top: 20px; right: 30px; z-index: 9999; background: #1E293B; color: #60A5FA; padding: 10px 18px; border: 2px solid #3B82F6; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: monospace;">🏠 Course Map</a>
+  <a href="index.html" style="position: fixed; top: 20px; right: 30px; z-index: 9999; background: #1E293B; color: #60A5FA; padding: 10px 18px; border: 2px solid #3B82F6; border-radius: 8px; text-decoration: none; font-weight: bold; font-family: monospace;">🏠 Course Map</a>
+  <div class="slide-tag">CS 301 · L00</div>
+  <div class="deck" id="deck">
 
-<div class="slide-title-tag">CS 301 · L00</div>
+    <!-- Slide 01 -->
+    <section class="slide active">
+      <span class="badge badge-cyan">🔰 🏠 START HERE // L00</span>
+      <h1>The Core Objective</h1>
+      <p class="subtitle">State in one clear sentence why an operating system exists, and name the core hardware resources it arbitrates.</p>
+      <div style="background: rgba(6,182,212,0.1); border-left: 4px solid #06b6d4; padding: 24px; max-width: 800px; text-align: left; border-radius: 0 8px 8px 0; margin-bottom: 2vh;">
+        <strong style="color: #22d3ee; display: block; margin-bottom: 8px;">The Problem Hook</strong>
+        <p style="color: #cbd5e1; line-height: 1.6;">A modern computer has one or two physical CPUs, some gigabytes of RAM, and a handful of storage devices. Yet right now, hundreds of programs are all simultaneously convinced they own the entire machine. How does this not collapse into chaos?</p>
+      </div>
+      <p class="hint">Press → to begin</p>
+    </section>
 
-<div class="deck" id="deck">
+    <!-- Slide 02 -->
+    <section class="slide">
+      <span class="badge badge-amber">🛑 ⚠️ ENTRY BARRIERS</span>
+      <h2>Structural Prerequisites</h2>
+      <div style="display: flex; gap: 24px; max-width: 1000px; width: 100%; margin-top: 2vh; text-align: left;">
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-top: 4px solid #f59e0b;">
+          <h4 style="color: #fbbf24; margin-bottom: 12px; font-size: 1.1rem;">01 · Familiarity</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Basic familiarity with running computer programs — opening files, using a terminal, typing commands like <code>ls</code>.</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-top: 4px solid #f59e0b;">
+          <h4 style="color: #fbbf24; margin-bottom: 12px; font-size: 1.1rem;">02 · Hardware</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Elementary knowledge of what a CPU, RAM, and storage disk do — just awareness that they exist.</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-top: 4px solid #f59e0b;">
+          <h4 style="color: #fbbf24; margin-bottom: 12px; font-size: 1.1rem;">03 · Curiosity</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">A willingness to look under the hood — registers, memory addresses, syscalls, and messy machinery.</p>
+        </div>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 01 ===== -->
-  <section class="slide active">
-    <span class="badge badge-cyan">🔰 🏠 START HERE // L00 LEARNING OBJECTIVES</span>
-    <h1>The Core Objective</h1>
-    <div class="accent-line"></div>
-    <p class="subtitle">State in one clear sentence why an operating system exists, and name the core hardware resources it arbitrates.</p>
-    <div class="callout" style="border-color: #06B6D4; background: rgba(6,182,212,0.06); color: #67E8F9;">
-      <strong>The Problem Hook:</strong> A modern computer has one or two physical CPUs, some gigabytes of RAM, and a handful of storage devices. Yet right now, hundreds of programs are all simultaneously convinced they own the entire machine. How does this not collapse into chaos?
-    </div>
-    <p class="hint">Press → to begin</p>
-  </section>
+    <!-- Slide 03: Air Traffic Visual -->
+    <section class="slide">
+      <span class="badge badge-blue">🎒 EVERYDAY SIMPLIFIED: AIR TRAFFIC CONTROL</span>
+      <h2>The OS as Referee</h2>
+      
+      <div class="atc-container">
+        <div class="radar"></div>
+        <div class="plane p-chrome"><span class="plane-label">Chrome</span>✈️</div>
+        <div class="plane p-vscode"><span class="plane-label">VS Code</span>✈️</div>
+        <div class="plane p-spotify"><span class="plane-label">Spotify</span>✈️</div>
+        <div class="plane p-discord"><span class="plane-label">Discord</span>✈️</div>
+        <div class="plane p-term"><span class="plane-label">Terminal</span>✈️</div>
+        <div class="tower"></div>
+        <div class="runway"></div>
+      </div>
 
-  <!-- ===== SLIDE 02 ===== -->
-  <section class="slide">
-    <span class="badge badge-amber">🛑 ⚠️ ENTRY BARRIERS: REQUIREMENT DIRECTIVES</span>
-    <h2>Structural Prerequisites</h2>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card" style="border-color: #78350F;">
-        <h3 style="color: #FBBF24;">01 · Familiarity</h3>
-        <p>Basic familiarity with running computer programs — opening files, using a terminal, typing commands like <code>ls</code> and <code>cd</code>.</p>
+      <div style="max-width: 900px; text-align: left; display: flex; gap: 24px;">
+        <div style="flex: 1; background: #1e293b; padding: 20px; border-radius: 8px; border-left: 3px solid #3b82f6;">
+          <strong style="color: #60a5fa; display: block; margin-bottom: 8px;">The Metaphor</strong>
+          <p style="color: #cbd5e1; font-size: 0.9rem;">A busy airport has a single runway, and fifty pilots all want to land at the exact same second. The OS is the tower — it decides who lands, in what order, and for how long.</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 20px; border-radius: 8px; border-left: 3px solid #3b82f6;">
+          <strong style="color: #60a5fa; display: block; margin-bottom: 8px;">Execution Path</strong>
+          <p style="color: #cbd5e1; font-size: 0.9rem;">The OS does not fly the planes. Every plane still lands with its own pilot (application code), but the tower (scheduler) determines the sequence.</p>
+        </div>
       </div>
-      <div class="card" style="border-color: #78350F;">
-        <h3 style="color: #FBBF24;">02 · Hardware Awareness</h3>
-        <p>Elementary knowledge of what a CPU, RAM, and storage disk do — no architecture expertise required, just awareness that they exist.</p>
-      </div>
-      <div class="card" style="border-color: #78350F;">
-        <h3 style="color: #FBBF24;">03 · Curiosity</h3>
-        <p>A willingness to look under the hood — this course will not shy away from registers, memory addresses, syscalls, and the messy machinery underneath modern apps.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 03 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">🎒 💡 EVERYDAY SIMPLIFIED: THE AIR TRAFFIC CONTROL TOWER</span>
-    <h2>The OS as Referee</h2>
-    <div class="metaphor-layout">
-      <div class="metaphor-visual">✈️ 🗼 ✈️</div>
-      <div class="metaphor-text">
-        <span class="metaphor-label">The Metaphor Narrative</span>
-        <p>A busy international airport has a single concrete runway, and fifty pilots (user programs) all want to land on it at the exact same second. If every pilot acted selfishly, they would collide in midair. The Operating System is the air traffic controller in the tower — it does not fly the planes, but it decides who gets to use the runway, in what order, for how long, and at what altitude. It also prevents collisions in the airspace (memory), manages the gates (file system), and dispatches maintenance crews to handle emergencies (I/O).</p>
-        <span class="metaphor-label">The Execution Path</span>
-        <p>The OS does not do the "flying" — it does the coordination. Every plane still lands with its own pilot (the application code), but the sequence of landings is determined by the tower (the OS scheduler and resource managers).</p>
-        <span class="metaphor-label">Micro-Accessibility Context</span>
-        <p>This is the fundamental metaphor of the course. The OS is a resource <em>arbitrator</em>, not a resource <em>user</em>.</p>
+    <!-- Slide 04 -->
+    <section class="slide">
+      <span class="badge badge-blue">🎒 EVERYDAY SIMPLIFIED: THE HOTEL CONCIERGE</span>
+      <h2>The Resource Manager</h2>
+      <div style="display: flex; gap: 32px; max-width: 900px; text-align: left; align-items: center;">
+        <div style="font-size: 6rem; background: #1e293b; padding: 40px; border-radius: 50%; border: 2px dashed #3b82f6;">🏨</div>
+        <div>
+          <p style="color: #cbd5e1; font-size: 1.1rem; margin-bottom: 16px; line-height: 1.6;">A hotel has finite resources: rooms, chefs, cars. Guests arrive with independent needs. The concierge (OS) allocates rooms (CPU cores), dispatches wake-up calls (interrupts), and arranges taxis (I/O) — ensuring no one gets double-booked.</p>
+          <p style="color: #60a5fa; font-weight: bold;">Execution Path: The OS turns raw hardware into a smooth guest experience.</p>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 04 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">🎒 💡 EVERYDAY SIMPLIFIED: THE HOTEL CONCIERGE</span>
-    <h2>The Resource Manager</h2>
-    <div class="metaphor-layout">
-      <div class="metaphor-visual">🏨 🛎️</div>
-      <div class="metaphor-text">
-        <span class="metaphor-label">The Metaphor Narrative</span>
-        <p>A hotel has finite resources: rooms, chefs, cars. Guests arrive with independent needs and no coordination with each other. The concierge desk (the OS) allocates rooms (CPU cores), dispatches wake-up calls (interrupts), and arranges taxis (I/O operations) — all while ensuring no guest gets their room triple-booked and every guest eventually gets the service they paid for.</p>
-        <span class="metaphor-label">The Execution Path</span>
-        <p>The OS is the service layer that turns a collection of raw hardware resources into a smooth experience for multiple simultaneous guests.</p>
-        <span class="metaphor-label">Micro-Accessibility Context</span>
-        <p>This emphasizes the fairness aspect of the OS — every guest has a claim to service, and the OS must honor all of them.</p>
+    <!-- Slide 05: Car Dashboard Visual -->
+    <section class="slide">
+      <span class="badge badge-blue">🎒 EVERYDAY SIMPLIFIED: THE CAR DASHBOARD</span>
+      <h2>The Abstraction Provider</h2>
+      <div class="dashboard-layout">
+        <div class="dash-visual">
+          <div class="gauge-row">
+            <div class="gauge g1">60</div>
+            <div class="gauge g2">0</div>
+          </div>
+          <div class="pedals">
+            <div class="pedal"></div>
+            <div class="pedal"></div>
+          </div>
+        </div>
+        <div class="engine-box">
+          <span>⚙️</span>
+          <p>Engine complexity hidden</p>
+        </div>
       </div>
-    </div>
-  </section>
+      <p class="subtitle" style="margin-top:3vh;">You call <code>write()</code> on a file descriptor, and the OS translates it into disk seeks, DMA transfers, and journal commits — none of which you need to see.</p>
+    </section>
 
-  <!-- ===== SLIDE 05 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">🎒 💡 EVERYDAY SIMPLIFIED: THE CAR DASHBOARD</span>
-    <h2>The Abstraction Provider</h2>
-    <div class="metaphor-layout">
-      <div class="metaphor-visual">🚗 📊</div>
-      <div class="metaphor-text">
-        <span class="metaphor-label">The Metaphor Narrative</span>
-        <p>A driver does not need to understand how the fuel injection system works to drive the car. The dashboard abstracts the engine — it presents the driver with simple, universal controls (gas pedal, brake, steering wheel) that hide extreme complexity. Similarly, the operating system abstracts the raw hardware: you call <code>write()</code> on a file descriptor, and the OS translates it into disk seeks, DMA transfers, and journal commits — none of which you need to see.</p>
-        <span class="metaphor-label">The Execution Path</span>
-        <p>Abstraction is the reason programming is possible at scale. Without OS abstractions, every application would need to speak directly to every hardware device it uses.</p>
-        <span class="metaphor-label">Micro-Accessibility Context</span>
-        <p>This introduces the second core role of the OS: <em>abstraction provider</em>, alongside its resource arbitrator role.</p>
+    <!-- Slide 06: Multi-Tenant Visual -->
+    <section class="slide">
+      <span class="badge badge-blue">🎒 EVERYDAY SIMPLIFIED: MULTI-TENANT BUILDING</span>
+      <h2>Isolation vs. Sharing</h2>
+      <div class="building-layout">
+        <div class="bldg-visual">
+          <div class="tenant">
+            <div class="tenant-icon">👤</div>
+            <div class="tenant-info"><h4>Tenant A</h4><p>Private Office</p></div>
+          </div>
+          <div class="tenant">
+            <div class="tenant-icon">👤</div>
+            <div class="tenant-info"><h4>Tenant B</h4><p>Private Office</p></div>
+          </div>
+          <div class="shared-infra">Shared Infrastructure: Electricity · Plumbing · Foundation</div>
+        </div>
+        <div style="display: flex; flex-direction: column; justify-content: center; text-align: left;">
+          <p style="color: #cbd5e1; font-size: 1.1rem; line-height: 1.6;">Each tenant acts as if they own the whole building. The building manager (OS) guarantees isolation (no tenant can enter another's office) while sharing scarce infrastructure.</p>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 06 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">🎒 💡 EVERYDAY SIMPLIFIED: THE MULTI-TENANT BUILDING</span>
-    <h2>The Competing Claim</h2>
-    <div class="metaphor-layout">
-      <div class="metaphor-visual">🏢 🔐 🏢</div>
-      <div class="metaphor-text">
-        <span class="metaphor-label">The Metaphor Narrative</span>
-        <p>Each tenant in a multi-tenant office building acts <em>exactly</em> as if they own the whole building. They paint their walls, hang their art, set their schedules — never coordinating with other tenants. But they all share the same building infrastructure: the same electric grid, the same plumbing, the same foundation. The building manager (the OS) guarantees isolation (no tenant can enter another's office) while sharing the scarce infrastructure. This is exactly the "process" model from Module 2 — each process believes it owns the whole machine, while the OS provides both isolation and resource sharing.</p>
-        <span class="metaphor-label">The Execution Path</span>
-        <p>The OS must simultaneously provide <em>isolation</em> (so tenants cannot corrupt each other) and <em>resource sharing</em> (so tenants do not each need their own building). These two goals are in tension, and the entire course is about how the OS balances them.</p>
-        <span class="metaphor-label">Micro-Accessibility Context</span>
-        <p>This sets up the central tension that Module 1–7 will resolve: <strong>isolation vs. sharing</strong>.</p>
+    <!-- Slide 07 -->
+    <section class="slide">
+      <span class="badge badge-green">🎒 EVERYDAY SIMPLIFIED: THE REFEREE SUITE</span>
+      <h2>The Summary Metaphor</h2>
+      <div style="display: flex; gap: 24px; max-width: 900px; width: 100%; margin-top: 3vh;">
+        <div style="flex: 1; background: #0f172a; border: 2px solid #3b82f6; padding: 32px; border-radius: 12px; text-align: left;">
+          <h3 style="color: #60a5fa; font-size: 1.5rem; margin-bottom: 12px;">🛡️ The Referee</h3>
+          <p style="color: #94a3b8;">Arbitrates access to shared, finite resources (CPU, memory, disk). Ensures fairness and prevents collisions.</p>
+        </div>
+        <div style="flex: 1; background: #0f172a; border: 2px solid #10b981; padding: 32px; border-radius: 12px; text-align: left;">
+          <h3 style="color: #34d399; font-size: 1.5rem; margin-bottom: 12px;">🧭 The Abstraction</h3>
+          <p style="color: #94a3b8;">Presents simple, uniform interfaces that hide hardware complexity. Enables applications to be written without hardware-specific code.</p>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 07 ===== -->
-  <section class="slide">
-    <span class="badge badge-emerald">🎒 💡 EVERYDAY SIMPLIFIED: THE REFEREE-ABSTRACTION SUITE</span>
-    <h2>The Summary Metaphor</h2>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card">
-        <h3>🛡️ The Referee</h3>
-        <p>Arbitrates access to shared, finite resources (CPU, memory, disk, network). Ensures fairness and prevents collisions.</p>
-      </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">🧭 The Abstraction Provider</h3>
-        <p>Presents simple, uniform interfaces that hide hardware complexity. Enables applications to be written without hardware-specific code.</p>
-      </div>
-    </div>
-    <p class="subtitle" style="margin-top:3vh;max-width:900px">Neither role exists in isolation: the referee needs abstraction to make resources manageable; abstraction needs the referee to make resources shared safely. Together, they turn raw silicon into the modern computing environment.</p>
-  </section>
+    <!-- Slide 08: Amber Two-Row Card -->
+    <section class="slide">
+      <div class="amber-card">
+        <div class="amber-badge">⚠️ 🔥 CASE STUDY: THE CONCURRENT APPLICATION COLLISION</div>
+        <h3>The Selfish Application Problem</h3>
+        <p>Two heavy apps start in the same fraction of a second. Chrome loads 30 web pages. Spotify streams HD audio.</p>
+        
+        <div class="execution-row" style="background: #fef3c7;">
+          <h4>Row 1 · Without the OS: the battle</h4>
+          <div class="app-box bad">
+            <span>Chrome (30 pages)</span>
+            <span>→ Overwrites →</span>
+            <span>Spotify (audio buffers)</span>
+          </div>
+          <div class="buffer-strip">
+            <div class="buffer-cell green">buf 1</div>
+            <div class="buffer-cell green">buf 2</div>
+            <div class="buffer-cell red">Chrome</div>
+            <div class="buffer-cell red">Chrome</div>
+          </div>
+          <p style="font-size: 0.85rem; color: #b91c1c; margin:0; font-weight: 600;">Buffers overwritten, audio frozen, data blocks scrambled, total machine crash.</p>
+        </div>
 
-  <!-- ===== SLIDE 08 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE DEFINITION AND SCOPE</span>
-    <h2>What an Operating System Actually Is</h2>
-    <div class="accent-line" style="background:#3B82F6"></div>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card">
-        <h3>Bottom · Hardware</h3>
-        <p>CPU cores, RAM, disks, network cards — raw, uncompromised, and difficult to program.</p>
+        <div class="execution-row" style="background: #f0fdf4; border-color: #86efac;">
+          <h4 style="color: #166534;">Row 2 · With the kernel: the victory</h4>
+          <div class="app-box good" style="justify-content: space-around;">
+            <span>Chrome (own memory)</span>
+            <span>🛡️ Kernel</span>
+            <span>Spotify (own memory)</span>
+          </div>
+          <div class="buffer-strip">
+            <div class="buffer-cell blue" style="background:#dbeafe;">C</div>
+            <div class="buffer-cell green" style="background:#dcfce7;">S</div>
+            <div class="buffer-cell blue" style="background:#dbeafe;">C</div>
+            <div class="buffer-cell green" style="background:#dcfce7;">S</div>
+          </div>
+          <p style="font-size: 0.85rem; color: #166534; margin:0; font-weight: 600;">Isolated memory and fair CPU slicing: music plays without a single skip.</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>Middle · Kernel (Ring 0)</h3>
-        <p>The privileged core. Manages processes, memory, filesystems, devices, and networking. All the code we study in this course lives here.</p>
-      </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">Top · User Space (Ring 3)</h3>
-        <p>Applications. Chrome, VS Code, Python scripts — the programs users actually care about.</p>
-      </div>
-    </div>
-    <div class="callout" style="border-color:#3B82F6;background:rgba(59,130,246,0.06);color:#93C5FD;margin-top:4vh">
-      <strong>The Core Definition:</strong> The OS is the software layer between applications and hardware. Its job is to make the hardware safe, fair, fast, and easy to use. It is not the applications — it enables them.
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 09 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE ARBITRATION TRIAD</span>
-    <h2>The Three Core Resources</h2>
-    <div class="card-grid grid-3" style="margin-top:4vh">
-      <div class="card">
-        <h3>⚙️ CPU Time</h3>
-        <p>Millions of instructions per second, but only one stream can execute per core at a time.</p>
-        <p style="margin-top:1vh;color:#60A5FA"><strong>Module 2 · L05–L09</strong></p>
-        <p>PCB, fork/exec, context switch, MLFQ</p>
+    <!-- Slide 09 -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: DEFINITION</span>
+      <h2>What an Operating System Actually Is</h2>
+      <div class="stack-layout">
+        <div class="stack-layer layer-user">USER SPACE (Ring 3) <br><span style="font-size: 0.8rem; font-weight: normal;">Applications: Chrome, VS Code, Python</span></div>
+        <div class="stack-divider">↕ SYSCALL BOUNDARY ↕</div>
+        <div class="stack-layer layer-kernel">KERNEL (Ring 0) <br><span style="font-size: 0.8rem; font-weight: normal;">Process Manager · Memory Manager · File System · Drivers</span></div>
+        <div class="stack-divider">↕ HARDWARE BUS ↕</div>
+        <div class="stack-layer layer-hw">PHYSICAL HARDWARE <br><span style="font-size: 0.8rem; font-weight: normal;">CPU Cores, RAM Chips, Disks</span></div>
       </div>
-      <div class="card">
-        <h3>🧠 Physical Memory</h3>
-        <p>Finite RAM gigabytes, each byte either allocated or free.</p>
-        <p style="margin-top:1vh;color:#60A5FA"><strong>Module 3 · L10–L13</strong></p>
-        <p>Paging, virtual memory, TLB, demand paging</p>
-      </div>
-      <div class="card">
-        <h3>💾 Persistent Storage</h3>
-        <p>Finite disk space, organized into blocks.</p>
-        <p style="margin-top:1vh;color:#60A5FA"><strong>Module 5 · L16–L19</strong></p>
-        <p>Inodes, paths, journaling</p>
-      </div>
-    </div>
-    <p class="subtitle" style="margin-top:4vh">
-      Plus: <strong>I/O devices</strong> (M6 · L20–L21), <strong>synchronization</strong> (M4 · L14–L15), <strong>security</strong> (M7 · L22–L27), and <strong>structure</strong> (M1 · L00–L04).
-    </p>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 10 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE EVOLUTIONARY TIMELINE</span>
-    <h2>The Historical Arc</h2>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card">
-        <h3>1950s · Batch Processing</h3>
-        <p>The CPU sat idle while users typed punch cards.</p>
-        <p style="margin-top:1vh;color:#FBBF24"><strong>Innovation:</strong> Batch job queues.</p>
+    <!-- Slide 10 -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE TRIAD</span>
+      <h2>The Three Core Resources</h2>
+      <div style="display: flex; gap: 24px; max-width: 1000px; width: 100%; margin-top: 3vh;">
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-left: 4px solid #3b82f6; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">⚙️ CPU Time</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">One stream per core. Arbitrated by the scheduler (Module 2).</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-left: 4px solid #3b82f6; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">🧠 Physical Memory</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Finite RAM gigabytes. Arbitrated by the memory manager (Module 3).</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-left: 4px solid #3b82f6; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">💾 Persistent Storage</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Blocks on disk. Arbitrated by the file system (Module 5).</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>1960s · Multiprogramming</h3>
-        <p>When one job blocked on I/O, another ran on the CPU.</p>
-        <p style="margin-top:1vh;color:#FBBF24"><strong>Innovation:</strong> Context switches and I/O interrupts.</p>
-      </div>
-      <div class="card">
-        <h3>1970s · Time-Sharing</h3>
-        <p>Multiple interactive users shared one mainframe.</p>
-        <p style="margin-top:1vh;color:#FBBF24"><strong>Innovation:</strong> Preemptive scheduling and virtual memory.</p>
-      </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">1980s–Present · Personal &amp; Cloud</h3>
-        <p>One OS per user, then virtualized cloud infrastructure.</p>
-        <p style="margin-top:1vh;color:#34D399"><strong>Innovation:</strong> Sandboxing, containers, virtualization.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 11 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE KERNEL COMPONENT MAP</span>
-    <h2>The Kernel's Six Subsystems</h2>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card"><h3>1 · Process Manager</h3><p><strong>L05–L09</strong> · task_struct, fork, exec, wait</p></div>
-      <div class="card"><h3>2 · Scheduler</h3><p><strong>L07–L08</strong> · run queue, priority, time slice</p></div>
-      <div class="card"><h3>3 · Memory Manager</h3><p><strong>L10–L13</strong> · page tables, TLB, swap</p></div>
-      <div class="card"><h3>4 · File System</h3><p><strong>L16–L19</strong> · inodes, directories, journaling</p></div>
-      <div class="card"><h3>5 · Device Drivers</h3><p><strong>L20–L21</strong> · file_operations, IRQs, DMA</p></div>
-      <div class="card"><h3>6 · Network Stack</h3><p><strong>L21, L25, L26</strong> · sockets, TCP/IP, encryption</p></div>
-    </div>
-  </section>
+    <!-- Slide 11: Timeline Visual -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: HISTORICAL ARC</span>
+      <h2>The Evolutionary Timeline</h2>
+      <div class="timeline">
+        <div class="t-node">
+          <div class="t-dot">1</div>
+          <h4>1950s</h4>
+          <p>Batch Processing<br><span style="color:#fbbf24; font-size:0.75rem;">Job Queues</span></p>
+        </div>
+        <div class="t-node">
+          <div class="t-dot">2</div>
+          <h4>1960s</h4>
+          <p>Multiprogramming<br><span style="color:#fbbf24; font-size:0.75rem;">Context Switches</span></p>
+        </div>
+        <div class="t-node">
+          <div class="t-dot">3</div>
+          <h4>1970s</h4>
+          <p>Time-Sharing<br><span style="color:#fbbf24; font-size:0.75rem;">Virtual Memory</span></p>
+        </div>
+        <div class="t-node">
+          <div class="t-dot" style="background:#10b981;">4</div>
+          <h4>Present</h4>
+          <p>Personal &amp; Cloud<br><span style="color:#34d399; font-size:0.75rem;">Containers</span></p>
+        </div>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 12 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: THE USER-KERNEL BOUNDARY</span>
-    <h2>The System Call Interface</h2>
-    <div class="accent-line"></div>
-    <p class="subtitle" style="max-width:850px">The system call interface is the <strong>only</strong> channel through which user code can request kernel services.</p>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card">
-        <h3>User Side (Ring 3)</h3>
-        <p>Calls a libc wrapper: <code>fork()</code>, <code>read()</code>, <code>mmap()</code> — which executes the <code>syscall</code> assembly instruction.</p>
+    <!-- Slide 12: Hex Diagram -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ SYSTEMS COHESION: COMPONENT MAP</span>
+      <h2>The Kernel's Six Subsystems</h2>
+      <div class="hex-grid">
+        <div class="hex-cell"><h4>1 · Process Manager</h4><p>Creates, tracks, terminates. `fork`, `exec`</p></div>
+        <div class="hex-cell"><h4>2 · Scheduler</h4><p>Decides which process runs. `run queue`</p></div>
+        <div class="hex-cell"><h4>3 · Memory Manager</h4><p>Partitions and protects RAM. `page tables`</p></div>
+        <div class="hex-cell"><h4>4 · File System</h4><p>Maps names to blocks. `inodes`, `dirs`</p></div>
+        <div class="hex-cell"><h4>5 · Device Drivers</h4><p>Talks to hardware. `IRQs`, `DMA`</p></div>
+        <div class="hex-cell"><h4>6 · Network Stack</h4><p>Translates to packets. `sockets`</p></div>
       </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">Kernel Side (Ring 0)</h3>
-        <p>Handler looks up the syscall number, dispatches to the correct routine, performs the operation, and returns a result.</p>
-      </div>
-    </div>
-    <div class="callout" style="border-color:#3B82F6;background:rgba(59,130,246,0.06);color:#93C5FD;margin-top:4vh">
-      <strong>Examples:</strong> <code>fork()</code> (create process) · <code>open()</code> (open file) · <code>read()</code> (read bytes) · <code>mmap()</code> (map file) · <code>execve()</code> (replace address space) · <code>sched_yield()</code> (yield CPU).
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 13 ===== -->
-  <section class="slide">
-    <span class="badge badge-cyan">🔗 ⚙️ SYSTEM PIPELINE: ESTABLISHES THE FULL ROADMAP</span>
-    <h2>Core System Cohesion — Feeds Into All Future Modules</h2>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card"><h3>Module 1 · L01–L04</h3><p>Structure: architecture, privilege barrier, syscall gate, boot process.</p></div>
-      <div class="card"><h3>Module 2 · L05–L09</h3><p>CPU arbitration: process, fork/exec, scheduler, threads.</p></div>
-      <div class="card"><h3>Module 3 · L10–L13</h3><p>Memory arbitration: paging, TLB, virtual memory.</p></div>
-      <div class="card"><h3>Module 4 · L14–L15</h3><p>Coordination: mutexes, deadlock.</p></div>
-      <div class="card"><h3>Module 5 · L16–L19</h3><p>Storage: geometry, inodes, journaling.</p></div>
-      <div class="card"><h3>Module 6 · L20–L21</h3><p>I/O: interrupts, DMA, drivers.</p></div>
-    </div>
-    <p class="subtitle" style="margin-top:3vh">
-      <strong>Module 7 · L22–L28</strong> — Security: ACLs, auth, crypto, isolation, and the grand retrospective.
-    </p>
-  </section>
+    <!-- Slide 13 -->
+    <section class="slide">
+      <span class="badge badge-cyan">🔗 ⚙️ SYSTEM PIPELINE: ROADMAP</span>
+      <h2>Feeds Into All Future Modules</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; text-align: left; margin-top: 2vh;">
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #3b82f6;"><strong style="color: #60a5fa;">M1 · L01–L04</strong><p style="color: #94a3b8; font-size: 0.85rem;">Structure, privilege barrier, boot.</p></div>
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #10b981;"><strong style="color: #34d399;">M2 · L05–L09</strong><p style="color: #94a3b8; font-size: 0.85rem;">CPU arbitration, process, scheduler.</p></div>
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #8b5cf6;"><strong style="color: #a78bfa;">M3 · L10–L13</strong><p style="color: #94a3b8; font-size: 0.85rem;">Memory arbitration, paging, TLB.</p></div>
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #ef4444;"><strong style="color: #f87171;">M4 · L14–L15</strong><p style="color: #94a3b8; font-size: 0.85rem;">Coordination, mutexes, deadlock.</p></div>
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #f59e0b;"><strong style="color: #fbbf24;">M5 · L16–L19</strong><p style="color: #94a3b8; font-size: 0.85rem;">Storage, filesystems, journaling.</p></div>
+        <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 3px solid #14b8a6;"><strong style="color: #5eead4;">M6 · L20–L21</strong><p style="color: #94a3b8; font-size: 0.85rem;">I/O, interrupts, DMA, drivers.</p></div>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 14 ===== -->
-  <section class="slide">
-    <span class="badge badge-cyan">🔗 ⚙️ SYSTEM PIPELINE: THE THREE FOUNDATIONAL TENSIONS</span>
-    <h2>The Three Recurring Tensions</h2>
-    <div class="card-grid grid-3" style="margin-top:4vh">
-      <div class="card">
-        <h3>Isolation vs. Sharing</h3>
-        <p>Multi-tenant building (L00) · Ring 0/Ring 3 (L02) · Paging (L11) · ACLs (L22) · Containers (L27)</p>
+    <!-- Slide 14 -->
+    <section class="slide">
+      <span class="badge badge-cyan">🔗 ⚙️ SYSTEM PIPELINE: TENSIONS</span>
+      <h2>The Three Recurring Tensions</h2>
+      <div style="display: flex; flex-direction: column; gap: 16px; max-width: 900px; width: 100%; text-align: left; margin-top: 2vh;">
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+          <strong style="color: #60a5fa; font-size: 1.1rem;">1. Isolation vs. Sharing</strong>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 4px;">Multi-tenant building (L00) · Ring 0/Ring 3 (L02) · Paging (L11) · ACLs (L22) · Containers (L27)</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+          <strong style="color: #fbbf24; font-size: 1.1rem;">2. Speed vs. Safety</strong>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 4px;">TLB caching (L12) · Metadata journaling (L19) · C vs Rust (L24) · Containers vs VMs (L27)</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981;">
+          <strong style="color: #34d399; font-size: 1.1rem;">3. Simplicity vs. Flexibility</strong>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 4px;">Monolithic vs microkernel (L01) · Flat vs hierarchical FS (L17) · Char vs block devices (L21)</p>
+        </div>
       </div>
-      <div class="card" style="border-color: #78350F;">
-        <h3 style="color: #FBBF24;">Speed vs. Safety</h3>
-        <p>TLB caching (L12) · Metadata journaling (L19) · C vs Rust (L24) · Containers vs VMs (L27)</p>
-      </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">Simplicity vs. Flexibility</h3>
-        <p>Monolithic vs microkernel (L01) · Flat vs hierarchical FS (L17) · Char vs block devices (L21)</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 15 ===== -->
-  <section class="slide">
-    <span class="badge badge-cyan">🔍 🎯 COMPREHENSIVE CRITIQUE: THE FIVE KERNEL PARADIGMS</span>
-    <h2>The Five Paradigms Introduction</h2>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card"><h3>Monolithic</h3><p>Everything in Ring 0. Fastest, most fragile.</p><p style="margin-top:1vh;color:#60A5FA">Linux · FreeBSD</p></div>
-      <div class="card" style="border-color: #064E3B;"><h3 style="color: #34D399;">Microkernel</h3><p>Minimal Ring 0 core, user-space servers. Strongest isolation.</p><p style="margin-top:1vh;color:#34D399">seL4 · MINIX 3</p></div>
-      <div class="card" style="border-color: #78350F;"><h3 style="color: #FBBF24;">Layered</h3><p>Strict vertical hierarchy. Elegant but rigid.</p><p style="margin-top:1vh;color:#FBBF24">THE Multiprogramming System</p></div>
-      <div class="card" style="border-color: #4C1D95;"><h3 style="color: #A78BFA;">Modular</h3><p>Monolithic core + loadable modules.</p><p style="margin-top:1vh;color:#A78BFA">Linux LKMs · FreeBSD</p></div>
-      <div class="card" style="border-color: #831843;"><h3 style="color: #F9A8D4;">Hybrid</h3><p>Critical in Ring 0, risky in Ring 3.</p><p style="margin-top:1vh;color:#F9A8D4">Windows NT · macOS XNU</p></div>
-    </div>
-  </section>
+    <!-- Slide 15 -->
+    <section class="slide">
+      <span class="badge badge-cyan">🔍 🎯 COMPREHENSIVE CRITIQUE</span>
+      <h2>The Five Paradigms</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; max-width: 1000px; justify-content: center; margin-top: 2vh;">
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; width: 30%; text-align: left; border-top: 3px solid #3b82f6;">
+          <h4 style="color: #60a5fa;">Monolithic</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">All in Ring 0. Fastest, fragile. (Linux)</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; width: 30%; text-align: left; border-top: 3px solid #10b981;">
+          <h4 style="color: #34d399;">Microkernel</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Minimal Ring 0. Isolated. (seL4)</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; width: 30%; text-align: left; border-top: 3px solid #f59e0b;">
+          <h4 style="color: #fbbf24;">Layered</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Strict hierarchy. Rigid. (THE)</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; width: 30%; text-align: left; border-top: 3px solid #8b5cf6;">
+          <h4 style="color: #a78bfa;">Modular</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Monolithic + LKMs. Flexible.</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; width: 30%; text-align: left; border-top: 3px solid #ec4899;">
+          <h4 style="color: #f9a8d4;">Hybrid</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Critical in R0, risky in R3. (Windows)</p>
+        </div>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 16 ===== -->
-  <section class="slide">
-    <span class="badge badge-emerald">🏷️ SYSTEM LEXICON: MASTERING THE FOUNDATIONAL VOCABULARY</span>
-    <h2>Base OS Terms</h2>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card">
-        <h3>Term 01 · Kernel</h3>
-        <p>The core program of the OS that runs with complete architectural privileges (Ring 0) and remains resident in physical memory at all times; manages processes, memory, filesystems, devices, and networking, and provides the syscall interface.</p>
-        <p style="margin-top:1.5vh;color:#FBBF24;font-style:italic">(The air traffic controller in the tower — always present, always in control).</p>
+    <!-- Slide 16 -->
+    <section class="slide">
+      <span class="badge badge-green">🏷️ SYSTEM LEXICON: BASE TERMS</span>
+      <h2>Base OS Terms</h2>
+      <div style="display: flex; gap: 24px; max-width: 900px; width: 100%; margin-top: 3vh;">
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">Kernel</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 12px;">The core program of the OS that runs with complete architectural privileges (Ring 0) and remains resident in physical memory.</p>
+          <p style="color: #fbbf24; font-style: italic; font-size: 0.85rem;">(The air traffic controller in the tower).</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">Resource Manager</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 12px;">The internal role of the OS dedicated to allocating hardware resources fairly and efficiently among competing tasks.</p>
+          <p style="color: #fbbf24; font-style: italic; font-size: 0.85rem;">(The hotel concierge).</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>Term 02 · Resource Manager</h3>
-        <p>The internal role of the OS dedicated to allocating hardware resources (CPU time, memory, disk blocks) fairly and efficiently among competing tasks.</p>
-        <p style="margin-top:1.5vh;color:#FBBF24;font-style:italic">(The hotel concierge — decides who gets which room, in what order).</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 17 ===== -->
-  <section class="slide">
-    <span class="badge badge-emerald">🏷️ SYSTEM LEXICON: MASTERING THE FOUNDATIONAL VOCABULARY</span>
-    <h2>Advanced OS Terms</h2>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card">
-        <h3>Term 03 · Abstraction</h3>
-        <p>The OS mechanism of hiding complex, low-level hardware details behind clean, universal software interfaces.</p>
-        <p style="margin-top:1.5vh;color:#FBBF24;font-style:italic">(The car dashboard — hides the engine, shows the speedometer).</p>
+    <!-- Slide 17 -->
+    <section class="slide">
+      <span class="badge badge-green">🏷️ SYSTEM LEXICON: ADVANCED TERMS</span>
+      <h2>Advanced OS Terms</h2>
+      <div style="display: flex; gap: 16px; max-width: 1000px; width: 100%; margin-top: 3vh;">
+        <div style="flex: 1; background: #1e293b; padding: 20px; border-radius: 12px; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">Abstraction</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Hiding complex, low-level hardware details behind clean, universal software interfaces.</p>
+          <p style="color: #fbbf24; font-style: italic; font-size: 0.8rem;">(The car dashboard).</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 20px; border-radius: 12px; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">Syscall</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">The programmatic interface used by applications to request core kernel services.</p>
+          <p style="color: #fbbf24; font-style: italic; font-size: 0.8rem;">(The bank teller window).</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 20px; border-radius: 12px; text-align: left;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">Multiprogramming</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Keeping multiple independent programs in memory simultaneously, switching when one blocks.</p>
+          <p style="color: #fbbf24; font-style: italic; font-size: 0.8rem;">(One runway, many planes).</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>Term 04 · System Call</h3>
-        <p>The programmatic interface used by user-space applications to request core kernel services; a controlled Ring 3 to Ring 0 transition.</p>
-        <p style="margin-top:1.5vh;color:#FBBF24;font-style:italic">(The bank teller window — the only place you can submit a request).</p>
-      </div>
-      <div class="card">
-        <h3>Term 05 · Multiprogramming</h3>
-        <p>An OS design strategy where multiple independent programs are kept in memory simultaneously, switching when one blocks on I/O.</p>
-        <p style="margin-top:1.5vh;color:#FBBF24;font-style:italic">(One runway, many planes waiting).</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 18 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ CODE DISSECTION: C OS INSPECTION PANEL</span>
-    <h2>Inspecting the OS from User Space</h2>
-    <pre class="code-block" style="background: #020617; border: 1px solid #1E293B; border-radius: 12px; padding: 2vh 1.8vw; font-family: 'SF Mono', monospace; font-size: clamp(0.7rem, 0.95vw, 0.85rem); color: #94A3B8; text-align: left; max-width: 1100px; width: 100%; overflow: auto; max-height: 55vh; line-height: 1.5;">
-<span style="color:#C084FC;">#include</span> <span style="color:#86EFAC;">&lt;stdio.h&gt;</span>
-<span style="color:#C084FC;">#include</span> <span style="color:#86EFAC;">&lt;stdlib.h&gt;</span>
-<span style="color:#C084FC;">#include</span> <span style="color:#86EFAC;">&lt;unistd.h&gt;</span>
-<span style="color:#C084FC;">#include</span> <span style="color:#86EFAC;">&lt;sys/utsname.h&gt;</span>
-<span style="color:#C084FC;">#include</span> <span style="color:#86EFAC;">&lt;sys/sysinfo.h&gt;</span>
+    <!-- Slide 18 -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ CODE DISSECTION: OS INSPECTION</span>
+      <h2>Inspecting the OS from User Space</h2>
+      <div class="code-block" style="margin-top: 2vh;">
+<span class="kw">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;unistd.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;sys/utsname.h&gt;</span>
 
-<span style="color:#C084FC;">int</span> <span style="color:#60A5FA;">main</span>() {
-    <span style="color:#C084FC;">struct</span> utsname uts;
-    <span style="color:#C084FC;">if</span> (<span style="color:#60A5FA;">uname</span>(&amp;uts) == <span style="color:#FBBF24;">0</span>) {
-        <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"=== Operating System Identity ===\n"</span>);
-        <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"  Kernel name:    %s\n"</span>, uts.sysname);
-        <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"  Kernel release: %s\n"</span>, uts.release);
+<span class="kw">int</span> <span class="fn">main</span>() {
+    <span class="kw">struct</span> utsname uts;
+    <span class="kw">if</span> (<span class="fn">uname</span>(&amp;uts) == <span class="num">0</span>) {
+        <span class="fn">printf</span>(<span class="str">"=== Operating System Identity ===\n"</span>);
+        <span class="fn">printf</span>(<span class="str">"  Kernel name:    %s\n"</span>, uts.sysname);
+        <span class="fn">printf</span>(<span class="str">"  Kernel release: %s\n"</span>, uts.release);
     }
-    <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"\n=== Process Identity ===\n"</span>);
-    <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"  PID:            %d\n"</span>, <span style="color:#60A5FA;">getpid</span>());
-    <span style="color:#60A5FA;">printf</span>(<span style="color:#86EFAC;">"  PPID:           %d\n"</span>, <span style="color:#60A5FA;">getppid</span>());
-    <span style="color:#C084FC;">return</span> <span style="color:#FBBF24;">0</span>;
-}</pre>
-  </section>
+    <span class="fn">printf</span>(<span class="str">"\n=== Process Identity ===\n"</span>);
+    <span class="fn">printf</span>(<span class="str">"  PID:            %d\n"</span>, <span class="fn">getpid</span>());
+    <span class="kw">return</span> <span class="num">0</span>;
+}</div>
+    </section>
 
-  <!-- ===== SLIDE 19 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ CODE DISSECTION: TRACING OS INSPECTION</span>
-    <h2>Walking the OS Inspection Trace</h2>
-    <div class="card-grid grid-2" style="margin-top:3vh">
-      <div class="card"><h3>uname(&amp;uts)</h3><p>Syscall into the kernel. Returns kernel identity fields — the OS talking about itself.</p></div>
-      <div class="card"><h3>getpid() / getppid()</h3><p>Syscalls into the process manager (Module 2). Returns a field from the caller's PCB (from L05).</p></div>
-      <div class="card"><h3>sysinfo(&amp;si)</h3><p>Syscall into the memory manager (Module 3). Returns total/free RAM and process count.</p></div>
-      <div class="card" style="border-color: #064E3B;"><h3 style="color: #34D399;">Ring 3 State</h3><p>All user-space code runs in Ring 3. Every <code>printf</code> internally calls <code>write()</code> — a syscall into the file system.</p></div>
-    </div>
-  </section>
+    <!-- Slide 19 -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ CODE DISSECTION: TRACE</span>
+      <h2>Walking the Trace</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; text-align: left; margin-top: 2vh;">
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">uname(&amp;uts)</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Syscall into the kernel. Returns identity fields — the OS talking about itself.</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">getpid()</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Syscall into the process manager. Reads a field directly from the caller's PCB.</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px;">
+          <h4 style="color: #60a5fa; margin-bottom: 8px;">printf()</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Internally calls <code>write()</code>, a syscall into the file system.</p>
+        </div>
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; border-left: 3px solid #10b981;">
+          <h4 style="color: #34d399; margin-bottom: 8px;">Ring 3 Boundary</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">All user-space code runs in Ring 3. The whole program oscillates across the boundary.</p>
+        </div>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 20 ===== -->
-  <section class="slide">
-    <span class="badge badge-cyan">🎯 👥 INTERACTIVE WORKSHOP: THE PROCESS REALITY CHECK</span>
-    <h2>The Live htop Inspection</h2>
-    <div class="card-grid grid-3" style="margin-top:3vh">
-      <div class="card">
-        <h3>What to Do</h3>
-        <p>Instructor runs <code>htop</code> on the projector. Students act as process auditors — counting and categorizing running processes.</p>
+    <!-- Slide 20 -->
+    <section class="slide">
+      <span class="badge badge-cyan">🎯 👥 INTERACTIVE WORKSHOP</span>
+      <h2>The Live htop Inspection</h2>
+      <div style="display: flex; gap: 24px; max-width: 900px; width: 100%; margin-top: 3vh;">
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-left: 3px solid #f59e0b;">
+          <h4 style="color: #fbbf24; margin-bottom: 12px;">The Activity</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">Run <code>htop</code>. Count the processes. Notice 280+ processes are present, but only 4–8 are actually running on physical cores.</p>
+        </div>
+        <div style="flex: 1; background: #1e293b; padding: 24px; border-radius: 12px; border-left: 3px solid #10b981;">
+          <h4 style="color: #34d399; margin-bottom: 12px;">The Question</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem;">How many believe they own 100% of the machine? <strong>All of them.</strong> Without the OS, this would be chaos.</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>What You Will See</h3>
-        <p>280+ processes on the machine. At most 4–8 actively running on physical cores. The rest are waiting.</p>
-      </div>
-      <div class="card" style="border-color: #064E3B;">
-        <h3 style="color: #34D399;">The Big Question</h3>
-        <p>How many of these processes believe they own 100% of the machine? Answer: <strong>all of them</strong>.</p>
-      </div>
-    </div>
-    <p class="subtitle" style="margin-top:4vh;max-width:850px">
-      Without the OS, this would be chaos. Every process you see is a successfully negotiated illusion.
-    </p>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 21 ===== -->
-  <section class="slide">
-    <span class="badge badge-blue">💻 🛠️ TRY IT LIVE: THE FIRST SYSTEM AUDIT</span>
-    <h2>Live Telemetry Audit</h2>
-    <pre class="terminal">
+    <!-- Slide 21 -->
+    <section class="slide">
+      <span class="badge badge-blue">💻 🛠️ TRY IT LIVE: AUDIT</span>
+      <h2>Live Telemetry Audit</h2>
+      <div class="terminal" style="margin-top: 2vh;">
+        <div style="color: #475569; margin-bottom: 12px; font-size: 0.8rem;">user@kernel:~$</div>
 <span class="cmd">$</span> uname -a                       <span class="out"># Kernel name and version</span>
 <span class="cmd">$</span> nproc                          <span class="out"># Number of CPU cores</span>
-<span class="cmd">$</span> free -h                        <span class="out"># Memory resources (Module 3)</span>
-<span class="cmd">$</span> df -h                          <span class="out"># Storage devices (Module 5)</span>
-<span class="cmd">$</span> htop                           <span class="out"># Live process view (Module 2)</span>
+<span class="cmd">$</span> free -h                        <span class="out"># Memory resources</span>
+<span class="cmd">$</span> df -h                          <span class="out"># Storage devices</span>
+<span class="cmd">$</span> htop                           <span class="out"># Live process view</span>
 <span class="cmd">$</span> ps aux | wc -l                 <span class="out"># Total process count</span>
-<span class="cmd">$</span> uptime                         <span class="out"># System load (Module 2's scheduler)</span>
 <span class="cmd">$</span> cat /proc/cpuinfo | grep "model name" | head -1
-<span class="cmd">$</span> cat /proc/meminfo | head -5    <span class="out"># Detailed memory info</span>
-<span class="cmd">$</span> ls /proc/                       <span class="out"># Kernel's view of itself</span></pre>
-    <p class="hint">Every file in /proc corresponds to a kernel data structure — the OS's self-portrait.</p>
-  </section>
+<span class="cmd">$</span> ls /proc/                       <span class="out"># Kernel's view of itself</span>
+      </div>
+    </section>
 
-  <!-- ===== SLIDE 22 ===== -->
-  <section class="slide">
-    <span class="badge badge-emerald">🌿 NAVIGATION HUB: MASTER DESIGN SYSTEM MATRIX</span>
-    <h2>Master Mindmap Matrix</h2>
-    <pre class="mindmap">CS 301: Operating Systems Curriculum Portal
+    <!-- Slide 22 -->
+    <section class="slide">
+      <span class="badge badge-green">🌿 NAVIGATION HUB</span>
+      <h2>Master Mindmap Matrix</h2>
+      <pre class="mindmap">CS 301: Operating Systems Curriculum Portal
   └── Module 1: OS Structure &amp; Design
         └── <span class="active">L00: Course Introduction (ACTIVE NODE 🌟)</span>
               ├── The OS as Resource Referee
               └── The Three Core Resources &amp; Six Kernel Subsystems</pre>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 23 ===== -->
-  <section class="slide">
-    <span class="badge badge-amber">🏆 RETROSPECTIVE: SYLLABUS DISSECTION SUMMARY</span>
-    <h2>Grand Lecture Summary</h2>
-    <div class="takeaway-list" style="margin-top:3vh">
-      <div class="takeaway-item">
-        <div class="takeaway-num">01</div>
-        <p>The operating system is the <strong>referee</strong> that arbitrates CPU time, memory, and storage among hundreds of independent processes — none of which know the others exist.</p>
+    <!-- Slide 23 -->
+    <section class="slide">
+      <span class="badge badge-amber">🏆 RETROSPECTIVE</span>
+      <h2>Grand Lecture Summary</h2>
+      <div style="display: flex; flex-direction: column; gap: 16px; max-width: 900px; width: 100%; text-align: left; margin-top: 3vh;">
+        <div style="background: rgba(59,130,246,0.1); border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
+          <strong style="color: #60a5fa; display: block; margin-bottom: 4px;">01 · The Referee</strong>
+          <p style="color: #cbd5e1; font-size: 0.95rem;">The OS arbitrates CPU time, memory, and storage among hundreds of processes — none of which know the others exist.</p>
+        </div>
+        <div style="background: rgba(59,130,246,0.1); border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
+          <strong style="color: #60a5fa; display: block; margin-bottom: 4px;">02 · Dual Roles</strong>
+          <p style="color: #cbd5e1; font-size: 0.95rem;">The OS plays two inseparable roles: <strong>resource arbitrator</strong> and <strong>abstraction provider</strong>. Neither is possible without the other.</p>
+        </div>
+        <div style="background: rgba(59,130,246,0.1); border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
+          <strong style="color: #60a5fa; display: block; margin-bottom: 4px;">03 · The Tensions</strong>
+          <p style="color: #cbd5e1; font-size: 0.95rem;">Every module examines one arbitration mechanism, unified by three tensions: <strong>isolation vs. sharing</strong>, <strong>speed vs. safety</strong>, and <strong>simplicity vs. flexibility</strong>.</p>
+        </div>
       </div>
-      <div class="takeaway-item">
-        <div class="takeaway-num">02</div>
-        <p>The OS plays two inseparable roles: <strong>resource arbitrator</strong> and <strong>abstraction provider</strong>. Neither is possible without the other.</p>
+    </section>
+
+    <!-- Slide 24 -->
+    <section class="slide">
+      <span class="badge badge-green">🚀 THE HORIZON ROADMAP</span>
+      <h2>Next Unit Gateway</h2>
+      <div style="font-size: 4rem; color: #10b981; margin: 2vh 0;">→</div>
+      <div style="background: rgba(16,185,129,0.1); border: 2px solid #10b981; padding: 32px; border-radius: 12px; max-width: 800px; text-align: left;">
+        <h3 style="color: #34d399; margin-bottom: 12px; font-size: 1.3rem;">Lecture 01 — The Architecture Matrix</h3>
+        <p style="color: #cbd5e1; line-height: 1.6;">We have defined <em>what</em> the OS is and <em>what it does</em>. Now: <em>how is it structured</em>? We will compare the five fundamental kernel architectures — Monolithic, Microkernel, Layered, Modular, and Hybrid — through the Corporate Office Floorplan Showdown.</p>
       </div>
-      <div class="takeaway-item">
-        <div class="takeaway-num">03</div>
-        <p>Every module of CS 301 is a detailed examination of one arbitration mechanism, unified by three recurring tensions: <strong>isolation vs. sharing</strong>, <strong>speed vs. safety</strong>, and <strong>simplicity vs. flexibility</strong>.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ===== SLIDE 24 ===== -->
-  <section class="slide">
-    <span class="badge badge-emerald">🚀 THE HORIZON ROADMAP: MOVING TO THE NEXT BLOCK</span>
-    <h2>Next Unit Gateway</h2>
-    <div style="font-size: 4.5rem; color: #10B981; margin: 1.5vh 0; animation: pulse 2s ease-in-out infinite;">→</div>
-    <div class="callout" style="border-color:#10B981;background:rgba(16,185,129,0.06);color:#6EE7B7;max-width:900px;text-align:left">
-      <strong>Lecture 01 — The Architecture Matrix (Full Five-Paradigm Edition)</strong><br><br>
-      We have defined <em>what</em> the OS is and <em>what it does</em>. Now: <em>how is it structured</em>? We will compare the five fundamental kernel architectures — Monolithic, Microkernel, Layered, Modular, and Hybrid — through the Corporate Office Floorplan Showdown.
-    </div>
-    <p class="hint">File: L01.html</p>
-  </section>
+  </div>
 
-</div>
+  <div class="nav-controls">
+    <button class="btn" id="prevBtn" onclick="go(-1)">←</button>
+    <span id="counter">01 / 24</span>
+    <button class="btn" id="nextBtn" onclick="go(1)">→</button>
+  </div>
+  
+  <div class="progress">
+    <div class="progress-bar" id="progressBar" style="width: 4.16%"></div>
+  </div>
 
-<div class="nav">
-  <button class="nav-btn" id="prevBtn" onclick="go(-1)">←</button>
-  <span id="counter">01 / 24</span>
-  <button class="nav-btn" id="nextBtn" onclick="go(1)">→</button>
-</div>
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const counter = document.getElementById('counter');
+    const progressBar = document.getElementById('progressBar');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    let current = 0;
 
-<div class="progress">
-  <div class="progress-bar" id="progressBar" style="width: 4.16%"></div>
-</div>
-
-<script>
-  const slides = document.querySelectorAll('.slide');
-  const counter = document.getElementById('counter');
-  const progressBar = document.getElementById('progressBar');
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  let current = 0;
-
-  function show(index) {
-    slides.forEach((s, i) => s.classList.toggle('active', i === index));
-    counter.textContent = String(index + 1).padStart(2, '0') + ' / ' + slides.length;
-    progressBar.style.width = ((index + 1) / slides.length * 100) + '%';
-    prevBtn.disabled = index === 0;
-    nextBtn.disabled = index === slides.length - 1;
-  }
-  function go(delta) {
-    current = Math.max(0, Math.min(slides.length - 1, current + delta));
-    show(current);
-  }
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
-    if (e.key === 'Home') { e.preventDefault(); current = 0; show(current); }
-    if (e.key === 'End') { e.preventDefault(); current = slides.length - 1; show(current); }
-  });
-  let touchX = null;
-  document.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; });
-  document.addEventListener('touchend', (e) => {
-    if (touchX === null) return;
-    const dx = e.changedTouches[0].clientX - touchX;
-    if (dx < -50) go(1);
-    if (dx > 50) go(-1);
-    touchX = null;
-  });
-  show(0);
-</script>
-
+    function show(index) {
+      slides.forEach((s, i) => s.classList.toggle('active', i === index));
+      counter.textContent = String(index + 1).padStart(2, '0') + ' / ' + slides.length;
+      progressBar.style.width = ((index + 1) / slides.length * 100) + '%';
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === slides.length - 1;
+    }
+    
+    function go(delta) {
+      current = Math.max(0, Math.min(slides.length - 1, current + delta));
+      show(current);
+    }
+    
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
+      if (e.key === 'Home') { e.preventDefault(); current = 0; show(current); }
+      if (e.key === 'End') { e.preventDefault(); current = slides.length - 1; show(current); }
+    });
+    
+    let touchX = null;
+    document.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => {
+      if (touchX === null) return;
+      const dx = e.changedTouches[0].clientX - touchX;
+      if (dx < -50) go(1);
+      if (dx > 50) go(-1);
+      touchX = null;
+    });
+    
+    show(0);
+  </script>
 </body>
 </html>
