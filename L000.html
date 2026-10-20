@@ -1,0 +1,2102 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L0 — Course Introduction: OS Structure &amp; Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root{
+  --bg:#06090f;
+  --bg-2:#0b1120;
+  --panel:rgba(255,255,255,.038);
+  --panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);
+  --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;
+  --ink-2:#c4cfe6;
+  --muted:#8494b4;
+  --blue:#5b8dff;
+  --blue-2:#8fb4ff;
+  --blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;
+  --amber:#ffb648;
+  --crimson:#ff4d6d;
+  --violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* ambient background */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(91,141,255,.16), transparent 62%),
+    radial-gradient(800px 560px at 100% 108%, rgba(160,107,255,.13), transparent 60%),
+    radial-gradient(700px 500px at 82% 4%, rgba(46,230,168,.07), transparent 58%);
+  pointer-events:none;z-index:0;
+}
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  pointer-events:none;z-index:0;
+}
+
+/* ============================================================
+   HUD / CHROME
+   ============================================================ */
+.hud{
+  position:fixed;top:0;left:0;right:0;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;z-index:60;
+  font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;
+  pointer-events:none;
+}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{
+  position:fixed;top:54px;left:0;right:0;height:2px;
+  background:rgba(255,255,255,.06);z-index:60;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));
+  transition:width .45s var(--ease);
+  box-shadow:0 0 14px rgba(91,141,255,.7);
+}
+
+.controls{
+  position:fixed;bottom:22px;right:26px;
+  display:flex;gap:10px;z-index:60;
+}
+.controls button{
+  width:44px;height:44px;border-radius:14px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.05);
+  color:var(--ink);
+  font-size:17px;cursor:pointer;
+  display:grid;place-items:center;
+  backdrop-filter:blur(12px);
+  transition:.22s var(--ease);
+  font-family:var(--font);
+}
+.controls button:hover{
+  background:rgba(91,141,255,.20);
+  border-color:rgba(91,141,255,.55);
+  transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(91,141,255,.22);
+}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+
+.hint{
+  position:fixed;bottom:28px;left:26px;z-index:60;
+  font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:rgba(132,148,180,.55);font-weight:600;
+  transition:opacity .6s ease;
+}
+.hint.hide{opacity:0;}
+kbd{
+  display:inline-block;padding:2px 7px;border-radius:6px;
+  border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);
+  font-family:var(--mono);font-size:10px;color:var(--ink-2);
+}
+
+/* ============================================================
+   STAGE / SLIDE BASE
+   ============================================================ */
+.stage{position:fixed;inset:0;z-index:10;}
+
+.slide{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:80px 60px 92px;
+  opacity:0;visibility:hidden;
+  transform:translateY(22px) scale(.988);
+  transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+
+.slide-inner{width:min(1320px,100%);}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+
+.badge{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;
+  color:var(--blue-2);
+  background:var(--blue-soft);
+  border:1px solid rgba(91,141,255,.32);
+  padding:8px 15px;border-radius:999px;
+  margin-bottom:22px;
+  line-height:1.4;
+}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+
+/* ============================================================
+   LAYOUT PRIMITIVES
+   ============================================================ */
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{
+  border:1px solid var(--stroke);
+  background:var(--panel);
+  border-radius:16px;
+  padding:16px 18px;
+  backdrop-filter:blur(8px);
+}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+
+.panel-label{
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin-bottom:9px;display:block;
+}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:13px 16px;border-radius:14px;
+  border-left:3px solid var(--violet);
+  background:rgba(160,107,255,.07);
+  font-size:13.5px;line-height:1.55;color:#bcc8e0;
+}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+/* ============================================================
+   VISUAL FRAME
+   ============================================================ */
+.vis-frame{
+  position:relative;
+  border:1px solid var(--stroke);
+  border-radius:var(--radius);
+  background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  padding:18px;
+  overflow:hidden;
+  box-shadow:0 22px 60px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.vis-frame::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);
+}
+.vis-cap{
+  font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;
+}
+.mini-label{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin:4px 0 9px;
+}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* ============================================================
+   SLIDE 01 — CHAOS CANVAS
+   ============================================================ */
+.hero-title{font-size:clamp(28px,3.15vw,50px);line-height:1.06;letter-spacing:-.038em;font-weight:900;margin-bottom:20px;}
+.hero-title em{background:linear-gradient(100deg,#9dc0ff,#5b8dff 40%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+/* ============================================================
+   SLIDE 02 — KINDERGARTEN
+   ============================================================ */
+.kinder{position:relative;width:100%;aspect-ratio:1/.86;display:grid;place-items:center;}
+.kinder-ring{position:relative;width:min(100%,330px);aspect-ratio:1;display:grid;place-items:center;}
+.kid{
+  position:absolute;width:26px;height:26px;border-radius:50%;
+  background:rgba(255,255,255,.10);
+  border:1.5px solid rgba(255,255,255,.22);
+  display:grid;place-items:center;font-size:11px;
+  transition:.3s;
+}
+.kinder .crayonbox{
+  width:76px;height:76px;border-radius:20px;
+  background:linear-gradient(150deg,rgba(255,182,72,.28),rgba(255,122,89,.14));
+  border:1.5px solid rgba(255,182,72,.55);
+  display:grid;place-items:center;font-size:32px;
+  box-shadow:0 0 46px rgba(255,182,72,.28);
+  position:relative;z-index:3;
+}
+.kinder .crayonbox::after{
+  content:'';position:absolute;inset:-14px;border-radius:26px;
+  border:1px solid rgba(255,182,72,.25);
+  animation:boxPulse 2.6s ease-in-out infinite;
+}
+@keyframes boxPulse{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.10);opacity:0}}
+.slide.active .kid{
+  animation:kidPass 3.2s linear infinite;
+}
+@keyframes kidPass{
+  0%,92%,100%{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.22);box-shadow:none;transform:scale(1);}
+  94%,97%{background:rgba(46,230,168,.35);border-color:var(--emerald);box-shadow:0 0 22px rgba(46,230,168,.7);transform:scale(1.28);}
+}
+.sweep-ring{
+  position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0deg,rgba(46,230,168,.22) 24deg,transparent 40deg);
+  animation:spin 3.2s linear infinite;
+  z-index:1;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ============================================================
+   SLIDE 03 — MONOLITH vs MICROSERVICE
+   ============================================================ */
+.duo-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.duo-card{
+  border-radius:16px;padding:14px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.032);
+}
+.duo-card.mono{border-color:rgba(255,77,109,.34);background:rgba(255,77,109,.055);}
+.duo-card.micro{border-color:rgba(46,230,168,.34);background:rgba(46,230,168,.055);}
+.duo-title{font-size:13px;font-weight:800;letter-spacing:.03em;margin-bottom:10px;}
+.duo-card.mono .duo-title{color:#ff9fb1;}
+.duo-card.micro .duo-title{color:#88ffd8;}
+
+svg .flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+svg .flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+svg .node-pulse{animation:nodeGlow 2.4s ease-in-out infinite;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+
+/* ============================================================
+   SLIDE 04 — PYRAMID
+   ============================================================ */
+.pyr{display:flex;flex-direction:column;gap:10px;align-items:center;}
+.pyr-layer{
+  width:100%;border-radius:14px;padding:14px 18px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.035);
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  transition:.3s var(--ease);
+  cursor:default;
+}
+.pyr-layer:hover{transform:translateY(-3px) scale(1.012);border-color:var(--stroke-2);}
+.pyr-layer .pl-tag{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;}
+.pyr-layer .pl-desc{font-size:12.5px;color:var(--muted);text-align:right;}
+.pyr-r3{border-color:rgba(91,141,255,.38);background:rgba(91,141,255,.075);box-shadow:0 0 34px -12px rgba(91,141,255,.5);}
+.pyr-r3 .pl-tag{color:var(--blue-2);}
+.pyr-r0{border-color:rgba(255,182,72,.42);background:rgba(255,182,72,.075);box-shadow:0 0 34px -12px rgba(255,182,72,.45);}
+.pyr-r0 .pl-tag{color:var(--amber);}
+.pyr-hw{border-color:rgba(46,230,168,.38);background:rgba(46,230,168,.06);}
+.pyr-hw .pl-tag{color:var(--emerald);}
+
+/* ============================================================
+   SLIDE 05 — DEFINITION CARD
+   ============================================================ */
+.def-card{
+  position:relative;border-radius:24px;padding:2px;
+  background:linear-gradient(120deg,rgba(91,141,255,.85),rgba(160,107,255,.55),rgba(46,230,168,.65),rgba(91,141,255,.85));
+  background-size:300% 300%;
+  animation:borderFlow 7s linear infinite;
+}
+@keyframes borderFlow{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+.def-inner{
+  border-radius:22px;padding:clamp(22px,2.6vw,38px);
+  background:#0a0f1c;
+}
+.def-inner h2{margin-bottom:14px;}
+.def-inner p{font-size:clamp(15px,1.18vw,18.5px);line-height:1.65;}
+
+/* ============================================================
+   SLIDE 06 — RAM / CPU PARTITION
+   ============================================================ */
+.ram-bar{display:flex;gap:5px;height:44px;margin-bottom:6px;}
+.ram-bar span{
+  flex:1;border-radius:8px;background:var(--c);
+  opacity:.78;
+  transform-origin:left center;
+  animation:growBar .55s var(--ease) both;
+  animation-delay:var(--d);
+  display:grid;place-items:center;
+  font-size:9.5px;font-weight:900;letter-spacing:.06em;color:rgba(0,0,0,.62);
+}
+@keyframes growBar{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:.78}}
+
+.cpu-strip{
+  position:relative;display:flex;gap:3px;height:40px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--stroke);background:rgba(0,0,0,.3);
+}
+.cpu-strip i{flex:1;border-radius:3px;opacity:.85;}
+.cpu-strip i:nth-child(8n+1){background:rgba(91,141,255,.8)}
+.cpu-strip i:nth-child(8n+2){background:rgba(46,230,168,.8)}
+.cpu-strip i:nth-child(8n+3){background:rgba(255,182,72,.8)}
+.cpu-strip i:nth-child(8n+4){background:rgba(160,107,255,.8)}
+.cpu-strip i:nth-child(8n+5){background:rgba(255,77,109,.8)}
+.cpu-strip i:nth-child(8n+6){background:rgba(91,141,255,.8)}
+.cpu-strip i:nth-child(8n+7){background:rgba(46,230,168,.8)}
+.cpu-strip i:nth-child(8n+8){background:rgba(255,182,72,.8)}
+.sweep{
+  position:absolute;top:0;bottom:0;width:3px;left:0;
+  background:#fff;box-shadow:0 0 16px #fff,0 0 30px rgba(91,141,255,.9);
+  animation:sweepMove 3.6s linear infinite;
+}
+@keyframes sweepMove{from{left:0}to{left:100%}}
+
+/* ============================================================
+   SLIDE 07 — ABSTRACTION
+   ============================================================ */
+.abst-bar{
+  border-radius:12px;padding:12px 16px;
+  border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.075);
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+}
+.abst-bar code{
+  font-family:var(--mono);font-size:12.5px;font-weight:700;
+  color:#88ffd8;background:rgba(46,230,168,.13);
+  padding:5px 11px;border-radius:8px;border:1px solid rgba(46,230,168,.28);
+}
+.pins{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:12px;}
+.pins span{
+  height:26px;border-radius:6px;
+  background:rgba(255,255,255,.07);border:1px solid var(--stroke);
+  display:grid;place-items:center;font-size:8.5px;font-weight:800;color:var(--muted);
+  letter-spacing:.05em;
+  animation:pinBlink 2.8s ease-in-out infinite;
+}
+.pins span:nth-child(2n){animation-delay:.3s}
+.pins span:nth-child(3n){animation-delay:.65s}
+@keyframes pinBlink{0%,100%{opacity:.5}50%{opacity:1;border-color:rgba(91,141,255,.5)}}
+
+/* ============================================================
+   SLIDE 08 — COLLISION
+   ============================================================ */
+.collide-row{
+  position:relative;border-radius:14px;padding:14px 16px;
+  border:1px solid rgba(255,182,72,.35);background:rgba(255,182,72,.055);
+  margin-bottom:10px;overflow:hidden;
+}
+.collide-row .cr-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;letter-spacing:.05em;}
+.collide-row .cr-name{color:#ffd18a;}
+.collide-row .cr-mem{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.mem-track{position:relative;height:8px;border-radius:99px;background:rgba(0,0,0,.42);margin-top:10px;overflow:hidden;}
+.mem-fill{position:absolute;top:0;bottom:0;border-radius:99px;}
+.collide-row.chrome .mem-fill{left:0;width:0;background:linear-gradient(90deg,#5b8dff,#8fb4ff);animation:fillA 3.6s var(--ease) infinite;}
+.collide-row.spotify .mem-fill{right:0;width:0;background:linear-gradient(90deg,#88ffd8,#2ee6a8);animation:fillB 3.6s var(--ease) infinite;}
+@keyframes fillA{0%{width:0}42%{width:46%}56%{width:74%}100%{width:46%}}
+@keyframes fillB{0%{width:0}42%{width:44%}56%{width:72%}100%{width:44%}}
+.referee{
+  margin-top:6px;border-radius:14px;padding:12px 16px;
+  border:1px solid rgba(46,230,168,.45);background:rgba(46,230,168,.09);
+  font-size:13px;font-weight:800;color:#88ffd8;letter-spacing:.05em;
+  display:flex;align-items:center;gap:10px;
+  animation:refPulse 3.6s ease-in-out infinite;
+}
+@keyframes refPulse{0%,40%{opacity:.35;transform:scale(.985)}55%,100%{opacity:1;transform:scale(1)}}
+
+/* ============================================================
+   TIMELINE (Slides 09–12)
+   ============================================================ */
+.timeline{position:relative;display:flex;margin-bottom:26px;}
+.tl-track{position:absolute;top:9px;left:4%;right:4%;height:2px;background:rgba(255,255,255,.1);}
+.tl-node{flex:1;text-align:center;position:relative;z-index:2;padding-top:0;}
+.tl-node i{
+  display:block;width:11px;height:11px;border-radius:50%;margin:4px auto 10px;
+  background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.18);
+  transition:.3s;
+}
+.tl-node b{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--muted);}
+.tl-node span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(132,148,180,.55);margin-top:3px;font-weight:700;}
+.tl-node.on i{background:var(--acc);border-color:var(--acc);box-shadow:0 0 20px var(--acc);transform:scale(1.35);}
+.tl-node.on b{color:var(--ink);}
+.tl-node.on span{color:var(--acc);}
+.tl-node.done i{background:rgba(255,255,255,.4);border-color:rgba(255,255,255,.4);}
+
+/* execution track (slide 09) */
+.exec-track{position:relative;display:flex;height:46px;border-radius:12px;overflow:hidden;border:1px solid var(--stroke);background:rgba(0,0,0,.32);}
+.exec-seg{width:var(--w);height:100%;}
+.exec-seg.run{background:linear-gradient(180deg,rgba(46,230,168,.75),rgba(46,230,168,.4));}
+.exec-seg.io{
+  background:repeating-linear-gradient(135deg,rgba(255,77,109,.22) 0 8px,rgba(255,77,109,.07) 8px 16px);
+  border-left:1px solid rgba(255,77,109,.28);border-right:1px solid rgba(255,77,109,.28);
+}
+.exec-playhead{
+  position:absolute;top:0;bottom:0;width:2px;background:#fff;
+  box-shadow:0 0 14px #fff,0 0 26px rgba(91,141,255,.9);
+  animation:sweepMove 6s linear infinite;
+}
+.exec-legend{display:flex;gap:18px;margin-top:12px;font-size:11.5px;color:var(--muted);font-weight:600;}
+.exec-legend span{display:flex;align-items:center;gap:7px;}
+.exec-legend i{width:12px;height:12px;border-radius:4px;display:inline-block;}
+
+/* RAM parking lots (slide 10) */
+.ram-lots{position:relative;display:flex;flex-direction:column;gap:9px;padding-left:30px;}
+.ram-lot{
+  border-radius:12px;padding:12px 15px;display:flex;justify-content:space-between;align-items:center;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);
+  font-size:12.5px;font-weight:700;
+}
+.ram-lot.a{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.ram-lot.b{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.08);color:#88ffd8;}
+.ram-lot.c{border-color:rgba(160,107,255,.4);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.ram-lot .lot-state{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;}
+.cpu-cursor{
+  position:absolute;left:0;width:20px;height:20px;border-radius:6px;
+  background:var(--amber);box-shadow:0 0 20px rgba(255,182,72,.85);
+  display:grid;place-items:center;font-size:9px;font-weight:900;color:#1a1206;
+  animation:jumpCursor 4.2s steps(1,end) infinite;
+}
+@keyframes jumpCursor{
+  0%{top:8px}   34%{top:8px}
+  36%{top:8px}  36.01%{top:calc(8px + 62px)}
+  68%{top:calc(8px + 62px)} 68.01%{top:calc(8px + 124px)}
+  92%{top:calc(8px + 124px)} 100%{top:calc(8px + 124px)}
+}
+
+/* time-sharing wheel (slide 11) */
+.wheel-wrap{display:grid;place-items:center;padding:8px 0;}
+.wheel{
+  position:relative;width:min(100%,250px);aspect-ratio:1;border-radius:50%;
+  background:conic-gradient(
+    #5b8dff 0 25%,
+    #2ee6a8 25% 50%,
+    #ffb648 50% 75%,
+    #a06bff 75% 100%);
+  box-shadow:0 0 60px -12px rgba(91,141,255,.6);
+}
+.wheel::after{
+  content:'CPU';position:absolute;inset:31%;border-radius:50%;
+  background:#0a0f1c;display:grid;place-items:center;
+  font-size:12px;font-weight:900;letter-spacing:.2em;color:var(--ink);
+  border:1px solid var(--stroke);
+}
+.hand{position:absolute;inset:0;animation:spin 2.6s linear infinite;}
+.hand span{
+  position:absolute;left:50%;top:7%;width:3px;height:43%;
+  border-radius:3px;transform:translateX(-50%);
+  background:linear-gradient(#fff,rgba(255,255,255,.15));
+  box-shadow:0 0 16px #fff;
+}
+
+/* cloud (slide 12) */
+.cloud-wrap{display:grid;place-items:center;}
+
+/* ============================================================
+   LEXICON (13–15)
+   ============================================================ */
+.lex-card{
+  border-radius:24px;padding:clamp(22px,2.8vw,40px);
+  border:1px solid rgba(91,141,255,.34);
+  background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));
+  box-shadow:0 30px 80px -40px rgba(91,141,255,.85), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.lex-term{
+  font-size:clamp(38px,5.2vw,76px);font-weight:900;letter-spacing:-.045em;line-height:1;
+  margin-bottom:8px;
+  background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:24px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-top:16px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14.5px,1.1vw,17px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+
+/* ============================================================
+   CODE BLOCKS (slide 16)
+   ============================================================ */
+.code-block{
+  border-radius:16px;overflow:hidden;border:1px solid var(--stroke);
+  background:#080d17;
+}
+.code-head{
+  padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;
+  border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;
+}
+.code-head.mono{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.micro{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,0.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(91,141,255,.16);}
+
+/* ============================================================
+   SLIDE 17 — GAUGE
+   ============================================================ */
+.gauge-wrap{display:grid;place-items:center;gap:14px;}
+.gauge{width:min(100%,260px);}
+.gauge-needle{transform-origin:100px 100px;animation:needleTwitch 3.4s ease-in-out infinite;}
+@keyframes needleTwitch{0%,100%{transform:rotate(0deg)}45%{transform:rotate(-2deg)}55%{transform:rotate(2deg)}}
+.nochange{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:9px 16px;border-radius:999px;
+  border:1px solid rgba(255,77,109,.4);background:rgba(255,77,109,.1);
+  color:#ff9fb1;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;
+  animation:refPulse 3.4s ease-in-out infinite;
+}
+
+/* ============================================================
+   SLIDE 18 — SIGSEGV
+   ============================================================ */
+.memmap{position:relative;padding:8px 0 4px;}
+.memrow{display:flex;gap:4px;height:56px;align-items:stretch;}
+.cell{flex:1;border-radius:8px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);}
+.cell.own{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.34);}
+.cell.other{background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.26);}
+.wall{width:3px;border-radius:2px;background:var(--crimson);box-shadow:0 0 18px var(--crimson);animation:wallPulse 1.6s ease-in-out infinite;}
+@keyframes wallPulse{0%,100%{opacity:.6}50%{opacity:1}}
+.probe{
+  position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:14px;height:14px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 18px var(--amber);left:12%;
+  animation:probeRun 3s ease-in-out infinite;
+}
+@keyframes probeRun{
+  0%{left:12%;background:var(--amber);box-shadow:0 0 18px var(--amber)}
+  40%{left:47.5%;background:var(--amber);box-shadow:0 0 18px var(--amber)}
+  46%{left:49.2%;background:#fff;box-shadow:0 0 40px #fff,0 0 70px var(--crimson)}
+  52%,100%{left:49.2%;background:var(--crimson);box-shadow:0 0 40px var(--crimson)}
+}
+.memlabels{display:flex;justify-content:space-between;margin-top:10px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;}
+.memlabels .l{color:var(--emerald);}
+.memlabels .r{color:#ff9fb1;}
+
+/* ============================================================
+   SLIDE 19 — TERMINAL
+   ============================================================ */
+.terminal{
+  border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;
+  font-family:var(--mono);
+  box-shadow:0 24px 70px -30px rgba(0,0,0,.95);
+}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);
+}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10px,.82vw,12.5px);line-height:1.75;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;color:#93a6c6;}
+.term-row.head{color:var(--blue-2);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:6px;margin-bottom:6px;}
+.term-row div:nth-child(4){color:var(--amber);}
+.term-foot{margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);color:var(--muted);font-size:10.5px;}
+
+/* ============================================================
+   SLIDE 20 — INTERVIEW KEY
+   ============================================================ */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cmp-card{border-radius:18px;padding:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cmp-card.safe{border-color:rgba(46,230,168,.38);background:rgba(46,230,168,.06);}
+.cmp-card.fatal{border-color:rgba(255,77,109,.42);background:rgba(255,77,109,.07);}
+.cmp-tag{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cmp-card.safe .cmp-tag{color:var(--emerald);}
+.cmp-card.fatal .cmp-tag{color:var(--crimson);}
+.cmp-card h3{margin-bottom:9px;}
+.cmp-card p{font-size:13.5px;line-height:1.58;}
+.cmp-badge{
+  margin-top:13px;display:inline-flex;align-items:center;gap:8px;
+  padding:7px 13px;border-radius:999px;font-size:11px;font-weight:900;
+  letter-spacing:.1em;text-transform:uppercase;
+}
+.cmp-card.safe .cmp-badge{background:rgba(46,230,168,.15);color:#88ffd8;border:1px solid rgba(46,230,168,.35);}
+.cmp-card.fatal .cmp-badge{background:rgba(255,77,109,.15);color:#ff9fb1;border:1px solid rgba(255,77,109,.4);animation:refPulse 2.2s ease-in-out infinite;}
+
+/* ============================================================
+   SLIDE 21 — MINDMAP
+   ============================================================ */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;gap:0;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{
+  padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.045);color:var(--ink-2);
+  transition:.3s;
+}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{
+  border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;
+  box-shadow:0 0 26px -4px rgba(91,141,255,.85);
+  animation:nodeActive 2.4s ease-in-out infinite;
+}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+
+/* ============================================================
+   SLIDE 22 — GRID TABLE
+   ============================================================ */
+.grid-table{
+  display:grid;
+  grid-template-columns:170px repeat(4,1fr);
+  gap:1px;background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:16px;overflow:hidden;
+}
+.gt-cell{background:#0a0f1c;padding:14px 13px;font-size:12.5px;line-height:1.45;}
+.gt-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.gt-head{background:#0d1425;font-size:13px;font-weight:800;letter-spacing:-.01em;}
+.gt-head.c1{color:#b9d0ff;}
+.gt-head.c2{color:#88ffd8;}
+.gt-head.c3{color:#ffd18a;}
+.gt-head.c4{color:#c9a7ff;}
+.gt-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.gt-cell.val{color:var(--ink-2);}
+.gt-cell.val.hi{color:var(--ink);font-weight:700;}
+
+/* ============================================================
+   SLIDE 23 — TAKEAWAYS
+   ============================================================ */
+.takeaway{
+  display:flex;gap:20px;align-items:flex-start;
+  padding:20px 22px;border-radius:18px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.035);
+  transition:.3s var(--ease);
+}
+.takeaway:hover{transform:translateX(6px);border-color:var(--stroke-2);}
+.tk-num{
+  flex:none;width:44px;height:44px;border-radius:13px;
+  display:grid;place-items:center;font-size:15px;font-weight:900;
+  background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;
+}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* ============================================================
+   SLIDE 24 — GATEWAY
+   ============================================================ */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;overflow:visible;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{
+  display:inline-flex;align-items:center;gap:10px;margin-top:18px;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  padding:11px 18px;border-radius:12px;
+  border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway{grid-template-columns:1fr;}
+  .compare{grid-template-columns:1fr;}
+  .grid-table{grid-template-columns:120px repeat(4,1fr);font-size:11px;}
+  .slide{padding:76px 26px 96px;}
+  .duo-col{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .grid-table{grid-template-columns:1fr 1fr;font-size:11px;}
+  .gt-corner{display:none;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .timeline{margin-bottom:16px;}
+  .tl-node span{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== HUD ==================== -->
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L0 Course Introduction</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Block 1 · Scarcity</span>
+    <span id="slideCounter">01 / 24</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- ============================================================
+     SLIDE 01
+     ============================================================ -->
+<section class="slide" data-chapter="Block 1 · Scarcity" data-anim="chaos">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏠 Start Here // The Foundational Question</span>
+    <h1 class="hero-title">What actually stops two raw programs from <em>smashing into each other?</em></h1>
+    <div class="split">
+      <div class="stack">
+        <p class="lead">What actually stops two raw software programs from smashing into each other, overwriting your memory chips, and melting your computer processor?</p>
+        <div class="panel amber">
+          <span class="panel-label">The Scarcity Vector</span>
+          <p>One single physical computer core chip exists under the hood, but <strong>fifty separate applications</strong> are open simultaneously — and every single one believes it owns <strong>100% of the hardware</strong>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Teacher's Delivery Note:</b> Start the class by letting the room sit with this chaos vector before showing any code definitions.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · 50 processes vs. 1 core</div>
+        <canvas id="chaosCanvas" width="660" height="470"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 02
+     ============================================================ -->
+<section class="slide" data-chapter="Block 1 · Scarcity">
+  <div class="slide-inner">
+    <span class="badge amber">🎒 💡 Everyday Simplified: The Crayon Referee</span>
+    <div class="split">
+      <div class="stack">
+        <h2>The Kindergarten Room</h2>
+        <div class="panel">
+          <span class="panel-label">The Analogy Narrative</span>
+          <p>Imagine a busy kindergarten classroom with fifty hyperactive students and only one single box of coloring crayons in the center of the floor. If the teacher walks out of the room, the students will fight over the box, break the tools, and scream at the same instant.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Resolution</span>
+          <p>The teacher stands at the front of the room, grabs the box, and distributes <strong>turn-by-turn numbers</strong>. Every child colors fairly, one by one, without breaking the crayons.</p>
+        </div>
+        <div class="note blue">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> The children represent untrusted software applications. The single box of crayons represents your computer's limited hardware processing power.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Turn-by-turn distribution sweep</div>
+        <div class="kinder">
+          <div class="kinder-ring" id="kinderRing">
+            <div class="sweep-ring"></div>
+            <div class="crayonbox">🖍️</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 03
+     ============================================================ -->
+<section class="slide" data-chapter="Block 1 · Scarcity">
+  <div class="slide-inner">
+    <span class="badge">💻 🛠️ Systems Cohesion: Software Architecture Frameworks</span>
+    <h2 style="margin-bottom:20px;">Two compilation frameworks, side by side</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Execution topology</div>
+        <div class="duo-col">
+
+          <div class="duo-card mono">
+            <div class="duo-title">MONOLITH</div>
+            <svg viewBox="0 0 200 200" style="width:100%;height:auto">
+              <rect x="10" y="10" width="180" height="180" rx="16" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.42)" stroke-width="1.5"/>
+              <circle cx="52" cy="60" r="10" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+              <circle cx="146" cy="52" r="10" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+              <circle cx="60" cy="146" r="10" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+              <circle cx="140" cy="140" r="10" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+              <circle cx="100" cy="100" r="12" fill="rgba(255,77,109,.45)" stroke="#ff4d6d" stroke-width="2"/>
+              <line x1="52" y1="60" x2="100" y2="100" stroke="rgba(255,77,109,.75)" stroke-width="1.6" class="flow"/>
+              <line x1="146" y1="52" x2="100" y2="100" stroke="rgba(255,77,109,.75)" stroke-width="1.6" class="flow"/>
+              <line x1="60" y1="146" x2="100" y2="100" stroke="rgba(255,77,109,.75)" stroke-width="1.6" class="flow"/>
+              <line x1="140" y1="140" x2="100" y2="100" stroke="rgba(255,77,109,.75)" stroke-width="1.6" class="flow"/>
+              <line x1="52" y1="60" x2="146" y2="52" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="flow-slow"/>
+              <line x1="60" y1="146" x2="140" y2="140" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="flow-slow"/>
+              <text x="100" y="193" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.85)" font-family="monospace" letter-spacing="1.6">ZERO WALLS</text>
+            </svg>
+            <p style="font-size:11.5px;line-height:1.5;margin-top:10px;color:var(--muted)">Every function holds direct pointers to global memory spaces.</p>
+          </div>
+
+          <div class="duo-card micro">
+            <div class="duo-title">MICROSERVICE</div>
+            <svg viewBox="0 0 200 200" style="width:100%;height:auto">
+              <rect x="12" y="14" width="58" height="46" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+              <rect x="128" y="14" width="58" height="46" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+              <rect x="70" y="130" width="58" height="46" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+              <rect x="12" y="130" width="46" height="46" rx="9" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.32)" stroke-width="1.2"/>
+              <rect x="142" y="130" width="46" height="46" rx="9" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.32)" stroke-width="1.2"/>
+              <line x1="70" y1="40" x2="128" y2="40" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="flow"/>
+              <line x1="128" y1="56" x2="99" y2="130" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="flow"/>
+              <line x1="70" y1="56" x2="99" y2="130" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="flow"/>
+              <line x1="58" y1="152" x2="70" y2="152" stroke="rgba(46,230,168,.45)" stroke-width="1.5" class="flow-slow"/>
+              <line x1="128" y1="152" x2="142" y2="152" stroke="rgba(46,230,168,.45)" stroke-width="1.5" class="flow-slow"/>
+              <text x="99" y="102" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.9)" font-family="monospace" letter-spacing="1.2">IPC</text>
+              <text x="99" y="193" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="monospace" letter-spacing="1.6">MESSAGE ONLY</text>
+            </svg>
+            <p style="font-size:11.5px;line-height:1.5;margin-top:10px;color:var(--muted)">Strictly isolated socket messages across internal loops.</p>
+          </div>
+
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Left Column — The Massive Monolith</span>
+          <p>Functions exactly like a single compiled C binary where every function holds direct pointers to global memory spaces with <strong>zero internal walls</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Right Column — The Isolated Microservice</span>
+          <p>Functions exactly like a distributed network of microservices running on a local machine, communicating strictly via isolated socket messages across internal loops.</p>
+        </div>
+        <div class="note blue">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> Microservices represent a <b>microkernel</b> layout (isolated and safe); the massive single binary represents a <b>monolithic</b> layout (lightning-fast but fragile).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 04
+     ============================================================ -->
+<section class="slide" data-chapter="Block 1 · Scarcity">
+  <div class="slide-inner">
+    <span class="badge violet">📦 Core Paradigm: The Three-Tier Machine Hierarchy</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Ring 3 → Ring 0 → Bare Metal</div>
+        <div class="pyr">
+          <div class="pyr-layer pyr-r3">
+            <div>
+              <div class="pl-tag">Ring 3 · User Space</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:3px">Zero-privilege sandbox</div>
+            </div>
+            <div class="pl-desc">Chrome · Spotify · VS Code · Discord</div>
+          </div>
+          <div class="pyr-layer pyr-r0">
+            <div>
+              <div class="pl-tag">Ring 0 · Kernel Space</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:3px">Resident referee</div>
+            </div>
+            <div class="pl-desc">Core OS · permanently in RAM</div>
+          </div>
+          <div class="pyr-layer pyr-hw">
+            <div>
+              <div class="pl-tag">Bare Metal Silicon</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:3px">Physical substrate</div>
+            </div>
+            <div class="pl-desc">CPU cores · DDR5 · circuits</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Top Tier — Ring 3 User Space</span>
+          <p>Normal consumer software packages running under <strong>zero-privilege sandboxed rules</strong> (Google Chrome, Spotify, Microsoft VS Code, Discord).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Middle Tier — Ring 0 Kernel Space</span>
+          <p>The core operating system software acting as a <strong>strict referee</strong> permanently resident in RAM blocks.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Bottom Tier — The Bare Metal Silicon</span>
+          <p>Raw hardware circuits, DDR5 memory modules, and physical processor cores.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Teacher's Delivery Note:</b> Remind students that software applications are completely blind to the actual hardware wiring chips underneath them.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 05
+     ============================================================ -->
+<section class="slide" data-chapter="Block 2 · Core Responsibilities">
+  <div class="slide-inner">
+    <span class="badge">📖 Definition Focus: The Resident Software Referee</span>
+    <div class="def-card">
+      <div class="def-inner">
+        <h2 class="grad-blue">Defining the Operating System</h2>
+        <p style="margin-bottom:20px">An <strong>Operating System (OS)</strong> is the foundational system software executing directly upon physical silicon that manages hardware and constructs a strictly isolated, protected environment for userland applications.</p>
+        <div class="panel amber" style="margin-bottom:16px">
+          <span class="panel-label">The Core Kernel</span>
+          <p>The absolute brain of the OS that remains <strong>permanently resident in your computer's RAM</strong> from the microsecond the power clicks on until the machine shuts down.</p>
+        </div>
+        <div class="note blue">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> Userland applications (the standard software tools you download) are forbidden from talking directly to your physical circuitry. They must pass requests down to the resident kernel referee.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 06
+     ============================================================ -->
+<section class="slide" data-chapter="Block 2 · Core Responsibilities">
+  <div class="slide-inner">
+    <span class="badge emerald">🚨 Subsystem Deep-Dive: Resource Arbitration</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Responsibility 1 — <span class="grad-emerald">Resource Arbitration</span></h2>
+        <div class="panel emerald">
+          <span class="panel-label">The Core Mandate</span>
+          <p>Ensuring that no rogue software application can starve other background applications of <strong>processor computing time</strong>, <strong>memory pages</strong>, or <strong>hard disk storage blocks</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Space Partition</span>
+          <p>The kernel splits up physical RAM chips into completely separate, <strong>protected slots</strong> so apps cannot spy on each other's data.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Time Partition</span>
+          <p>The kernel slices up processor core access into <strong>microscopic millisecond windows</strong>, forcing applications to take rapid turns.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Space &amp; time partitioning</div>
+        <div class="mini-label">Space Partition — RAM split into protected slots</div>
+        <div class="ram-bar">
+          <span style="--c:#5b8dff;--d:0s">APP A</span>
+          <span style="--c:#2ee6a8;--d:.1s">APP B</span>
+          <span style="--c:#ffb648;--d:.2s">APP C</span>
+          <span style="--c:#a06bff;--d:.3s">APP D</span>
+          <span style="--c:#ff4d6d;--d:.4s">APP E</span>
+        </div>
+        <div class="mini-label" style="margin-top:20px">Time Partition — CPU sliced into millisecond windows</div>
+        <div class="cpu-strip">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <div class="sweep"></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.5">Each colour = a different process receiving its quantum. The kernel never stops rotating.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 07
+     ============================================================ -->
+<section class="slide" data-chapter="Block 2 · Core Responsibilities">
+  <div class="slide-inner">
+    <span class="badge">⚙️ Subsystem Deep-Dive: Hardware Abstraction</span>
+    <div class="split wide-right">
+      <div class="stack">
+        <h2>Responsibility 2 — <span class="grad-blue">Hardware Abstraction</span></h2>
+        <div class="panel blue">
+          <span class="panel-label">The Core Mandate</span>
+          <p>Hiding the messy electronic wiring details, drive controllers, and CPU register complexities behind <strong>clean, standardized programming commands</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Abstraction Primitives</span>
+          <p>Instead of writing assembly code to move an electronic laser arm across a storage track, a software developer can call a simple, clean function like <code style="font-family:var(--mono);color:#88ffd8">open()</code> or <code style="font-family:var(--mono);color:#88ffd8">read()</code>.</p>
+        </div>
+        <div class="note blue">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> Abstraction simplifies the view for developers so they can write one app that runs smoothly on thousands of different computer models without knowing their raw circuit designs.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Messy pins → one clean interface</div>
+        <div class="pins">
+          <span>SATA</span><span>NVMe</span><span>USB</span><span>IRQ</span><span>DMA</span><span>MMIO</span>
+        </div>
+        <svg viewBox="0 0 400 90" style="width:100%;height:auto;display:block;margin-bottom:12px">
+          <line x1="34" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <line x1="100" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <line x1="166" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <line x1="234" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <line x1="300" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <line x1="366" y1="4" x2="200" y2="74" stroke="rgba(91,141,255,.55)" stroke-width="1.4" class="flow"/>
+          <circle cx="200" cy="76" r="5" fill="#8fb4ff"/>
+        </svg>
+        <div class="abst-bar">
+          <code>open()</code><code>read()</code><code>write()</code><code>close()</code><code>ioctl()</code>
+        </div>
+        <p style="font-size:11.5px;margin-top:13px;color:var(--muted);line-height:1.5">Six wildly different hardware protocols collapse into one uniform function surface.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 08
+     ============================================================ -->
+<section class="slide" data-chapter="Block 2 · Core Responsibilities">
+  <div class="slide-inner">
+    <span class="badge amber">⚠️ 🔥 Case Study: The Concurrent Application Collision</span>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Contention, then arbitration</div>
+        <div class="collide-row chrome">
+          <div class="cr-head"><span class="cr-name">CHROME · 30 tabs</span><span class="cr-mem">wants 100% RAM</span></div>
+          <div class="mem-track"><div class="mem-fill"></div></div>
+        </div>
+        <div class="collide-row spotify">
+          <div class="cr-head"><span class="cr-name">SPOTIFY · HD audio</span><span class="cr-mem">wants 100% RAM</span></div>
+          <div class="mem-track"><div class="mem-fill"></div></div>
+        </div>
+        <div class="referee">🛡️ KERNEL REFEREE — boundaries isolated, cycles sliced, audio skips: 0</div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The Scenario</span>
+          <p>You open two heavy apps at the exact same fraction of a second — Google Chrome is loading thirty web pages, while Spotify is streaming high-definition audio tracks.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The Battle</span>
+          <p>Both apps are <strong>inherently selfish</strong>. Left unchecked, Chrome's code would overwrite Spotify's memory buffers, freeze your audio, scramble system data blocks, and induce a total machine crash.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Victory</span>
+          <p>The OS kernel steps between them as an active hardware referee, isolating their memory boundaries and slicing up processor cycles so smoothly that your music plays without a single skip.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 09
+     ============================================================ -->
+<section class="slide" data-chapter="Block 3 · Evolution">
+  <div class="slide-inner">
+    <div class="timeline" style="--acc:var(--amber)">
+      <div class="tl-track"></div>
+      <div class="tl-node on"><i></i><b>1950s</b><span>Batch</span></div>
+      <div class="tl-node"><i></i><b>1960s</b><span>Multiprogramming</span></div>
+      <div class="tl-node"><i></i><b>1970s</b><span>Time-Sharing</span></div>
+      <div class="tl-node"><i></i><b>Modern</b><span>Cloud / Mobile</span></div>
+    </div>
+    <span class="badge amber">⏱️ Historical Timeline: Step 01 — Batch Execution</span>
+    <div class="split">
+      <div class="stack">
+        <h2>1950s — <span class="grad-amber">Single-Program Batch Processing</span></h2>
+        <p style="color:var(--muted);font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700">The Punch Card Sloth</p>
+        <div class="panel blue">
+          <span class="panel-label">The Operational Workflow</span>
+          <p>Operators fed stacks of physical paper punch cards into a multi-million dollar computer frame. <strong>Exactly one single program ran at a time.</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The Scarcity Crisis</span>
+          <p>If the active program paused for even a fraction of a second to read a magnetic tape drive, the entire CPU sat <strong>completely idle</strong>, wasting precious computation cycles doing nothing.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Pedagogic Takeaway:</b> Hardware was incredibly expensive, yet it spent most of its life sitting completely frozen waiting for slow input/output storage units.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One program, endless idle gaps</div>
+        <div class="exec-track">
+          <div class="exec-seg run" style="--w:12%"></div>
+          <div class="exec-seg io" style="--w:36%"></div>
+          <div class="exec-seg run" style="--w:10%"></div>
+          <div class="exec-seg io" style="--w:30%"></div>
+          <div class="exec-seg run" style="--w:12%"></div>
+          <div class="exec-playhead"></div>
+        </div>
+        <div class="exec-legend">
+          <span><i style="background:rgba(46,230,168,.75)"></i>CPU executing</span>
+          <span><i style="background:rgba(255,77,109,.35)"></i>CPU idle — waiting on tape</span>
+        </div>
+        <p style="font-size:11.5px;margin-top:16px;color:var(--muted);line-height:1.55">Roughly <strong style="color:#ff9fb1">75%</strong> of expensive silicon time is thrown away while the machine waits for a slow storage device.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 10
+     ============================================================ -->
+<section class="slide" data-chapter="Block 3 · Evolution">
+  <div class="slide-inner">
+    <div class="timeline" style="--acc:var(--blue)">
+      <div class="tl-track"></div>
+      <div class="tl-node done"><i></i><b>1950s</b><span>Batch</span></div>
+      <div class="tl-node on"><i></i><b>1960s</b><span>Multiprogramming</span></div>
+      <div class="tl-node"><i></i><b>1970s</b><span>Time-Sharing</span></div>
+      <div class="tl-node"><i></i><b>Modern</b><span>Cloud / Mobile</span></div>
+    </div>
+    <span class="badge">⏱️ Historical Timeline: Step 02 — Multiprogramming</span>
+    <div class="split">
+      <div class="stack">
+        <h2>1960s — <span class="grad-blue">Multiprogramming Frameworks</span></h2>
+        <p style="color:var(--muted);font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700">The RAM Parking Lot</p>
+        <div class="panel blue">
+          <span class="panel-label">The Operational Workflow</span>
+          <p>The operating system evolved to hold <strong>multiple separate programs inside physical RAM memory blocks</strong> simultaneously.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Core Optimization</span>
+          <p>When Job A hits a slow instruction and pauses to wait for data from a tape drive, the OS kernel <strong>instantly switches the CPU core</strong> to execute instructions for Job B.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Pedagogic Takeaway:</b> The processor is kept working constantly. The OS eliminates wasted hardware idle loops by scheduling another program the microsecond the active one hits a barrier.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · RAM parking lots + CPU cursor</div>
+        <div class="ram-lots">
+          <div class="cpu-cursor">▶</div>
+          <div class="ram-lot a"><span>JOB A — blocked on tape I/O</span><span class="lot-state">waiting</span></div>
+          <div class="ram-lot b"><span>JOB B — ready to execute</span><span class="lot-state">running</span></div>
+          <div class="ram-lot c"><span>JOB C — queued in RAM</span><span class="lot-state">ready</span></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:18px;color:var(--muted);line-height:1.55">The instant Job A blocks, the CPU cursor jumps to the next runnable job. The silicon never idles.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 11
+     ============================================================ -->
+<section class="slide" data-chapter="Block 3 · Evolution">
+  <div class="slide-inner">
+    <div class="timeline" style="--acc:var(--violet)">
+      <div class="tl-track"></div>
+      <div class="tl-node done"><i></i><b>1950s</b><span>Batch</span></div>
+      <div class="tl-node done"><i></i><b>1960s</b><span>Multiprogramming</span></div>
+      <div class="tl-node on"><i></i><b>1970s</b><span>Time-Sharing</span></div>
+      <div class="tl-node"><i></i><b>Modern</b><span>Cloud / Mobile</span></div>
+    </div>
+    <span class="badge violet">⏱️ Historical Timeline: Step 03 — Time-Sharing</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Quantum rotation wheel</div>
+        <div class="wheel-wrap">
+          <div class="wheel">
+            <div class="hand"><span></span></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:16px;color:var(--muted);line-height:1.55;text-align:center">Four terminals · one core · each slice feels like 100% ownership.</p>
+      </div>
+      <div class="stack">
+        <h2>1970s — <span style="background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Time-Sharing Systems</span></h2>
+        <p style="color:var(--muted);font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700">The Illusion of Ownership</p>
+        <div class="panel violet">
+          <span class="panel-label">The Operational Workflow</span>
+          <p>Instead of waiting for a program to pause on its own, the OS <strong>forces context switches</strong> by slicing time into tiny millisecond windows called <strong>quanta</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Grand Illusion</span>
+          <p>The kernel rotates execution through all active applications so fast that <strong>every single user</strong> sitting at an external terminal feels like they have 100% exclusive ownership of the hardware.</p>
+        </div>
+        <div class="note blue">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> This time-slicing mechanism forms the direct foundation of the multitasking systems running on your iPad, phone, and laptop today.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 12
+     ============================================================ -->
+<section class="slide" data-chapter="Block 3 · Evolution">
+  <div class="slide-inner">
+    <div class="timeline" style="--acc:var(--emerald)">
+      <div class="tl-track"></div>
+      <div class="tl-node done"><i></i><b>1950s</b><span>Batch</span></div>
+      <div class="tl-node done"><i></i><b>1960s</b><span>Multiprogramming</span></div>
+      <div class="tl-node done"><i></i><b>1970s</b><span>Time-Sharing</span></div>
+      <div class="tl-node on"><i></i><b>Modern</b><span>Cloud / Mobile</span></div>
+    </div>
+    <span class="badge emerald">⏱️ Historical Timeline: Step 04 — Modern Paradigms</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Modern Era — <span class="grad-emerald">Personal, Mobile &amp; Cloud</span></h2>
+        <p style="color:var(--muted);font-size:13.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700">Massive Scale</p>
+        <div class="panel emerald">
+          <span class="panel-label">The Operational Workflow</span>
+          <p>Systems expand to handle <strong>multi-core architectures</strong>, <strong>virtualization clusters</strong>, and <strong>containerized microservices</strong> across massive server farms.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Modern Scarcity Challenge</span>
+          <p>We now have <strong>billions of lightweight threads</strong> spinning up and tearing down every second. The referee must manage resource boundaries across global networks while keeping latency near zero.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Teacher's Delivery Note:</b> Remind students that whether it is a 1950s mainframe or a modern cloud node, the core job remains identical: managing scarce hardware for selfish code.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Local device → containerized cloud</div>
+        <div class="cloud-wrap">
+          <svg viewBox="0 0 420 300" style="width:100%;height:auto">
+            <rect x="18" y="112" width="94" height="76" rx="14" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.6"/>
+            <text x="65" y="146" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="monospace" letter-spacing="1">MOBILE</text>
+            <text x="65" y="164" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.9)" font-family="monospace" letter-spacing="1">LAPTOP</text>
+
+            <line x1="112" y1="150" x2="196" y2="150" stroke="rgba(46,230,168,.8)" stroke-width="2" class="flow"/>
+            <text x="154" y="138" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.9)" font-family="monospace">NET</text>
+
+            <rect x="196" y="24" width="106" height="62" rx="12" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.5)" stroke-width="1.4"/>
+            <text x="249" y="50" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="monospace">CONTAINER</text>
+            <text x="249" y="66" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.65)" font-family="monospace">node-01</text>
+
+            <rect x="196" y="112" width="106" height="62" rx="12" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.5)" stroke-width="1.4"/>
+            <text x="249" y="138" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="monospace">CONTAINER</text>
+            <text x="249" y="154" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.65)" font-family="monospace">node-02</text>
+
+            <rect x="196" y="200" width="106" height="62" rx="12" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.5)" stroke-width="1.4"/>
+            <text x="249" y="226" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="monospace">CONTAINER</text>
+            <text x="249" y="242" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.65)" font-family="monospace">node-03</text>
+
+            <line x1="302" y1="55" x2="372" y2="140" stroke="rgba(160,107,255,.65)" stroke-width="1.6" class="flow-slow"/>
+            <line x1="302" y1="143" x2="372" y2="143" stroke="rgba(160,107,255,.65)" stroke-width="1.6" class="flow"/>
+            <line x1="302" y1="231" x2="372" y2="146" stroke="rgba(160,107,255,.65)" stroke-width="1.6" class="flow-slow"/>
+
+            <circle cx="386" cy="143" r="26" fill="rgba(160,107,255,.12)" stroke="rgba(160,107,255,.65)" stroke-width="1.6" class="node-pulse"/>
+            <text x="386" y="147" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="monospace">KERN</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 13
+     ============================================================ -->
+<section class="slide" data-chapter="Block 4 · Lexicon">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon: Mastering the Architecture Vocabulary</span>
+    <div class="def-card">
+      <div class="def-inner">
+        <div class="lex-term">Kernel</div>
+        <div class="lex-sub">Term 01 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The core component of an operating system that manages system operations and acts as the primary interface between hardware and software applications.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain-Language Translation</span>
+          <p class="bracket">( The background software permanently locked inside your RAM chips that rules the entire computer case. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Core Feature</span>
+          <p>Holds <strong>maximum privilege level</strong> instructions and controls context switching loops.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 14
+     ============================================================ -->
+<section class="slide" data-chapter="Block 4 · Lexicon">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon: Mastering the Architecture Vocabulary</span>
+    <div class="def-card" style="background:linear-gradient(120deg,rgba(46,230,168,.8),rgba(91,141,255,.55),rgba(160,107,255,.6),rgba(46,230,168,.8));background-size:300% 300%;">
+      <div class="def-inner">
+        <div class="lex-term">Resource Manager</div>
+        <div class="lex-sub" style="color:var(--emerald)">Term 02 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An architectural role within the operating system that allocates hardware assets — such as CPU cycles, memory blocks, and device bandwidth — to competing processes.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain-Language Translation</span>
+          <p class="bracket">( The corporate office traffic controller that stops software programs from stealing each other's spaces. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Core Feature</span>
+          <p>Dictates <strong>fairness</strong>, <strong>priority scheduling</strong>, and <strong>resource optimization algorithms</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 15
+     ============================================================ -->
+<section class="slide" data-chapter="Block 4 · Lexicon">
+  <div class="slide-inner">
+    <span class="badge violet">🏷️ System Lexicon: Mastering the Architecture Vocabulary</span>
+    <div class="def-card" style="background:linear-gradient(120deg,rgba(160,107,255,.85),rgba(91,141,255,.55),rgba(46,230,168,.6),rgba(160,107,255,.85));background-size:300% 300%;">
+      <div class="def-inner">
+        <div class="lex-term">Abstraction</div>
+        <div class="lex-sub" style="color:var(--violet)">Term 03 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A design methodology that hides underlying physical implementation complexities and raw device interfaces behind uniform, simplified software APIs.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain-Language Translation</span>
+          <p class="bracket">( The clean protective plastic cover that hides the messy copper circuit wiring from view. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Core Feature</span>
+          <p>Exposes standard POSIX function gateways like <code style="font-family:var(--mono);color:#88ffd8">open()</code>, <code style="font-family:var(--mono);color:#88ffd8">read()</code>, and <code style="font-family:var(--mono);color:#88ffd8">write()</code>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 16
+     ============================================================ -->
+<section class="slide" data-chapter="Block 5 · Technical Deep-Dive" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge">💻 🛠️ Code Dissection: How Privileges Look in Practice</span>
+    <h2 style="margin-bottom:18px;">Direct vs. Indirect — <span class="grad-blue">the literal execution difference</span></h2>
+    <div class="split">
+      <div class="code-block">
+        <div class="code-head mono"><span>Monolithic Path</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-fn">void</span> <span class="c-name">run_monolithic_read</span>() {</span><span class="code-line">  <span class="c-com">// Direct, high-speed function jump across the same address space</span></span><span class="code-line">  <span class="c-name">vfs_raw_read</span>(<span class="c-var">sector_id</span>, <span class="c-var">memory_buffer</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="code-block">
+        <div class="code-head micro"><span>Microkernel Path</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-fn">void</span> <span class="c-name">run_microkernel_read</span>() {</span><span class="code-line">  <span class="c-type">Message</span> <span class="c-var">msg</span> = { .type = <span class="c-str">FILE_READ_REQUEST</span> };</span><span class="code-line">  <span class="c-com">// Forces a message packaging step across an IPC boundary loop</span></span><span class="code-line">  <span class="c-name">ipc_send</span>(<span class="c-str">FILE_SERVER_PID</span>, &amp;<span class="c-var">msg</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+    </div>
+    <div class="note" style="margin-top:20px">
+      <span class="ic">🎤</span>
+      <div><b>Teacher's Delivery Note:</b> Walk through the code line by line to show students the literal structural execution difference between a direct function call and a packaged message.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 17
+     ============================================================ -->
+<section class="slide" data-chapter="Block 5 · Technical Deep-Dive">
+  <div class="slide-inner">
+    <span class="badge crimson">⚠️ 🛑 Student Pitfall: The Speed Limit Misconception</span>
+    <div class="split wide-left">
+      <div class="stack">
+        <h2>The Hardware Illusion</h2>
+        <div class="panel crimson">
+          <span class="panel-label">The Dangerous Assumption</span>
+          <p>Many computer science students believe that installing a clean operating system makes their computer chips <strong>physically run faster</strong> or injects extra clock speed into the copper wiring.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Technical Reality</span>
+          <p>The OS is <strong>pure software</strong> — it creates zero extra computer chip speed. It acts strictly as an <strong>efficiency manager</strong>. It optimizes lane efficiency on a highway; it cannot alter the raw speed limits of the underlying physical silicon channels.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The needle that will not move</div>
+        <div class="gauge-wrap">
+          <svg class="gauge" viewBox="0 0 200 130">
+            <path d="M20 108 A 80 80 0 0 1 180 108" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="13" stroke-linecap="round"/>
+            <path d="M20 108 A 80 80 0 0 1 180 108" fill="none" stroke="url(#gaugeGrad)" stroke-width="13" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="0"/>
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#5b8dff"/>
+                <stop offset="55%" stop-color="#ffb648"/>
+                <stop offset="100%" stop-color="#ff4d6d"/>
+              </linearGradient>
+            </defs>
+            <g class="gauge-needle">
+              <line x1="100" y1="108" x2="100" y2="38" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+            </g>
+            <circle cx="100" cy="108" r="7" fill="#fff"/>
+            <text x="100" y="128" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.9)" font-family="monospace" letter-spacing="1.6">HARDWARE CEILING</text>
+          </svg>
+          <span class="nochange">⛔ No change from installing an OS</span>
+        </div>
+        <p style="font-size:11.5px;margin-top:16px;color:var(--muted);line-height:1.55;text-align:center">The OS improves <em style="color:#88ffd8">how efficiently</em> the ceiling is used — never the ceiling itself.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 18
+     ============================================================ -->
+<section class="slide" data-chapter="Block 5 · Technical Deep-Dive">
+  <div class="slide-inner">
+    <span class="badge crimson">⚠️ 🛑 Student Pitfall: The Unauthorized Memory Smash</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Boundary Violations — <span class="grad-crimson">SIGSEGV</span></h2>
+        <div class="panel crimson">
+          <span class="panel-label">The Dangerous Assumption</span>
+          <p>Believing you can write a clever script inside Microsoft VS Code that completely bypasses the OS layers to modify data inside other running applications directly.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The System Cut-off</span>
+          <p>The moment your code attempts to access a raw memory address outside its sandbox block, the physical CPU chip registers a <strong>boundary violation</strong>. It triggers a hardware exception trap, hands control to the kernel referee, kills your app instantly, and outputs a <strong>Segmentation Fault (SIGSEGV)</strong> crash alert (<strong>Exit Code 139</strong>) to protect the machine.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The probe hits the wall</div>
+        <div class="memmap">
+          <div class="memrow">
+            <div class="cell own"></div><div class="cell own"></div><div class="cell own"></div><div class="cell own"></div>
+            <div class="wall"></div>
+            <div class="cell other"></div><div class="cell other"></div><div class="cell other"></div><div class="cell other"></div>
+          </div>
+          <div class="probe"></div>
+        </div>
+        <div class="memlabels">
+          <span class="l">◀ Your sandbox</span>
+          <span class="r">Another process ▶</span>
+        </div>
+        <div style="margin-top:18px;padding:13px 16px;border-radius:12px;border:1px solid rgba(255,77,109,.45);background:rgba(255,77,109,.10);font-family:var(--mono);font-size:12px;color:#ff9fb1;letter-spacing:.04em">
+          Segmentation fault (core dumped)<br>
+          <span style="color:var(--crimson);font-weight:700">[exit code 139]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 19
+     ============================================================ -->
+<section class="slide" data-chapter="Block 5 · Technical Deep-Dive" data-anim="htop">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 🛠️ Try It Live: Exploring Real-Time System Telemetry</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live terminal simulation</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">htop — user@machine</span>
+          </div>
+          <div class="term-body">
+            <div><span class="term-prompt">$</span> <span class="term-cmd">htop</span></div>
+            <div class="term-row head"><div>PID</div><div>PRI</div><div>RES</div><div>%CPU</div><div>COMMAND</div></div>
+            <div class="term-row" data-pid="1042"><div>1042</div><div>20</div><div>248M</div><div class="cpuval">12.4</div><div>chrome</div></div>
+            <div class="term-row" data-pid="1187"><div>1187</div><div>20</div><div>132M</div><div class="cpuval">6.1</div><div>spotify</div></div>
+            <div class="term-row" data-pid="1330"><div>1330</div><div>20</div><div>96M</div><div class="cpuval">3.8</div><div>code</div></div>
+            <div class="term-row" data-pid="1401"><div>1401</div><div>20</div><div>74M</div><div class="cpuval">2.2</div><div>discord</div></div>
+            <div class="term-row" data-pid="2021"><div>2021</div><div>20</div><div>18M</div><div class="cpuval">0.3</div><div>htop</div></div>
+            <div class="term-foot">Tasks: <span id="taskCount">218</span> total · 1 running · 217 sleeping</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>The htop Inspection</h2>
+        <div class="panel blue">
+          <span class="panel-label">The Terminal Command</span>
+          <p>Open your system interface and execute the tracking command:</p>
+          <pre style="padding:10px 0 0;font-size:13px"><code><span class="c-name">$ htop</span></code></pre>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Telemetry Fields</span>
+          <p style="margin-bottom:10px">The screen prints out real-time resource allocations:</p>
+          <p style="font-size:13px;line-height:1.7">
+            <strong>PID (Process ID)</strong> — the unique identity badge assigned to every active application container.<br>
+            <strong>PRI (Priority)</strong> — the internal scheduling weight used by the kernel referee.<br>
+            <strong>RES (Resident Memory)</strong> — the actual physical RAM blocks occupied by the application.
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">❓</span>
+          <div><b>The Question:</b> Look at the screen and count how many background processes currently believe they have 100% exclusive ownership of your CPU chips.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 20
+     ============================================================ -->
+<section class="slide" data-chapter="Block 6 · Synthesis">
+  <div class="slide-inner">
+    <span class="badge violet">🧠 🎯 Exam &amp; Interview Key: Core Infrastructure Checks</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Systems Architecture Drill</h2>
+        <div class="panel amber">
+          <span class="panel-label">High-Frequency Topic</span>
+          <p>High-level software crashes <strong>vs.</strong> core kernel failures.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The Drill Question</span>
+          <p>What happens if an app like Discord or Google Chrome encounters a fatal code error, versus what happens if code running inside the core kernel crashes?</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Answer</span>
+          <p>An application crash is safely sandboxed outside in <strong>User Space (Ring 3)</strong> — the OS referee catches it and shuts down that single app while the rest of the machine runs smoothly. If code crashes inside <strong>Kernel Space (Ring 0)</strong>, there is no referee above it to save it — the entire machine drops into a fatal <strong>Kernel Panic</strong> or total system lockup.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Blast radius comparison</div>
+        <div class="compare">
+          <div class="cmp-card safe">
+            <div class="cmp-tag">Ring 3 · User Space</div>
+            <h3>App Crash</h3>
+            <p>Discord or Chrome throws a fatal error. The kernel catches the exception, terminates that one process, and the rest of the machine keeps running.</p>
+            <div class="cmp-badge">✓ Sandboxed</div>
+          </div>
+          <div class="cmp-card fatal">
+            <div class="cmp-tag">Ring 0 · Kernel Space</div>
+            <h3>Kernel Panic</h3>
+            <p>Code inside the kernel faults. Nothing sits above it to catch the failure — the entire system locks up or reboots.</p>
+            <div class="cmp-badge">✕ Total Lockup</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 21
+     ============================================================ -->
+<section class="slide" data-chapter="Block 6 · Synthesis">
+  <div class="slide-inner">
+    <span class="badge">🌿 Navigation Hub: Master Design System Matrix</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Curriculum map tree</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Systems Architecture Portal</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 1: OS Structure &amp; Design</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L0: Course Introduction (ACTIVE NODE 🌟)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Abstraction vs. Resource Management</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf">The Referee Model &amp; The Evolutionary History Arc</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Master Mindmap Matrix</h2>
+        <div class="panel blue">
+          <span class="panel-label">The Curriculum Map Tree</span>
+          <p>The tree on the left shows exactly where today's lecture sits: <strong>Module 1 → Lecture 0</strong>, the active node.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Multi-Module Link</span>
+          <p>This introductory block maps out the <strong>foundational parameters</strong> that every upcoming manager module relies on.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 22
+     ============================================================ -->
+<section class="slide" data-chapter="Block 6 · Synthesis">
+  <div class="slide-inner">
+    <span class="badge emerald">📊 Resource Mapping: The Core Managers at a Glance</span>
+    <h2 style="margin-bottom:20px;">Management Model Blueprint Matrix</h2>
+    <div class="grid-table">
+      <div class="gt-cell gt-corner">Management Module</div>
+      <div class="gt-cell gt-head c1">1. Structure &amp; Design</div>
+      <div class="gt-cell gt-head c2">2. Process Management</div>
+      <div class="gt-cell gt-head c3">3. Process Sync</div>
+      <div class="gt-cell gt-head c4">4. Memory Management</div>
+
+      <div class="gt-cell gt-label">Core Resource</div>
+      <div class="gt-cell val">System Boundaries</div>
+      <div class="gt-cell val">CPU Cycles</div>
+      <div class="gt-cell val">Shared Global State</div>
+      <div class="gt-cell val">Physical RAM</div>
+
+      <div class="gt-cell gt-label">System Goal</div>
+      <div class="gt-cell val hi">Isolation</div>
+      <div class="gt-cell val hi">Fairness</div>
+      <div class="gt-cell val hi">Data Integrity</div>
+      <div class="gt-cell val hi">Space Isolation</div>
+
+      <div class="gt-cell gt-label">Analogy</div>
+      <div class="gt-cell val">Kitchen Door</div>
+      <div class="gt-cell val">Musical Chairs</div>
+      <div class="gt-cell val">Piggy Bank Lock</div>
+      <div class="gt-cell val">Grid Notebook</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 23
+     ============================================================ -->
+<section class="slide" data-chapter="Block 6 · Synthesis">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Retrospective: Syllabus Dissection Summary</span>
+    <h2 style="margin-bottom:24px;">Grand Lecture <span class="grad-emerald">Summary</span></h2>
+    <div class="stack" style="gap:14px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>The Operating System is an <strong>efficiency supervisor program</strong> permanently resident in RAM memory chips — <strong>not</strong> a physical hardware speed booster.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>Hardware resources are strictly <strong>scarce</strong> and software programs are completely <strong>selfish</strong> — requiring an active referee to partition access in both <strong>space</strong> and <strong>time</strong>.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>Hardware-enforced isolation keeps application crashes <strong>sandboxed outside</strong>, preventing a failure in one tool from corrupting global machine state.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 24
+     ============================================================ -->
+<section class="slide" data-chapter="Block 6 · Synthesis">
+  <div class="slide-inner">
+    <span class="badge emerald">🚀 The Horizon Roadmap: Moving to the Next Block</span>
+    <div class="gateway">
+      <div class="stack">
+        <h2>Next Unit Gateway</h2>
+        <div class="panel emerald">
+          <span class="panel-label">The Upcoming Unit</span>
+          <p style="font-size:clamp(16px,1.25vw,20px);color:#fff;font-weight:700">Lecture 01 — OS Components &amp; System Isolation</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Next Focus</span>
+          <p>We will step directly up to the <strong>perimeter line of the kernel</strong>. We will investigate the strict engineering differences between <strong>User-Space tools</strong> and <strong>Kernel-Space systems</strong>, and trace exactly how a CPU chip flips its internal hardware bit when crossing the line.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Action Gateway: Proceed to L1: OS Components &nbsp;|&nbsp; [L1.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+/* ============================================================
+   ANIMATION REGISTRY
+   ============================================================ */
+const ANIM = {};
+const RUNNING = {};
+
+function reg(name, factory){ ANIM[name] = factory; }
+
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 01 : Chaos canvas ---------- */
+reg('chaos', function(){
+  const c = document.getElementById('chaosCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const cx = W / 2, cy = H / 2;
+  const CHIP_W = 118, CHIP_H = 78;
+
+  const apps = [];
+  const N = 50;
+  for(let i = 0; i < N; i++){
+    const a = Math.random() * Math.PI * 2;
+    const r = 120 + Math.random() * 110;
+    apps.push({
+      x: cx + Math.cos(a) * r,
+      y: cy + Math.sin(a) * r,
+      vx: (Math.random() - .5) * 1.7,
+      vy: (Math.random() - .5) * 1.7,
+      s: 2.2 + Math.random() * 2.6,
+      hue: Math.random() < .5 ? 214 : 268,
+      hit: 0
+    });
+  }
+
+  let active = true, raf = null, t = 0;
+
+  function drawGrid(){
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 34){
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for(let y = 0; y < H; y += 34){
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  function drawChip(){
+    const x = cx - CHIP_W/2, y = cy - CHIP_H/2;
+
+    // outer glow
+    const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120);
+    g.addColorStop(0, 'rgba(91,141,255,0.30)');
+    g.addColorStop(1, 'rgba(91,141,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, 120, 0, Math.PI*2); ctx.fill();
+
+    // pins
+    ctx.fillStyle = 'rgba(143,180,255,0.55)';
+    for(let i = 0; i < 7; i++){
+      const px = x + 12 + i * 16;
+      ctx.fillRect(px, y - 7, 7, 7);
+      ctx.fillRect(px, y + CHIP_H, 7, 7);
+    }
+    for(let i = 0; i < 5; i++){
+      const py = y + 10 + i * 14;
+      ctx.fillRect(x - 7, py, 7, 7);
+      ctx.fillRect(x + CHIP_W, py, 7, 7);
+    }
+
+    // body
+    const r = 16;
+    ctx.beginPath();
+    ctx.roundRect(x, y, CHIP_W, CHIP_H, r);
+    ctx.fillStyle = 'rgba(12,20,38,0.96)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(91,141,255,0.92)';
+    ctx.stroke();
+
+    // inner core pulse
+    const pulse = 0.5 + 0.5 * Math.sin(t / 22);
+    ctx.beginPath();
+    ctx.roundRect(x + 16, y + 16, CHIP_W - 32, CHIP_H - 32, 9);
+    ctx.fillStyle = 'rgba(91,141,255,' + (0.10 + pulse * 0.16) + ')';
+    ctx.fill();
+
+    ctx.fillStyle = '#eaf0fc';
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('1 CORE', cx, cy - 6);
+    ctx.fillStyle = 'rgba(143,180,255,0.85)';
+    ctx.font = '600 9px Inter, sans-serif';
+    ctx.fillText('50 APPS WANT IT', cx, cy + 13);
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+
+    for(const a of apps){
+      a.x += a.vx;
+      a.y += a.vy;
+
+      // walls
+      if(a.x < 8 || a.x > W - 8){ a.vx *= -1; a.x = Math.max(8, Math.min(W-8, a.x)); }
+      if(a.y < 8 || a.y > H - 8){ a.vy *= -1; a.y = Math.max(8, Math.min(H-8, a.y)); }
+
+      // chip collision (rounded rect-ish -> use expanded ellipse)
+      const dx = (a.x - cx) / (CHIP_W/2 + 12);
+      const dy = (a.y - cy) / (CHIP_H/2 + 12);
+      if(dx*dx + dy*dy < 1){
+        const ang = Math.atan2(a.y - cy, a.x - cx);
+        a.x = cx + Math.cos(ang) * (CHIP_W/2 + 16);
+        a.y = cy + Math.sin(ang) * (CHIP_H/2 + 16);
+        a.vx = Math.cos(ang) * 1.7;
+        a.vy = Math.sin(ang) * 1.7;
+        a.hit = 14;
+      }
+      if(a.hit > 0) a.hit--;
+
+      const alpha = a.hit > 0 ? 1 : 0.72;
+      const rad = a.s + (a.hit > 0 ? 2 : 0);
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'hsla(' + a.hue + ', 100%, 70%, ' + alpha + ')';
+      ctx.fill();
+
+      if(a.hit > 0){
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, rad + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = 'hsla(' + a.hue + ', 100%, 75%, ' + (a.hit / 24) + ')';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    drawChip();
+    raf = requestAnimationFrame(frame);
+  }
+
+  frame();
+
+  return {
+    stop(){
+      active = false;
+      if(raf) cancelAnimationFrame(raf);
+    }
+  };
+});
+
+/* ---------- Slide 16 : Code line stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide.active .code-line'));
+  if(!lines.length) return { stop(){} };
+  let i = 0;
+  let timer = null;
+
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    // highlight pairs: monolithic line then microkernel line
+    const order = [0, 4, 1, 5, 2, 6, 3, 7];
+    const target = order[i % order.length];
+    if(lines[target]) lines[target].classList.add('hl');
+    i++;
+  }
+  tick();
+  timer = setInterval(tick, 900);
+
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 19 : htop telemetry ---------- */
+reg('htop', function(){
+  const rows = Array.from(document.querySelectorAll('.slide.active .cpuval'));
+  const taskCount = document.querySelector('.slide.active #taskCount');
+  if(!rows.length) return { stop(){} };
+
+  let timer = null;
+  function tick(){
+    rows.forEach(el => {
+      const base = 0.3 + Math.random() * 14;
+      el.textContent = base.toFixed(1);
+      el.style.color = base > 9 ? '#ffb648' : '';
+    });
+    if(taskCount){
+      taskCount.textContent = String(210 + Math.floor(Math.random() * 20));
+    }
+  }
+  tick();
+  timer = setInterval(tick, 1100);
+
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ============================================================
+   BUILD KINDERGARTEN RING (slide 02)
+   ============================================================ */
+(function buildKinder(){
+  const ring = document.getElementById('kinderRing');
+  if(!ring) return;
+  const N = 14;
+  const R = 46; // percent
+  for(let i = 0; i < N; i++){
+    const el = document.createElement('div');
+    el.className = 'kid';
+    const ang = (i / N) * Math.PI * 2 - Math.PI / 2;
+    el.style.left = (50 + Math.cos(ang) * R) + '%';
+    el.style.top  = (50 + Math.sin(ang) * R) + '%';
+    el.style.transform = 'translate(-50%,-50%)';
+    el.style.animationDelay = (i * (3.2 / N)) + 's';
+    el.textContent = '🧒';
+    ring.appendChild(el);
+  }
+})();
+
+/* ============================================================
+   DECK CONTROLLER
+   ============================================================ */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+
+  if(idx > 0) hintEl.classList.add('hide');
+}
+
+/* ---------- Init ---------- */
+go(0);
+
+/* ---------- Keyboard ---------- */
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight':
+    case 'PageDown':
+    case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft':
+    case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home':
+      e.preventDefault(); go(0); break;
+    case 'End':
+      e.preventDefault(); go(TOTAL - 1); break;
+    case 'f':
+    case 'F':
+      if(!document.fullscreenElement){
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+      break;
+  }
+});
+
+/* ---------- Buttons ---------- */
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+/* ---------- Touch / Swipe ---------- */
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1);
+    else go(idx - 1);
+  }
+}, { passive: true });
+
+/* ---------- Mouse wheel navigation (throttled) ---------- */
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  // if the active slide is scrollable and not at the edge, let it scroll
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+
+/* ---------- Resize: no-op, layout is fluid ---------- */
+</script>
+</body>
+</html>
