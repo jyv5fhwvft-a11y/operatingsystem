@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L06 — Process Execution Mechanics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#forkCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Analogy visuals */
+.relay-rig{position:relative;padding:18px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);}
+.relay-track-anim{position:relative;height:200px;}
+.runner-track{position:absolute;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:center;gap:18px;}
+.runner-track.t1{top:20px;}
+.runner-track.t2{top:120px;}
+.runner-node{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:26px;border:2px solid;position:relative;transition:.6s;}
+.runner-node.parent{border-color:rgba(91,141,255,.8);background:rgba(91,141,255,.14);color:#b9d0ff;animation:runnerPulse 3s ease-in-out infinite;}
+.runner-node.child{border-color:rgba(46,230,168,.8);background:rgba(46,230,168,.14);color:#88ffd8;animation:runnerPulse 3s ease-in-out infinite .5s;}
+.runner-node.exec{border-color:rgba(255,182,72,.8);background:rgba(255,182,72,.14);color:#ffd18a;animation:runnerPulse 3s ease-in-out infinite;}
+@keyframes runnerPulse{0%,100%{box-shadow:0 0 12px rgba(91,141,255,.4);}50%{box-shadow:0 0 26px rgba(91,141,255,.8);}}
+
+.clone-flow{display:flex;align-items:center;gap:18px;padding:14px 0;justify-content:center;}
+.clone-src{padding:16px 22px;border-radius:12px;border:2px solid rgba(91,141,255,.75);background:rgba(91,141,255,.12);color:#b9d0ff;font-family:var(--mono);font-size:12px;font-weight:800;letter-spacing:.04em;}
+.clone-arrow{font-size:24px;color:var(--emerald);animation:arrowPulse2 1.4s ease-in-out infinite;}
+@keyframes arrowPulse2{0%,100%{opacity:.5;transform:translateX(-3px);}50%{opacity:1;transform:translateX(3px);}}
+.clone-dst{display:flex;flex-direction:column;gap:8px;}
+.clone-item{padding:10px 18px;border-radius:10px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;}
+.clone-item.p{border:1px solid rgba(91,141,255,.75);background:rgba(91,141,255,.10);color:#b9d0ff;}
+.clone-item.c{border:1px solid rgba(46,230,168,.75);background:rgba(46,230,168,.10);color:#88ffd8;}
+
+/* Exec wipe animation */
+.exec-wipe{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.exec-before,.exec-after{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.22);}
+.exec-before h4,.exec-after h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.exec-before h4{color:var(--amber);}
+.exec-after h4{color:var(--emerald);}
+.exec-seg{padding:8px 12px;border-radius:6px;margin-bottom:6px;font-family:var(--mono);font-size:11px;display:flex;justify-content:space-between;transition:.4s;}
+.exec-seg.old{background:rgba(255,182,72,.10);border:1px solid rgba(255,182,72,.4);color:#ffd18a;}
+.exec-seg.new{background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.4);color:#88ffd8;}
+.exec-seg.kept{background:rgba(91,141,255,.10);border:1px solid rgba(91,141,255,.4);color:#b9d0ff;}
+
+/* Context switch save/load */
+.cs-flow{position:relative;padding:14px 0;}
+.cs-stage{display:flex;align-items:center;gap:16px;padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04);margin-bottom:10px;transition:.4s;}
+.cs-stage.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.12);box-shadow:0 0 26px -6px rgba(91,141,255,.8);}
+.cs-stage.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);}
+.cs-stage .cs-num{font-family:var(--mono);font-size:14px;font-weight:900;color:var(--muted);min-width:24px;}
+.cs-stage .cs-body{flex:1;}
+.cs-stage .cs-title{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:3px;}
+.cs-stage .cs-desc{font-size:11px;color:var(--muted);line-height:1.4;}
+
+/* Return value branching */
+.branch-vis{padding:14px 0;}
+.branch-row{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-bottom:10px;}
+.branch-row .br-from{text-align:center;font-family:var(--mono);font-size:12px;font-weight:800;color:#b9d0ff;}
+.branch-row .br-arrow{font-size:20px;color:var(--muted);}
+.branch-row .br-to{padding:10px 14px;border-radius:8px;font-size:11.5px;font-weight:800;text-align:center;}
+.branch-row .br-to.err{border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.10);color:#ff9fb1;}
+.branch-row .br-to.child{border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);color:#88ffd8;}
+.branch-row .br-to.parent{border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.10);color:#b9d0ff;}
+
+/* COW */
+.cow-vis{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.cow-card{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.22);}
+.cow-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.cow-card.shared h4{color:var(--emerald);}
+.cow-card.copied h4{color:var(--amber);}
+.cow-proc{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 12px;border-radius:8px;font-family:var(--mono);font-size:11px;font-weight:700;}
+.cow-proc.p{border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.cow-proc.c{border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.cow-frame{height:24px;border-radius:6px;background:rgba(46,230,168,.30);border:1px solid rgba(46,230,168,.65);}
+.cow-frame.copied{background:rgba(255,182,72,.30);border-color:rgba(255,182,72,.65);}
+
+/* Code blocks */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Zombie / orphan */
+.zombie-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.zombie-card{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.zombie-card.z{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.zombie-card.o{border-color:rgba(160,107,255,.5);background:rgba(160,107,255,.06);}
+.zombie-card .zt{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.zombie-card.z .zt{color:#ff9fb1;}
+.zombie-card.o .zt{color:#c9a7ff;}
+.zombie-card h4{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--ink);}
+.zombie-card p{font-size:11.5px;line-height:1.55;color:var(--muted);}
+.zombie-svg{width:100%;height:auto;margin-top:8px;}
+
+/* Fork bomb */
+.bomb-vis{position:relative;padding:20px;border-radius:12px;background:rgba(255,77,109,.05);border:1px solid rgba(255,77,109,.35);overflow:hidden;}
+.bomb-count{font-family:var(--mono);font-size:clamp(24px,3vw,40px);font-weight:900;color:#ff9fb1;text-align:center;margin-bottom:8px;letter-spacing:-.02em;}
+.bomb-label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:center;font-weight:800;margin-bottom:16px;}
+.bomb-grid{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;}
+.bomb-dot{aspect-ratio:1;border-radius:1px;background:rgba(255,77,109,.15);transition:.2s;}
+.bomb-dot.lit{background:#ff4d6d;box-shadow:0 0 4px #ff4d6d;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Latency bars */
+.latency-rig{padding:16px 8px;display:flex;flex-direction:column;gap:14px;}
+.lat-row{display:flex;flex-direction:column;gap:6px;}
+.lat-head{display:flex;justify-content:space-between;align-items:baseline;}
+.lat-name{font-size:11.5px;font-weight:800;letter-spacing:.05em;}
+.lat-val{font-family:var(--mono);font-size:13px;font-weight:800;}
+.lat-bar{height:14px;border-radius:6px;background:rgba(255,255,255,.05);position:relative;overflow:hidden;}
+.lat-fill{position:absolute;top:0;left:0;bottom:0;border-radius:6px;transform-origin:left center;transform:scaleX(0);transition:transform 1.2s cubic-bezier(.4,0,.2,1);}
+.lat-row.loaded .lat-fill{transform:scaleX(1);}
+.lat-row:nth-child(1) .lat-fill{background:linear-gradient(90deg,#2ee6a8,#88ffd8);width:2%;}
+.lat-row:nth-child(2) .lat-fill{background:linear-gradient(90deg,#ffb648,#ffd18a);width:15%;}
+.lat-row:nth-child(3) .lat-fill{background:linear-gradient(90deg,#ff4d6d,#ff9fb1);width:100%;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.zombie-grid,.cow-vis,.exec-wipe,.clone-flow{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .branch-row{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .bomb-grid{grid-template-columns:repeat(10,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L06 Execution Mechanics</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L06 · Overview" data-anim="forkcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L06 · Process Execution Mechanics</span>
+    <div class="split">
+      <div class="stack">
+        <h1>How does a process <span class="grad-blue">duplicate itself</span>, then <span class="grad-amber">replace itself</span> — and how does the CPU swap between them?</h1>
+        <p class="lead">Explain the exact operational lifecycle difference between cloning an address space (fork) and overriding an address space (exec), and trace register states during a context switch.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L06</span>
+          <p>We know what a process is. But how does Linux create a new one? How does <code style="font-family:var(--mono);color:#b9d0ff">ls</code> become the program that runs? And how does the CPU swap from process A to B <strong>without either noticing</strong>?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated fork canvas on the right. Let the duplicate-then-execute cycle play twice before speaking.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · A parent forks, then the child execs a new program</div>
+        <canvas id="forkCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Three Mechanisms">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 Three Mechanisms, One Lifecycle</span>
+    <h2 style="margin-bottom:16px;">fork · exec · context switch — the trio that runs every program</h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">fork()</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Duplicates the current process into a new child process. The child is an <strong>identical copy</strong> — same memory, same registers, same open files, same instruction pointer. It gets a new PID.</p>
+        <p style="margin-top:8px;font-size:12px;color:var(--muted);font-family:var(--mono)">pid_t fork(void)</p>
+      </div>
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">exec()</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Replaces the current process's address space with a <strong>new executable image</strong>. The PID stays the same, but everything else — code, data, heap, stack — gets wiped and reloaded.</p>
+        <p style="margin-top:8px;font-size:12px;color:var(--muted);font-family:var(--mono)">int execv(path, argv)</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:16px">
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">Context Switch</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">The kernel pauses process A, saves its registers into A's PCB, loads B's registers from B's PCB, and resumes B. A happens <strong>many times per second</strong> — transparently.</p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">The two-step pattern</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Every new program launch in Unix is <strong>fork + exec</strong>. The shell forks itself, and the child calls exec to load the target program. Context switch is what makes multitasking possible in between.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Relay Race">
+  <div class="slide-inner">
+    <span class="badge violet">🏃 Analogy 1 · Swapping Runners Mid-Relay</span>
+    <h2 style="margin-bottom:16px;">Three events, one <span class="grad-violet">track-and-field metaphor</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">fork() = duplicate the runner</span>
+          <p>The current runner <strong>magically duplicates themselves</strong> into a perfect clone standing right next to them. Both clones have the exact same muscle memory, are running at the exact same speed, and are looking at the exact same spot on the track.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">exec() = new script, same body</span>
+          <p>That runner keeps their physical body but <strong>instantly receives an entirely new task script</strong> — throwing a javelin instead of running. Same athlete, completely different activity.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Context switch = the referee</span>
+          <p>The referee pauses the race, <strong>carefully writes down exactly where the current runner stood</strong>, makes them step aside, and lets the next runner onto the track based on their previously recorded track position ledger.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole lifecycle in one sentence:</b> fork duplicates the track position, exec replaces the runner's task, and context switching moves runners on and off the track — all without the audience (user) noticing.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The relay field</div>
+        <div class="relay-rig">
+          <div class="relay-track-anim">
+            <div class="runner-track t1">
+              <div class="runner-node parent">🏃</div>
+              <div class="runner-node child">🏃</div>
+            </div>
+            <div class="runner-track t2">
+              <div class="runner-node exec">🏃‍♂️</div>
+              <div style="padding:10px 18px;border-radius:10px;border:1px dashed rgba(255,182,72,.55);background:rgba(255,182,72,.06);color:#ffd18a;font-family:var(--mono);font-size:11px;font-weight:800">→ javelin</div>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55;text-align:center">Top lane: fork produced a duplicate. Bottom lane: the same body received a new task.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="fork() · Clone">
+  <div class="slide-inner">
+    <span class="badge blue">🧬 fork() — The Complete Clone</span>
+    <h2 style="margin-bottom:16px;">One process becomes two — <span class="grad-blue">identical in every way except PID</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">What gets copied at fork()</div>
+        <div style="padding:6px 0;display:flex;flex-direction:column;gap:8px">
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.10);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:#b9d0ff">Address space</span>
+            <span style="color:var(--muted);font-family:var(--mono);font-size:11px">text, data, heap, stack</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:#88ffd8">File descriptors</span>
+            <span style="color:var(--muted);font-family:var(--mono);font-size:11px">fd 0, 1, 2 + all open</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.10);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:#ffd18a">Environment</span>
+            <span style="color:var(--muted);font-family:var(--mono);font-size:11px">all env vars</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(160,107,255,.55);background:rgba(160,107,255,.10);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:#c9a7ff">Program counter</span>
+            <span style="color:var(--muted);font-family:var(--mono);font-size:11px">same instruction</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.10);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:#ff9fb1">CPU registers</span>
+            <span style="color:var(--muted);font-family:var(--mono);font-size:11px">all 16 saved</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="font-weight:800;color:var(--muted)">PID</span>
+            <span style="color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800">NEW — different</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What actually happens</span>
+          <p>The kernel <strong>clones the calling process</strong>. It allocates a new PCB, copies the parent's register state into it, marks a new PID, and sets up a duplicate address space (lazily — we'll see COW next).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The result</span>
+          <p>Two runnable processes. Both have identical memory contents. Both are at the same instruction. Both will next execute the instruction <em>after</em> the fork() call. The only way to tell them apart is the return value of fork().</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What is NOT copied</span>
+          <p>PID (obviously), parent PID (PPid changes), CPU time counters, memory locks, certain signals. So "identical" isn't quite right — but for the memory contents and program state, it is.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Analogy sharpened:</b> fork is like a save-and-fork in a video game — two save slots with identical state. From now on, they diverge independently.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="fork() · Return Values">
+  <div class="slide-inner">
+    <span class="badge amber">🎯 fork() — The Return Value Branch</span>
+    <h2 style="margin-bottom:16px;">One call, <span class="grad-amber">two different return values</span> — that's the branching mechanism</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">The fork() return value determines the branch</div>
+        <div class="branch-vis">
+          <div class="branch-row">
+            <div class="br-from">pid_t rc = fork();</div>
+            <div class="br-arrow">→</div>
+            <div class="br-to err">rc &lt; 0 · fork failed</div>
+          </div>
+          <div class="branch-row">
+            <div class="br-from" style="opacity:.3">pid_t rc = fork();</div>
+            <div class="br-arrow">→</div>
+            <div class="br-to child">rc == 0 · this is the CHILD</div>
+          </div>
+          <div class="branch-row">
+            <div class="br-from" style="opacity:.3">pid_t rc = fork();</div>
+            <div class="br-arrow">→</div>
+            <div class="br-to parent">rc &gt; 0 · this is the PARENT (rc = child's PID)</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:16px;color:var(--muted);line-height:1.55">Both processes return from fork() at the same line of code — but with different return values. That's how each side knows which branch to take.</p>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Why 0 in the child?</span>
+          <p>Because the child doesn't need to know the parent's PID to do its job. The parent, however, needs to know the child's PID to be able to <code style="font-family:var(--mono);color:#88ffd8">wait()</code> on it, send it signals, or report it.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What failure looks like</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">rc &lt; 0</code> means the kernel couldn't allocate a new PCB or address space — usually due to a process limit (<code style="font-family:var(--mono);color:#ffd18a">ulimit -u</code>) or out of memory. Only the parent continues; no child is created.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The classic beginner bug</span>
+          <p>Forgetting that <em>both</em> processes return from the same line. New programmers often write <code style="font-family:var(--mono);color:#ff9fb1">fork(); printf("hi\n");</code> and get "hi" printed twice — once per process.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="fork() · COW">
+  <div class="slide-inner">
+    <span class="badge emerald">📋 Copy-on-Write — Why fork() Is Actually Fast</span>
+    <h2 style="margin-bottom:16px;">Modern kernels do <span class="grad-emerald">not</span> copy the whole address space at fork</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Naive approach (old)</span>
+          <p>Copy every page of the parent's memory into new physical pages. For a browser with 2 GB of RAM, fork() would take hundreds of milliseconds — way too slow for a shell prompt.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Copy-on-Write (modern)</span>
+          <p>The kernel copies <strong>only the page table</strong>, and marks all shared pages <strong>read-only in both processes</strong>. Both process page tables now point to the same physical frames. No data is copied.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The "write" trigger</span>
+          <p>If either process tries to write to a shared page, the MMU fires a page fault. The kernel catches it, copies <em>that one page</em> to a new frame, updates the page table, and resumes — with each process now owning its own copy of that page.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> COW is why fork() is nearly instant even for huge processes. Most processes only modify a few pages after fork — usually only the ones in the fork-then-exec pattern, which we'll see next get replaced entirely by exec anyway.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Shared pages before write, copied after</div>
+        <div class="cow-vis">
+          <div class="cow-card shared">
+            <h4>FORK JUST HAPPENED · shared</h4>
+            <div class="cow-proc p"><span>P</span>parent page table</div>
+            <div class="cow-frame" style="margin-bottom:6px"></div>
+            <div class="cow-proc c"><span>C</span>child page table</div>
+            <div class="cow-frame"></div>
+            <p style="font-size:10.5px;color:var(--emerald);margin-top:8px;font-family:var(--mono);font-weight:800">both → same physical frame</p>
+          </div>
+          <div class="cow-card copied">
+            <h4>AFTER CHILD WRITES · copied</h4>
+            <div class="cow-proc p"><span>P</span>parent page table</div>
+            <div class="cow-frame" style="margin-bottom:6px"></div>
+            <div class="cow-proc c"><span>C</span>child page table</div>
+            <div class="cow-frame copied"></div>
+            <p style="font-size:10.5px;color:var(--amber);margin-top:8px;font-family:var(--mono);font-weight:800">child has its own copy</p>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Copy happens lazily, page by page, on first write. Never eager, never bulk.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="exec() · Replace">
+  <div class="slide-inner">
+    <span class="badge amber">🔄 exec() — The Complete Replacement</span>
+    <h2 style="margin-bottom:16px;">Same process, <span class="grad-amber">entirely new program</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The exec replacement</div>
+        <div class="exec-wipe">
+          <div class="exec-before">
+            <h4>BEFORE EXEC</h4>
+            <div class="exec-seg old"><span>TEXT</span><span>old code</span></div>
+            <div class="exec-seg old"><span>DATA</span><span>old globals</span></div>
+            <div class="exec-seg old"><span>HEAP</span><span>old mallocs</span></div>
+            <div class="exec-seg old"><span>STACK</span><span>old frames</span></div>
+            <div class="exec-seg kept"><span>PID</span><span>4821 (kept)</span></div>
+            <div class="exec-seg kept"><span>FDs</span><span>0,1,2 (kept)</span></div>
+          </div>
+          <div class="exec-after">
+            <h4>AFTER EXEC</h4>
+            <div class="exec-seg new"><span>TEXT</span><span>new code</span></div>
+            <div class="exec-seg new"><span>DATA</span><span>new globals</span></div>
+            <div class="exec-seg new"><span>HEAP</span><span>fresh</span></div>
+            <div class="exec-seg new"><span>STACK</span><span>fresh</span></div>
+            <div class="exec-seg kept"><span>PID</span><span>4821 (same)</span></div>
+            <div class="exec-seg kept"><span>FDs</span><span>0,1,2 (same)</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What exec does</span>
+          <p>Wipes the current process's address space — text, data, heap, stack all gone — and loads a brand new executable binary from disk into it. The process becomes a <strong>different program</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What stays</span>
+          <p>The <strong>PID</strong> stays. Open <strong>file descriptors</strong> stay (unless marked FD_CLOEXEC). The <strong>parent PID</strong> stays. Environment variables pass through. So the shell's child process becomes the program you ran — but stays the same process from the kernel's point of view.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What dies</span>
+          <p>Any memory allocated in the parent process — even if the child is about to exec — is thrown away when exec runs. This is why fork+exec is efficient: the COW copies get discarded before they ever happen.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The clever bit:</b> if exec succeeds, it <strong>never returns</strong>. Control transfers to the new program's entry point (<code style="font-family:var(--mono);color:#c9a7ff">main()</code>). Only if exec <em>fails</em> does it return with -1.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="exec() · Family">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🧬 The exec Family — 6 Variants, One Job</span>
+    <h2 style="margin-bottom:16px;">Same operation, different <span class="grad-blue">argument-passing conventions</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">The family tree</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:12px">
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.08);display:flex;justify-content:space-between">
+            <span style="color:#b9d0ff;font-weight:800">execl</span>
+            <span style="color:var(--muted);font-size:11px">list args · path</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(91,141,255,.5);background:rgba(91,141,255,.08);display:flex;justify-content:space-between">
+            <span style="color:#b9d0ff;font-weight:800">execv</span>
+            <span style="color:var(--muted);font-size:11px">vector args · path</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.08);display:flex;justify-content:space-between">
+            <span style="color:#88ffd8;font-weight:800">execle</span>
+            <span style="color:var(--muted);font-size:11px">list args · envp</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.08);display:flex;justify-content:space-between">
+            <span style="color:#88ffd8;font-weight:800">execve</span>
+            <span style="color:var(--muted);font-size:11px">vector args · envp · the syscall</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.5);background:rgba(255,182,72,.08);display:flex;justify-content:space-between">
+            <span style="color:#ffd18a;font-weight:800">execlp</span>
+            <span style="color:var(--muted);font-size:11px">list args · PATH search</span>
+          </div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.5);background:rgba(255,182,72,.08);display:flex;justify-content:space-between">
+            <span style="color:#ffd18a;font-weight:800">execvp</span>
+            <span style="color:var(--muted);font-size:11px">vector args · PATH search</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The naming convention</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>l</strong> = list args (varargs)<br>
+            <strong>v</strong> = vector args (array)<br>
+            <strong>e</strong> = custom envp<br>
+            <strong>p</strong> = search PATH<br>
+            <strong>none</strong> = full path required
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The one that matters</span>
+          <p><code style="font-family:var(--mono);color:#88ffd8">execve</code> is the <strong>actual syscall</strong>. Every other variant is a libc wrapper that massages arguments and calls execve underneath. If you know execve, you know them all.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">When to use which</span>
+          <p><strong>execvp</strong> is the most common in shell-like code — it searches PATH for you. <strong>execve</strong> is what you use if you know the full path and want to control the environment exactly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Context Switch">
+  <div class="slide-inner">
+    <span class="badge violet">🔀 The Context Switch — The Third Mechanism</span>
+    <h2 style="margin-bottom:16px;">The kernel <span class="grad-violet">saves one process, loads another</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The four-step context switch</div>
+        <div class="cs-flow" id="csFlow">
+          <div class="cs-stage" data-idx="0">
+            <span class="cs-num">01</span>
+            <div class="cs-body">
+              <div class="cs-title">Save outgoing registers</div>
+              <div class="cs-desc">Read all CPU registers, write them into process A's PCB</div>
+            </div>
+          </div>
+          <div class="cs-stage" data-idx="1">
+            <span class="cs-num">02</span>
+            <div class="cs-body">
+              <div class="cs-title">Save outgoing PC</div>
+              <div class="cs-desc">Write A's program counter (RIP) into A's PCB</div>
+            </div>
+          </div>
+          <div class="cs-stage" data-idx="2">
+            <span class="cs-num">03</span>
+            <div class="cs-body">
+              <div class="cs-title">Load incoming registers</div>
+              <div class="cs-desc">Read B's saved registers from B's PCB, write to CPU</div>
+            </div>
+          </div>
+          <div class="cs-stage" data-idx="3">
+            <span class="cs-num">04</span>
+            <div class="cs-body">
+              <div class="cs-title">Load incoming PC</div>
+              <div class="cs-desc">Read B's saved PC, jump execution to that address</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What triggers a context switch</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>1.</strong> Time slice expires (preemptive scheduling)<br>
+            <strong>2.</strong> A process blocks on I/O<br>
+            <strong>3.</strong> A higher-priority process becomes ready<br>
+            <strong>4.</strong> A process calls yield() or sleep()
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it happens</span>
+          <p>The switch occurs inside the kernel, in Ring 0. Usually inside the scheduler or in the timer interrupt handler. The user-space code never sees it.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What the processes observe</span>
+          <p><strong>Nothing.</strong> Each process believes it was running continuously. Time simply "passed." Only the kernel tracks that other processes ran in the gap.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>How often?</b> A modern Linux desktop at idle does about 100–500 context switches per second. Under load, it can be tens of thousands per second — the scheduler is very busy.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Context Switch · Cost">
+  <div class="slide-inner">
+    <span class="badge amber">⏱️ The Context Switch Tax</span>
+    <h2 style="margin-bottom:16px;">Not free — and the cost is <span class="grad-amber">mostly invisible cache damage</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The direct cost</span>
+          <p>Saving 16 registers + PC + flags + swapping the page table base (CR3 on x86) costs roughly <strong>1–5 microseconds</strong>. Fast in absolute terms.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The indirect cost — cache pollution</span>
+          <p>After the switch, process B's code and data aren't in the L1 or L2 cache — those were full of A's. B runs slowly for the first few thousand instructions while its working set reloads from main memory. <strong>This dominates the real cost.</strong></p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The TLB cost</span>
+          <p>On a context switch, the TLB (virtual-to-physical address cache) usually has to be flushed, because A's entries are for A's page table, not B's. The first N memory accesses after the switch must walk the page table — much slower than a TLB hit.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> This is exactly why the L07/L08 scheduling lectures obsess over quantum sizes. Too many switches = cache thrashing. Too few = poor responsiveness. There's a sweet spot.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Relative costs (log scale)</div>
+        <div class="latency-rig" id="latencyRig">
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#88ffd8">Direct function call</span><span class="lat-val" style="color:#88ffd8">~5 ns</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#ffd18a">Context switch (direct)</span><span class="lat-val" style="color:#ffd18a">~2 µs</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+          <div class="lat-row">
+            <div class="lat-head"><span class="lat-name" style="color:#ff9fb1">Context switch + cache reload</span><span class="lat-val" style="color:#ff9fb1">~20 µs</span></div>
+            <div class="lat-bar"><div class="lat-fill"></div></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">The visible cost of ~2 µs is not the whole story. The real cost — cache reload — is ~10× higher and invisible to most profilers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Analogy 2 · Git">
+  <div class="slide-inner">
+    <span class="badge emerald">🌿 Analogy 2 · Git Branch vs. Project Overwrite</span>
+    <h2 style="margin-bottom:16px;">The pure technical <span class="grad-emerald">structural match</span></h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">fork() ≈ git branch</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">A git branch <strong>duplicates the exact state of the commit timeline</strong> into an isolated copy. The new branch shares every commit up to the branch point. From that point on, commits on one branch don't affect the other.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--muted);font-family:var(--mono)">$ git branch child-branch</p>
+      </div>
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">exec() ≈ project overwrite</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Deleting all code files in a folder and <strong>cloning a completely different repository</strong> into that exact same directory path. Same folder, same path — entirely different content.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--muted);font-family:var(--mono)">$ rm -rf * && git clone other-project</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:16px">
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">What the metaphor captures</span>
+        <p><strong>fork</strong> preserves the original timeline; the new branch is a divergence. <strong>exec</strong> destroys the original timeline; the working directory becomes a completely different codebase.</p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">Where the metaphor breaks</span>
+        <p>Git branches share physical disk storage (hardlinks / packed objects). fork's address space is truly independent — the child modifies its own memory. So think of fork as a <strong>full physical copy of the working tree</strong>, not a git branch with shared objects.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Two-Step Pattern">
+  <div class="slide-inner">
+    <span class="badge blue">🔨 The Two-Step Shell Pattern</span>
+    <h2 style="margin-bottom:16px;">How every program you run gets launched: <span class="grad-blue">fork + exec + wait</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The canonical launch sequence</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <rect x="40" y="14" width="260" height="50" rx="10" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="36" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="Inter" font-weight="800">SHELL (bash)</text>
+          <text x="170" y="52" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">running, waiting for input</text>
+
+          <line x1="170" y1="64" x2="170" y2="92" stroke="rgba(91,141,255,.7)" stroke-width="1.5" class="svg-flow"/>
+          <text x="180" y="82" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">$ ls</text>
+
+          <rect x="40" y="92" width="260" height="56" rx="10" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="116" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">fork()</text>
+          <text x="170" y="132" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">duplicates shell into parent + child</text>
+
+          <line x1="120" y1="148" x2="80" y2="180" stroke="rgba(91,141,255,.7)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="220" y1="148" x2="260" y2="180" stroke="rgba(255,182,72,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="20" y="180" width="120" height="60" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="80" y="202" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">PARENT</text>
+          <text x="80" y="218" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">wait(child)</text>
+          <text x="80" y="232" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">still running</text>
+
+          <rect x="200" y="180" width="120" height="60" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="260" y="202" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">CHILD</text>
+          <text x="260" y="218" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">execve("/bin/ls")</text>
+          <text x="260" y="232" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">becomes ls</text>
+
+          <line x1="260" y1="240" x2="260" y2="272" stroke="rgba(255,182,72,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="200" y="272" width="120" height="50" rx="10" fill="rgba(46,230,168,.12)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+          <text x="260" y="296" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">/bin/ls</text>
+          <text x="260" y="310" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">runs, exits</text>
+
+          <line x1="200" y1="297" x2="140" y2="297" stroke="rgba(46,230,168,.7)" stroke-width="1.5" class="svg-flow"/>
+          <text x="170" y="290" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">exit</text>
+          <text x="80" y="252" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">↓ wakes up</text>
+          <line x1="80" y1="240" x2="80" y2="266" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Step 1 · fork()</span>
+          <p>The shell duplicates itself. Now two copies exist — both are running the same shell code at the same instruction.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Step 2 · exec()</span>
+          <p>The child calls execve("/bin/ls") and becomes <code style="font-family:var(--mono);color:#ffd18a">ls</code> — completely different program, same PID. The parent goes to sleep in <code style="font-family:var(--mono);color:#ffd18a">wait()</code>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Step 3 · wait()</span>
+          <p>Parent blocks until the child exits, then returns to the prompt. Every command you type runs through this exact pattern — even <code style="font-family:var(--mono);color:#88ffd8">echo hi</code>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why not just exec in the shell?</b> Because then the shell would be replaced by the command — and you'd lose your shell session after every command. The fork lets the shell stay alive.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Code · fork+exec">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Code — The Classic fork + exec Shell</span>
+    <h2 style="margin-bottom:16px;">Six lines that launch <span class="grad-emerald">every command in Linux</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>shell_launcher.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;unistd.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;sys/wait.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-fn">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">pid_t</span> <span class="c-var">rc</span> = <span class="c-name">fork</span>();       <span class="c-com">// clone the shell</span></span><span class="code-line"></span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">rc</span> &lt; <span class="c-num">0</span>) {</span><span class="code-line">        <span class="c-name">perror</span>(<span class="c-str">"fork failed"</span>);</span><span class="code-line">        <span class="c-kw">return</span> <span class="c-num">1</span>;</span><span class="code-line">    } <span class="c-kw">else if</span> (<span class="c-var">rc</span> == <span class="c-num">0</span>) {</span><span class="code-line">        <span class="c-com">// CHILD · replace self with /bin/ls</span></span><span class="code-line">        <span class="c-type">char</span> *<span class="c-var">args</span>[] = { <span class="c-str">"/bin/ls"</span>, <span class="c-str">"-l"</span>, <span class="c-num">NULL</span> };</span><span class="code-line">        <span class="c-name">execv</span>(<span class="c-var">args</span>[<span class="c-num">0</span>], <span class="c-var">args</span>);</span><span class="code-line">        <span class="c-com">// exec only returns on failure</span></span><span class="code-line">        <span class="c-name">perror</span>(<span class="c-str">"exec failed"</span>);</span><span class="code-line">        <span class="c-name">_exit</span>(<span class="c-num">1</span>);</span><span class="code-line">    } <span class="c-kw">else</span> {</span><span class="code-line">        <span class="c-com">// PARENT · wait for child</span></span><span class="code-line">        <span class="c-name">wait</span>(<span class="c-num">NULL</span>);</span><span class="code-line">        <span class="c-name">printf</span>(<span class="c-str">"child exited\n"</span>);</span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Line 5 · the fork</span>
+          <p>One call, but execution now splits into two paths. <code style="font-family:var(--mono);color:#b9d0ff">rc</code> will have a different value in each.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Lines 15–18 · the child</span>
+          <p>The child calls <code style="font-family:var(--mono);color:#ffd18a">execv</code>. If it succeeds, the child's shell code is gone — <code style="font-family:var(--mono);color:#ffd18a">ls</code> runs instead. If it returns, exec failed and we bail.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Lines 20–22 · the parent</span>
+          <p>The parent calls <code style="font-family:var(--mono);color:#88ffd8">wait(NULL)</code> to block until the child exits. Then the parent prints and returns to the prompt — ready for the next command.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Note the <code style="font-family:var(--mono);color:#c9a7ff">_exit()</code> in the child:</b> not <code style="font-family:var(--mono);color:#c9a7ff">exit()</code>. The underscore version is the raw syscall and doesn't run atexit handlers — important because after a failed exec the child shouldn't inherit the shell's buffered output.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Code · Walkthrough">
+  <div class="slide-inner">
+    <span class="badge amber">🔍 Walkthrough — The Exact Timeline</span>
+    <h2 style="margin-bottom:16px;">What the CPU does, <span class="grad-amber">line by line</span></h2>
+    <div class="vis-frame" style="margin-bottom:14px">
+      <div class="vis-cap">Live · Execution interleaving</div>
+      <div style="padding:8px 0;font-family:var(--mono);font-size:12px;line-height:2;color:var(--ink-2)">
+        <div data-walk-line="0" style="padding:4px 12px;border-radius:6px;transition:.3s">[shell] pid 1000: rc = fork()</div>
+        <div data-walk-line="1" style="padding:4px 12px;border-radius:6px;transition:.3s">[parent] pid 1000: rc = 1001 (child's pid)</div>
+        <div data-walk-line="2" style="padding:4px 12px;border-radius:6px;transition:.3s">[child]  pid 1001: rc = 0</div>
+        <div data-walk-line="3" style="padding:4px 12px;border-radius:6px;transition:.3s">[parent] pid 1000: rc &gt; 0 → wait(NULL) blocks</div>
+        <div data-walk-line="4" style="padding:4px 12px;border-radius:6px;transition:.3s">[child]  pid 1001: rc == 0 → execv("/bin/ls", ...)</div>
+        <div data-walk-line="5" style="padding:4px 12px;border-radius:6px;transition:.3s">[child]  pid 1001: becomes ls · runs · prints files</div>
+        <div data-walk-line="6" style="padding:4px 12px;border-radius:6px;transition:.3s">[child]  pid 1001: exit(0)</div>
+        <div data-walk-line="7" style="padding:4px 12px;border-radius:6px;transition:.3s">[parent] pid 1000: wait() returns · printf runs</div>
+        <div data-walk-line="8" style="padding:4px 12px;border-radius:6px;transition:.3s">[shell]  pid 1000: back to prompt</div>
+      </div>
+    </div>
+    <div class="split">
+      <div class="panel blue">
+        <span class="panel-label">The key insight</span>
+        <p>Notice the parent blocks at <code style="font-family:var(--mono);color:#b9d0ff">wait()</code> and does nothing while the child runs. This is normal — the shell isn't consuming CPU, it's just waiting for the child to exit.</p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">The PID stays the same</span>
+        <p>The child (pid 1001) is a different PID from the shell (pid 1000), even though it inherits everything. Then exec preserves 1001 — so the kernel sees <code style="font-family:var(--mono);color:#88ffd8">ls</code> as pid 1001 running from the shell's earlier state.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live Demo · Prediction" data-anim="forkdemo">
+  <div class="slide-inner">
+    <span class="badge violet">🧪 Live Demo — The fork() Output Prediction Game</span>
+    <h2 style="margin-bottom:16px;">How many times does <code style="font-family:var(--mono);color:#c9a7ff">printf</code> run?</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The surprise output of a "simple" fork</div>
+        <div class="terminal" id="forkTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — fork_count</span>
+          </div>
+          <div class="term-body" id="forkBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat fork_count.c</span></span>
+            <span class="term-line dim">int main() {</span>
+            <span class="term-line dim">    fork();</span>
+            <span class="term-line dim">    fork();</span>
+            <span class="term-line dim">    printf("hi\n");</span>
+            <span class="term-line dim">    return 0;</span>
+            <span class="term-line dim">}</span>
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./fork_count</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The prediction challenge</span>
+          <p>How many lines of <code style="font-family:var(--mono);color:#c9a7ff">"hi"</code> will print?</p>
+          <p style="margin-top:10px;font-size:14px;color:var(--ink)">a) 1 &nbsp;&nbsp;&nbsp; b) 2 &nbsp;&nbsp;&nbsp; c) 3 &nbsp;&nbsp;&nbsp; d) 4</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The answer</span>
+          <p><strong>4 lines.</strong> Because the first fork creates 2 processes, and the second fork creates 2 more from <em>each</em> of them. Total 4 processes, each printing once.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mental model</span>
+          <p>N fork() calls in a row create 2^N processes. Two forks → 4 processes → 4 prints. This trips up beginners constantly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Zombie / Orphan">
+  <div class="slide-inner">
+    <span class="badge crimson">💀 Aftermath — Zombie and Orphan Processes</span>
+    <h2 style="margin-bottom:16px;">What happens when processes <span class="grad-crimson">outlive their parent</span> — or vice versa?</h2>
+    <div class="split">
+      <div class="zombie-grid">
+        <div class="zombie-card z">
+          <div class="zt">Zombie Process</div>
+          <h4>Child exits, parent hasn't waited</h4>
+          <p>The child is dead but its PCB can't be reclaimed until the parent calls wait() and reads the exit status. The PID stays allocated. On <code style="font-family:var(--mono);color:#ff9fb1">ps</code>, it shows as <code style="font-family:var(--mono);color:#ff9fb1">defunct</code>.</p>
+          <svg viewBox="0 0 200 80" class="zombie-svg">
+            <rect x="10" y="14" width="80" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+            <text x="50" y="33" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">parent</text>
+            <rect x="110" y="14" width="80" height="30" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+            <text x="150" y="33" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">child ☠</text>
+            <line x1="90" y1="29" x2="110" y2="29" stroke="rgba(255,77,109,.6)" stroke-width="1.4" stroke-dasharray="3 3"/>
+            <text x="100" y="62" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">not reaped</text>
+          </svg>
+        </div>
+        <div class="zombie-card o">
+          <div class="zt">Orphan Process</div>
+          <h4>Parent exits before child</h4>
+          <p>The child keeps running but loses its parent. It's immediately reparented to PID 1 (init/systemd), which adopts and eventually reaps it. Normal and harmless.</p>
+          <svg viewBox="0 0 200 80" class="zombie-svg">
+            <rect x="10" y="14" width="80" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+            <text x="50" y="33" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">parent ☠</text>
+            <rect x="110" y="14" width="80" height="30" rx="6" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+            <text x="150" y="33" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter" font-weight="700">child (adopted)</text>
+            <line x1="90" y1="29" x2="110" y2="29" stroke="rgba(160,107,255,.6)" stroke-width="1.4" stroke-dasharray="3 3"/>
+            <text x="100" y="62" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">→ PID 1</text>
+          </svg>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Why zombies are bad</span>
+          <p>A zombie uses a PID slot but no memory. Hundreds of zombies exhaust the process table — at which point fork() fails and the system can't create new processes. <strong>They're a real production incident.</strong></p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Parents must call <code style="font-family:var(--mono);color:#88ffd8">wait()</code> or <code style="font-family:var(--mono);color:#88ffd8">waitpid()</code> to reap children. If a parent can't (or won't), the fix is to install a SIGCHLD handler that reaps automatically.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why orphans are fine</span>
+          <p>Because the kernel <strong>reparents them to PID 1</strong>, which is guaranteed to call wait() — so no zombie accumulates. This is the design pattern behind daemons: fork, exit parent, and the child becomes an orphan adopted by init.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Fork Bomb">
+  <div class="slide-inner">
+    <span class="badge crimson">💣 The Classic Fork Bomb — When fork() Goes Too Far</span>
+    <h2 style="margin-bottom:16px;">Nine characters that <span class="grad-crimson">freeze a machine</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber" style="padding:18px">
+          <span class="panel-label">The famous fork bomb</span>
+          <pre style="font-family:var(--mono);font-size:14px;padding:12px;background:rgba(0,0,0,.35);border-radius:8px;border:1px solid rgba(255,182,72,.35);color:#ffd18a;margin:0"><code>:(){ :|:& };:</code></pre>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What it does</span>
+          <p>A function named <code style="font-family:var(--mono);color:#ff9fb1">:</code> that calls itself twice and backgrounds each call. Every process forks twice. Exponential growth: 1 → 2 → 4 → 8 → 16 → ... until the process table is full and the machine freezes.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why modern systems survive it</span>
+          <p>Most Linux systems have a per-user process limit (<code style="font-family:var(--mono);color:#b9d0ff">ulimit -u</code>) that stops the explosion. Container environments enforce stricter limits still. Never run this on a system without limits.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Educational point:</b> this is why <code style="font-family:var(--mono);color:#c9a7ff">ulimit</code>, process isolation, and cgroups exist. A single malicious script should not be able to take down the system.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Process count explosion</div>
+        <div class="bomb-vis">
+          <div class="bomb-count" id="bombCount">1</div>
+          <div class="bomb-label">processes forked</div>
+          <div class="bomb-grid" id="bombGrid">
+            <!-- 16x16 dots = 256, generated by JS -->
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Each doubling fires fork twice — the process table fills exponentially.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — fork &amp; exec</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">fork()</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A system call that duplicates the current process to create an isolated, matching child process container.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( One process becomes two identical ones. Both continue from the same line of code. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Returns</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">0</code> in the child · <code style="font-family:var(--mono);color:#b9d0ff">&gt;0</code> (child PID) in the parent · <code style="font-family:var(--mono);color:#b9d0ff">&lt;0</code> on failure.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">exec()</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A system call that overrides the active process's address space with a new executable binary program image.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The process becomes a completely different program — same PID, totally new code. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Returns</span>
+          <p>Never — on success, control jumps to the new program. Only returns <code style="font-family:var(--mono);color:#ffd18a">-1</code> on failure.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge violet">🏷️ System Lexicon — Context Switch &amp; PCB Save</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Context Switch</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The physical hardware/software process of saving the active CPU register state and restoring a different task context.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The kernel's bookkeeping operation when the CPU switches from one process to another. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Cost</span>
+          <p>~2 µs direct, but ~20 µs effective due to cache pollution and TLB flush.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">PCB Save/Restore</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The computational steps during a context switch that copy registers to or from a task's PCB kernel cache.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The write-down-then-read-back operation on the ledger folder that makes pausing/resuming processes work. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge">🧭 System Cohesion — Where L06 Sits</span>
+    <h2 style="margin-bottom:20px;">The link from <span class="grad-blue">PCBs to living programs</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L03 (Gatekeeper Mechanism)</h4>
+            <p>Relies on system traps to pass execution control securely to <code style="font-family:var(--mono);color:#b9d0ff">sys_fork</code> and <code style="font-family:var(--mono);color:#b9d0ff">sys_execute</code> routines. Both are regular syscalls — Ring 3 → Ring 0 transitions.</p>
+          </div>
+          <div class="cohesion-card relies" style="margin-top:0">
+            <h4>Relies On · L05 (Process Anatomy)</h4>
+            <p>fork() clones the PCB; exec() replaces the address space while preserving the PCB's PID. The PCB is the substrate these syscalls manipulate.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 4 (Memory Management)</h4>
+            <p>Deeply ties into Virtual Memory optimization mechanisms like <strong>Copy-On-Write (COW)</strong> page table mirroring. fork's speed depends on the memory subsystem.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 2 (L07–L08 Scheduling)</h4>
+            <p>Every context switch is what the scheduler <em>decides to do</em>. Understanding the cost is why quantum sizes matter in L07.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The bridge:</b> L05 said "here is the PCB". L06 says "here is how processes clone themselves, replace their contents, and swap on/off the CPU." Every remaining module assumes you know this.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L03 · syscalls</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">fork/exec entry</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L05 · PCB</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">ledger structure</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L06 · EXECUTION</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">fork · exec · switch</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">COW · memory</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">L07–L08</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">scheduler decisions</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="badge">🌿 Mindmap — Where L06 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 2: Process Management</span></div>
+          <div class="mm-row"><span class="mm-prefix">    ├── </span><span class="mm-node">L05: Process Anatomy &amp; PCB</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L06: Execution Mechanics 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf blue">fork() · cloning</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf amber">exec() · overriding</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf">Context Switch · save/load</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf emerald">The COW optimization</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Where this leads</h2>
+        <div class="panel blue">
+          <span class="panel-label">L07: CPU Scheduling I</span>
+          <p>Now that we know how a context switch works and costs, L07 asks: <strong>when should the kernel switch?</strong> FCFS, SJF, Round Robin — different answers to that question.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The full picture so far</span>
+          <p>L01 architecture → L02 barrier → L03 syscalls → L04 boot → L05 PCB → L06 execution. Each layer sits on the one before it. By the end of Module 2, you'll have every mechanism you need to reason about real OS behavior.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Real World · Shells">
+  <div class="slide-inner">
+    <span class="badge amber">🌍 Real World — You've Already Used This Today</span>
+    <h2 style="margin-bottom:16px;">Every command you run is a <span class="grad-amber">fork + exec in disguise</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Bash tracing its own forks</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">bash — strace -f -e trace=fork,execve</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -f -e trace=fork,execve bash -c "ls &amp;&amp; echo done"</span></span>
+            <span class="term-line dim">[pid 4101] fork() = 4102</span>
+            <span class="term-line dim">[pid 4102] execve("/bin/ls", ["ls"], ...) = 0</span>
+            <span class="term-line ok">[pid 4102] exited with 0</span>
+            <span class="term-line dim">[pid 4101] fork() = 4103</span>
+            <span class="term-line dim">[pid 4103] execve("/bin/echo", ["echo", "done"], ...) = 0</span>
+            <span class="term-line ok">[pid 4103] write(1, "done\n", 5) = 5</span>
+            <span class="term-line ok">[pid 4103] exited with 0</span>
+            <span class="term-line dim">[pid 4101] exited with 0</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p>Every <code style="font-family:var(--mono);color:#ffd18a">&amp;&amp;</code> in a shell is a sequential launch. Each command gets its own <strong>fork + exec</strong> pair. The shell (pid 4101) stays alive and just orchestrates.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why strace is magic for understanding this</span>
+          <p>Running <code style="font-family:var(--mono);color:#b9d0ff">strace -f -e trace=fork,execve,wait4 &lt;command&gt;</code> on any process shows you the actual lifecycle. It's the best way to build intuition about these mechanisms.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Not just shells</span>
+          <p>Python's <code style="font-family:var(--mono);color:#88ffd8">subprocess.run()</code>, Node's <code style="font-family:var(--mono);color:#88ffd8">child_process.spawn()</code>, Git's hooks, cron jobs, systemd services — <strong>all use this exact pattern</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Common Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Classic Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners always get wrong about fork/exec</h2>
+    <div class="stack" style="gap:14px">
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 01 — "fork returns once"</span>
+        <p>It returns <strong>twice</strong> — once in the parent and once in the child. If your code doesn't check the return value, both parent and child execute the same code path, often causing duplicate work or subtle bugs.</p>
+      </div>
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 02 — "exec is like fork"</span>
+        <p>They're opposites. fork <strong>copies</strong>. exec <strong>replaces</strong>. exec doesn't create a new process — it turns the calling process into a different program, keeping the PID. If you exec without forking first, the calling program is gone forever.</p>
+      </div>
+      <div class="panel crimson">
+        <span class="panel-label">Pitfall 03 — "context switch is instant"</span>
+        <p>No — it's ~2 µs direct but ~20 µs effective once you account for cache pollution and TLB flush. This is why 10,000 switches per second of very tiny work is <strong>slower</strong> than 1,000 switches of 10× work. Throughput vs. latency tradeoff.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Human fork+exec Walkthrough</span>
+    <h2 style="margin-bottom:16px;">Three students, <span class="grad-violet">three roles</span>, one lifecycle</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The roles</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>Student A</strong> — the shell (parent)<br>
+            <strong>Student B</strong> — the cloned child (before exec)<br>
+            <strong>Student C</strong> — the new program (after exec)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The choreography</span>
+          <p>A holds a card that says "echo hi". A physically hands an exact copy to B (fork). B then discards their card and picks up a new one from a stack labelled "exec target" (exec). B is now C — same person, different task.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief</span>
+          <p>Ask the class: <em>"Which one is the same process before and after exec?"</em> Answer: the child. <em>"Which one has the same PID as before?"</em> The child. <em>"What happened to the parent?"</em> It just sits in wait().</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · fork + exec visualization</div>
+        <div class="clone-flow">
+          <div class="clone-src">SHELL</div>
+          <div class="clone-arrow">→</div>
+          <div class="clone-dst">
+            <div class="clone-item p">parent · same code</div>
+            <div class="clone-item c">child · same code</div>
+          </div>
+        </div>
+        <div class="mini-label" style="margin-top:14px;text-align:center">then exec on the child</div>
+        <div class="clone-flow" style="margin-top:6px">
+          <div class="clone-src" style="border-color:rgba(46,230,168,.75);background:rgba(46,230,168,.12);color:#88ffd8">CHILD</div>
+          <div class="clone-arrow" style="color:var(--amber)">→</div>
+          <div class="clone-dst">
+            <div class="clone-item" style="border:1px solid rgba(255,182,72,.75);background:rgba(255,182,72,.10);color:#ffd18a">execve("/bin/echo")</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Same child, new program. PID unchanged.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Advanced">
+  <div class="slide-inner">
+    <span class="badge blue">🔬 Advanced — Beyond fork+exec</span>
+    <h2 style="margin-bottom:16px;">Three more modern mechanisms worth knowing</h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">vfork()</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">A specialized fork that <strong>suspends the parent</strong> and shares its address space with the child until exec. No copy at all. Only safe if the child <em>immediately</em> execs. Older optimization — largely replaced by COW.</p>
+      </div>
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">posix_spawn()</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">A combined fork+exec as a single function call, optimized by the libc to skip the fork entirely on systems that support it. <strong>What modern code should use</strong> when it just wants to launch a program.</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:14px">
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">clone()</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">The raw syscall underlying fork() on Linux. Takes flags that control what gets shared: memory, file descriptors, signal handlers. <strong>Threads are clone() with shared memory</strong> — this is the bridge to L09.</p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">Why knowing these matters</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">When you're debugging why a forked process is slow, understanding vfork and clone is essential. When you write a shell, knowing posix_spawn saves you from common pitfalls.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L06 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p><strong>fork() duplicates</strong> the current process. It returns twice — 0 in the child, child's PID in the parent. Both branches now run independently.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>exec() replaces</strong> the current process's address space with a new program. Same PID, entirely new code. If it succeeds, it never returns.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Context switch</strong> is how the kernel swaps between processes. It saves the outgoing PCB's registers and loads the incoming PCB's. Direct cost ~2 µs, real cost ~20 µs due to cache pollution.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>fork + exec</strong> is the universal launch pattern. Every command you run through a shell uses it. Copy-on-Write makes fork fast; exec then discards the copies before they ever happen.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L07 — CPU Scheduling I (FCFS, SJF, Round Robin)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We now know <em>how</em> context switches happen. L07 asks the critical next question: <strong>when should the kernel decide to switch?</strong> Different scheduling policies answer differently, with different fairness and throughput characteristics.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L07: CPU Scheduling I &nbsp;|&nbsp; [L7.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad6" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad6)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad6)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : fork canvas ---------- */
+reg('forkcanvas', function(){
+  const c = document.getElementById('forkCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const phaseLength = 180; // frames per phase
+  const phases = ['fork', 'exec', 'show'];
+
+  function drawNode(x, y, r, color, label, alpha){
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, color + 'DD');
+    grad.addColorStop(1, color + '22');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#0a0f1c';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y + r + 18);
+    void alpha;
+  }
+
+  function drawArrow(x1, y1, x2, y2, color){
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const headLen = 8;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+
+    const totalCycle = phaseLength * phases.length;
+    const cyc = t % totalCycle;
+    const phaseIdx = Math.floor(cyc / phaseLength);
+    const phaseT = (cyc % phaseLength) / phaseLength;
+    const phase = phases[phaseIdx];
+
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // Title
+    ctx.fillStyle = 'rgba(132,148,180,0.75)';
+    ctx.font = '700 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PARENT PROCESS  →  FORK  →  CHILD  →  EXEC  →  NEW PROGRAM', W/2, 16);
+
+    // base positions
+    const cx = W / 2;
+    const cy = H / 2 + 20;
+
+    if(phase === 'fork'){
+      // Parent in center, child fades in beside it
+      const childAlpha = Math.min(1, phaseT * 1.5);
+      const childOffset = 120 * Math.min(1, phaseT * 1.5);
+
+      drawNode(cx - childOffset / 2, cy - 30, 36, '#8fb4ff', 'PARENT', 1);
+      if(childAlpha > 0){
+        ctx.globalAlpha = childAlpha;
+        drawNode(cx + childOffset / 2, cy - 30, 36, '#2ee6a8', 'CHILD', childAlpha);
+        ctx.globalAlpha = 1;
+      }
+
+      // fork arrow
+      ctx.fillStyle = '#c9a7ff';
+      ctx.font = '800 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('fork()', cx, cy + 60);
+      ctx.font = '600 10px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(201,167,255,0.7)';
+      ctx.fillText('duplicate address space', cx, cy + 80);
+    } else if(phase === 'exec'){
+      // Parent stays, child transforms to exec
+      drawNode(cx - 60, cy - 30, 36, '#8fb4ff', 'PARENT', 1);
+
+      // Child morphs
+      const morphT = Math.min(1, phaseT * 1.2);
+      const childColor = morphT > 0.5 ? '#ffb648' : '#2ee6a8';
+      const childLabel = morphT > 0.5 ? 'NEW PROG' : 'CHILD';
+      const r = 36 + Math.sin(phaseT * Math.PI) * 8;
+
+      drawNode(cx + 60, cy - 30, r, childColor, childLabel, 1);
+
+      // Arrow label
+      ctx.fillStyle = '#ffd18a';
+      ctx.font = '800 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('exec()', cx + 60, cy + 60);
+      ctx.font = '600 10px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,209,138,0.7)';
+      ctx.fillText('replace address space', cx + 60, cy + 80);
+
+      // Parent's wait() indicator
+      ctx.fillStyle = 'rgba(143,180,255,0.7)';
+      ctx.font = '600 10px JetBrains Mono, monospace';
+      ctx.fillText('wait(NULL)', cx - 60, cy + 60);
+    } else {
+      // Show: parent + new program, both running
+      drawNode(cx - 80, cy - 30, 36, '#8fb4ff', 'PARENT', 1);
+      drawNode(cx + 80, cy - 30, 36, '#ffb648', 'NEW PROG', 1);
+
+      // Arrows
+      drawArrow(cx - 80 + 40, cy - 30, cx + 80 - 40, cy - 30, 'rgba(46,230,168,0.6)');
+
+      ctx.fillStyle = '#88ffd8';
+      ctx.font = '800 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('two independent processes running', cx, cy + 70);
+    }
+
+    // Progress bar at bottom
+    const barW = W - 100;
+    const barX = 50;
+    const barY = H - 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(barX, barY, barW, 4);
+    const totalProgress = ((phaseIdx * phaseLength) + (phaseT * phaseLength)) / totalCycle;
+    ctx.fillStyle = '#5b8dff';
+    ctx.fillRect(barX, barY, barW * totalProgress, 4);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 9 : context switch flow ---------- */
+reg('csflow', function(){
+  const stages = document.querySelectorAll('#csFlow .cs-stage');
+  if(!stages.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    stages.forEach(s => { s.classList.remove('active','done'); });
+    stages.forEach((s, i) => {
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (stages.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); stages.forEach(s => s.classList.remove('active','done')); } };
+});
+
+/* ---------- Slide 10 : latency bars ---------- */
+reg('latency', function(){
+  const rig = document.getElementById('latencyRig');
+  if(!rig) return { stop(){} };
+  const rows = rig.querySelectorAll('.lat-row');
+  function reset(){ rows.forEach(r => r.classList.remove('loaded')); }
+  function run(){
+    reset();
+    requestAnimationFrame(() => {
+      rows.forEach((r, i) => setTimeout(() => r.classList.add('loaded'), 100 + i * 220));
+    });
+  }
+  run();
+  const timer = setInterval(run, 4000);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 14 : walkthrough ---------- */
+reg('walkthrough', function(){
+  const lines = document.querySelectorAll('[data-walk-line]');
+  if(!lines.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    lines.forEach(l => { l.style.background = ''; l.style.color = ''; });
+    const line = lines[idx % lines.length];
+    if(line){
+      line.style.background = 'rgba(255,182,72,0.18)';
+      line.style.color = '#ffd18a';
+    }
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => { l.style.background = ''; l.style.color = ''; }); } };
+});
+
+/* ---------- Slide 15 : fork demo terminal ---------- */
+reg('forkdemo', function(){
+  const body = document.getElementById('forkBody');
+  if(!body) return { stop(){} };
+  const lines = [
+    {cls:'term-line', text:'hi'},
+    {cls:'term-line', text:'hi'},
+    {cls:'term-line', text:'hi'},
+    {cls:'term-line', text:'hi'},
+    {cls:'term-line dim', text:'(4 lines, not 1 — because 2 forks create 4 processes)'}
+  ];
+  let idx = 0;
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', '<span class="' + lines[idx].cls + '">' + lines[idx].text + '</span>');
+      idx++;
+    } else {
+      // reset after pause
+      setTimeout(() => {
+        if(!body.isConnected) return;
+        body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">cat fork_count.c</span></span>'
+          + '<span class="term-line dim">int main() {</span>'
+          + '<span class="term-line dim">    fork();</span>'
+          + '<span class="term-line dim">    fork();</span>'
+          + '<span class="term-line dim">    printf("hi\\n");</span>'
+          + '<span class="term-line dim">    return 0;</span>'
+          + '<span class="term-line dim">}</span>'
+          + '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./fork_count</span></span>';
+        idx = 0;
+      }, 3000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 600);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 17 : fork bomb ---------- */
+reg('forkbomb', function(){
+  const grid = document.getElementById('bombGrid');
+  const count = document.getElementById('bombCount');
+  if(!grid || !count) return { stop(){} };
+  // build 16x16 grid
+  grid.innerHTML = '';
+  const totalDots = 256;
+  const dots = [];
+  for(let i = 0; i < totalDots; i++){
+    const d = document.createElement('div');
+    d.className = 'bomb-dot';
+    grid.appendChild(d);
+    dots.push(d);
+  }
+  let visible = 1;
+  function tick(){
+    count.textContent = visible;
+    dots.forEach((d, i) => {
+      if(i < visible) d.classList.add('lit');
+      else d.classList.remove('lit');
+    });
+    visible *= 2;
+    if(visible > totalDots) visible = 1;
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s, i) => {
+    if(s.querySelector('#csFlow')) s.dataset.anim = 'csflow';
+    if(s.querySelector('#latencyRig')) s.dataset.anim = 'latency';
+    if(s.querySelector('[data-walk-line]')) s.dataset.anim = 'walkthrough';
+    if(s.querySelector('#forkBody')) s.dataset.anim = 'forkdemo';
+    if(s.querySelector('#bombGrid')) s.dataset.anim = 'forkbomb';
+    void i;
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
