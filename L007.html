@@ -1,0 +1,1977 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L07 — CPU Scheduling I</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#schedCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Grocery checkout */
+.grocery-lane{display:flex;flex-direction:column;gap:14px;padding:8px 0;}
+.lane-row{padding:14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.22);}
+.lane-row h4{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+.lane-row.fcfs h4{color:var(--blue-2);}
+.lane-row.sjf h4{color:var(--emerald);}
+.lane-row.rr h4{color:var(--amber);}
+.lane-customer{
+  display:inline-block;padding:8px 14px;margin:4px 4px 4px 0;
+  border-radius:8px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;
+  border:1px solid;position:relative;transition:.3s;
+}
+.lane-customer.small{background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.lane-customer.medium{background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.lane-customer.large{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.55);color:#ff9fb1;}
+.lane-customer.active{animation:laneActive 2s ease-in-out infinite;}
+@keyframes laneActive{0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(255,255,255,0);}50%{transform:scale(1.08);box-shadow:0 0 20px rgba(255,255,255,.4);}}
+.lane-customer .size-badge{font-size:9px;opacity:.7;margin-left:5px;}
+.lane-metric{font-size:10.5px;color:var(--muted);font-family:var(--mono);margin-top:8px;font-weight:700;}
+
+/* Ring buffer analogy */
+.ring-buffer{position:relative;display:grid;place-items:center;padding:16px;}
+.ring-buffer svg{width:100%;max-width:340px;}
+
+/* Metrics cards */
+.metric-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:8px 0;}
+.metric-card{padding:16px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.metric-card .mc-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:8px;}
+.metric-card .mc-name{font-size:13px;font-weight:800;margin-bottom:4px;}
+.metric-card .mc-desc{font-size:11px;color:var(--muted);line-height:1.4;}
+.metric-card .mc-formula{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08);}
+.metric-card.turnaround{border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.06);}
+.metric-card.turnaround .mc-name{color:var(--blue-2);}
+.metric-card.wait{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.metric-card.wait .mc-name{color:var(--amber);}
+.metric-card.response{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);}
+.metric-card.response .mc-name{color:var(--emerald);}
+
+/* Gantt chart */
+.gantt-wrap{padding:8px 0;}
+.gantt-chart{position:relative;padding:16px 0;font-family:var(--mono);font-size:11px;}
+.gantt-row{display:flex;align-items:center;margin-bottom:6px;height:32px;}
+.gantt-label{width:80px;font-weight:700;color:var(--ink-2);font-size:11px;}
+.gantt-track{flex:1;position:relative;height:32px;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid var(--stroke);overflow:hidden;}
+.gantt-block{position:absolute;top:0;bottom:0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:.04em;transition:.4s;}
+.gantt-block.p1{background:rgba(91,141,255,.55);color:#eaf0fc;}
+.gantt-block.p2{background:rgba(46,230,168,.55);color:#eaf0fc;}
+.gantt-block.p3{background:rgba(255,182,72,.55);color:#eaf0fc;}
+.gantt-block.p4{background:rgba(160,107,255,.55);color:#eaf0fc;}
+.gantt-block.p5{background:rgba(255,77,109,.55);color:#eaf0fc;}
+.gantt-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding:0 80px 0 88px;margin-top:4px;font-weight:700;}
+
+/* Timeline for Gantt with tick marks */
+.gantt-timeline{position:relative;height:16px;margin-top:6px;margin-left:80px;border-top:1px solid rgba(255,255,255,.10);}
+.gantt-tick{position:absolute;top:0;height:8px;border-left:1px solid rgba(255,255,255,.25);font-size:9px;color:var(--muted);padding-left:3px;padding-top:2px;}
+
+/* SJF workload cards */
+.workload-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 0;}
+.wl-card{padding:16px 12px;border-radius:12px;text-align:center;border:1px solid;font-family:var(--mono);}
+.wl-card.p1{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.wl-card.p2{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.wl-card.p3{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.wl-card .wl-name{font-size:13px;font-weight:900;margin-bottom:8px;letter-spacing:.06em;}
+.wl-card .wl-burst{font-size:22px;font-weight:900;letter-spacing:-.02em;}
+.wl-card .wl-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:4px;font-weight:700;}
+
+/* Quantum wheel */
+.quantum-wheel{position:relative;width:min(100%,240px);aspect-ratio:1;margin:0 auto;border-radius:50%;
+  background:conic-gradient(
+    #5b8dff 0 25%,
+    #2ee6a8 25% 50%,
+    #ffb648 50% 75%,
+    #a06bff 75% 100%);
+  box-shadow:0 0 60px -12px rgba(91,141,255,.55);
+}
+.quantum-wheel::after{
+  content:'QUANTUM';position:absolute;inset:32%;border-radius:50%;
+  background:#0a0f1c;display:grid;place-items:center;
+  font-size:11px;font-weight:900;letter-spacing:.18em;color:var(--ink);
+  border:1px solid var(--stroke);
+}
+.quantum-hand{position:absolute;inset:0;animation:spin 3s linear infinite;}
+.quantum-hand span{position:absolute;left:50%;top:6%;width:3px;height:44%;border-radius:3px;transform:translateX(-50%);background:linear-gradient(#fff,rgba(255,255,255,.15));box-shadow:0 0 16px #fff;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Quantum tradeoff */
+.tradeoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.tradeoff-card{padding:16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tradeoff-card.too-big{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.tradeoff-card.too-small{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);}
+.tradeoff-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.tradeoff-card.too-big h4{color:var(--crimson);}
+.tradeoff-card.too-small h4{color:var(--amber);}
+.tradeoff-card p{font-size:12px;line-height:1.6;color:var(--ink-2);}
+.tradeoff-card .metric-mini{margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,.3);font-family:var(--mono);font-size:10.5px;}
+
+/* Comparison table */
+.comp-table{display:grid;grid-template-columns:120px 1fr 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;font-size:12px;}
+.comp-cell{background:#0a0f1c;padding:12px 10px;line-height:1.4;}
+.comp-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.comp-head{background:#0d1425;font-size:11.5px;font-weight:800;text-align:center;}
+.comp-head.fcfs{color:#b9d0ff;}
+.comp-head.sjf{color:#88ffd8;}
+.comp-head.rr{color:#ffd18a;}
+.comp-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.comp-val{color:var(--ink-2);text-align:center;font-weight:600;}
+.comp-val.good{color:#88ffd8;}
+.comp-val.warn{color:#ffd18a;}
+.comp-val.bad{color:#ff9fb1;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Live demo cards */
+.demo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 0;}
+.demo-proc{padding:14px;border-radius:12px;border:1px solid;text-align:center;}
+.demo-proc.p1{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.demo-proc.p2{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.demo-proc.p3{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.demo-proc .dp-name{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.06em;margin-bottom:6px;}
+.demo-proc .dp-burst{font-size:24px;font-weight:900;letter-spacing:-.02em;}
+.demo-proc .dp-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:2px;font-weight:700;}
+
+/* Live scheduler demo — animated Gantt */
+.live-gantt{display:flex;flex-direction:column;gap:10px;padding:8px 0;}
+.live-row{display:flex;align-items:center;gap:10px;}
+.live-label{width:60px;font-family:var(--mono);font-size:11px;font-weight:800;text-align:right;color:var(--muted);}
+.live-track{flex:1;height:28px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid var(--stroke);position:relative;overflow:hidden;}
+.live-block{position:absolute;top:0;bottom:0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;color:#0a0f1c;}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-lineup{display:flex;gap:8px;padding:12px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);align-items:center;justify-content:center;min-height:80px;}
+.act-person{padding:10px 14px;border-radius:8px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid;transition:.4s;}
+.act-person.t1{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.55);color:#b9d0ff;}
+.act-person.t2{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.act-person.t3{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.act-person.t4{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.55);color:#c9a7ff;}
+.act-person.t5{background:rgba(255,77,109,.14);border-color:rgba(255,77,109,.55);color:#ff9fb1;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.tradeoff-grid{grid-template-columns:1fr;}
+  .metric-grid,.demo-grid,.workload-cards{grid-template-columns:1fr;}
+  .comp-table{grid-template-columns:80px 1fr 1fr 1fr;font-size:11px;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .act-lineup{flex-wrap:wrap;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L07 CPU Scheduling I</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L07 · Overview" data-anim="schedcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L07 · CPU Scheduling I (Non-Preemptive vs. Preemptive Foundations)</span>
+    <div class="split">
+      <div class="stack">
+        <h1>When does the kernel <span class="grad-blue">choose the next process</span> — and how do different policies change the wait?</h1>
+        <p class="lead">Manually compute turn-around time, response time, and average wait metrics for a given array of task vectors under FCFS, SJF, and Round Robin scheduling algorithms.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L07</span>
+          <p>We know how to <em>switch</em> (L06). But the kernel decides <em>when</em> and <em>which process next</em> using a scheduling policy. Different policies produce wildly different wait times on the exact same workload.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated Gantt on the right. Ask: <em>"Three jobs arrived at the same time. Which order gives the shortest average wait?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The same three jobs, different schedule order</div>
+        <canvas id="schedCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Scheduler">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 What Does the CPU Scheduler Actually Do?</span>
+    <h2 style="margin-bottom:16px;">It picks <span class="grad-crimson">one READY process</span> and gives it the CPU core</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The decision</span>
+          <p>The scheduler decides which process in the <strong>READY state</strong> gets to slide onto an active processor core next. From L05: only processes in READY are candidates.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">When it fires</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>1.</strong> A process blocks on I/O (RUNNING → WAITING)<br>
+            <strong>2.</strong> A process exits (RUNNING → TERMINATED)<br>
+            <strong>3.</strong> A timer tick preempts the current process<br>
+            <strong>4.</strong> A new process arrives and has higher priority
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The three questions every policy answers</span>
+          <p><strong>Which one?</strong> — the priority rule.<br>
+             <strong>How long?</strong> — the time quantum (if any).<br>
+             <strong>When to switch?</strong> — cooperative or preemptive.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Scheduling is a policy layer.</b> The context switch mechanism (L06) is the <em>mechanism</em>. Scheduling is the policy that decides when to invoke it.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The scheduler's decision point</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="90" rx="12" fill="rgba(255,182,72,.08)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="44" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">READY QUEUE</text>
+          <rect x="34" y="58" width="60" height="36" rx="8" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+          <text x="64" y="80" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="JetBrains Mono">P1</text>
+          <rect x="104" y="58" width="60" height="36" rx="8" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+          <text x="134" y="80" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono">P2</text>
+          <rect x="174" y="58" width="60" height="36" rx="8" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+          <text x="204" y="80" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="JetBrains Mono">P3</text>
+          <rect x="244" y="58" width="60" height="36" rx="8" fill="rgba(160,107,255,.15)" stroke="rgba(160,107,255,.55)" stroke-width="1"/>
+          <text x="274" y="80" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="JetBrains Mono">P4</text>
+
+          <line x1="170" y1="110" x2="170" y2="150" stroke="rgba(46,230,168,.85)" stroke-width="2.5" class="svg-flow"/>
+          <text x="185" y="132" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">pick one</text>
+
+          <rect x="90" y="150" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="svg-pulse"/>
+          <text x="170" y="174" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">CPU CORE</text>
+          <text x="170" y="192" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.8)" font-family="JetBrains Mono">running one at a time</text>
+
+          <line x1="170" y1="210" x2="170" y2="250" stroke="rgba(91,141,255,.75)" stroke-width="1.6" class="svg-flow"/>
+          <text x="185" y="234" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">preempted</text>
+          <text x="185" y="246" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">or blocked</text>
+
+          <rect x="20" y="250" width="300" height="34" rx="10" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="271" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">→ back to READY queue</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy · Grocery Store">
+  <div class="slide-inner">
+    <span class="badge violet">🛒 Analogy 1 · The Grocery Store Checkout Line</span>
+    <h2 style="margin-bottom:16px;">One cashier. Three policies. <span class="grad-violet">Three very different lines.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">First-Come First-Served (FCFS)</span>
+          <p>Check people out based on when they joined the line. If a person with a <strong>massive cart</strong> stands in front, the person buying a single pack of gum is trapped waiting forever — the <strong>convoy effect</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Shortest-Job-First (SJF)</span>
+          <p>Sort the line so the person with <strong>the single pack of gum</strong> goes first. Minimizes average wait time — but requires <strong>magically predicting</strong> how long each customer will take.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Round Robin (RR)</span>
+          <p>The cashier spends <strong>exactly 30 seconds</strong> processing a customer's items. If they aren't done, they're forced to walk to the very back of the line and wait for their next turn — the <strong>time quantum fairness</strong>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The tradeoff:</b> FCFS is fair in arrival order but slow. SJF is fast but requires prediction. RR is responsive but burns time on switches.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three checkout lanes, same customers</div>
+        <div class="grocery-lane">
+          <div class="lane-row fcfs">
+            <h4><span>FCFS · arrival order</span><span style="color:var(--crimson);font-size:10px">▼ convoy effect</span></h4>
+            <div>
+              <span class="lane-customer large active">Cart<span class="size-badge">24 items</span></span>
+              <span class="lane-customer small">Gum<span class="size-badge">3 items</span></span>
+              <span class="lane-customer small">Bread<span class="size-badge">3 items</span></span>
+            </div>
+            <div class="lane-metric">avg wait = (0 + 24 + 27) / 3 = 17 ms</div>
+          </div>
+          <div class="lane-row sjf">
+            <h4><span>SJF · shortest first</span><span style="color:var(--emerald);font-size:10px">▼ optimal</span></h4>
+            <div>
+              <span class="lane-customer small active">Gum<span class="size-badge">3 items</span></span>
+              <span class="lane-customer small">Bread<span class="size-badge">3 items</span></span>
+              <span class="lane-customer large">Cart<span class="size-badge">24 items</span></span>
+            </div>
+            <div class="lane-metric">avg wait = (0 + 3 + 6) / 3 = 3 ms</div>
+          </div>
+          <div class="lane-row rr">
+            <h4><span>RR · quantum = 30s</span><span style="color:var(--amber);font-size:10px">▼ responsive</span></h4>
+            <div>
+              <span class="lane-customer large">Cart<span class="size-badge">24 items</span></span>
+              <span class="lane-customer small">Gum<span class="size-badge">3 items</span></span>
+              <span class="lane-customer small">Bread<span class="size-badge">3 items</span></span>
+            </div>
+            <div class="lane-metric">everyone makes progress within quantum → responsive</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy · Network Rings">
+  <div class="slide-inner">
+    <span class="badge">🌐 Analogy 2 · Network Packet Routing Ring Buffers</span>
+    <h2 style="margin-bottom:16px;">Scheduling policies are <span class="grad-blue">traffic-shaping algorithms</span> in disguise</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">FCFS ≈ FIFO queue</span>
+          <p>A simple ring buffer — packets leave in the exact order they arrived. No reordering, no prioritization. Suffers from a "long packet" (jumbo frame) blocking everything behind it.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">SJF ≈ priority queue by size</span>
+          <p>Sorts packets by size, sends smallest first. Minimizes average queueing delay. Requires knowing each packet's size in advance — always true for network frames.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">RR ≈ deficit round robin</span>
+          <p>Each flow gets a fixed byte quantum per round. If a packet doesn't finish, it goes back to the queue. Guarantees fairness — this is literally how Deficit Round Robin (DRR) works in real routers.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> The same policy language applies at both layers — process scheduler in the kernel, packet scheduler in the NIC driver. Both are just queueing discipline.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The ring buffer rotation</div>
+        <div class="ring-buffer">
+          <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+            <circle cx="170" cy="170" r="120" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.5" stroke-dasharray="3 4"/>
+            <circle cx="170" cy="170" r="90" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+            <circle cx="170" cy="170" r="40" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.6)" stroke-width="1.5"/>
+            <text x="170" y="168" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SCHED</text>
+            <text x="170" y="182" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">ring buffer</text>
+
+            <!-- Packets around the ring -->
+            <circle cx="170" cy="50" r="14" fill="rgba(91,141,255,.25)" stroke="rgba(91,141,255,.85)" stroke-width="1.5"/>
+            <text x="170" y="55" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">P1</text>
+
+            <circle cx="255" cy="85" r="14" fill="rgba(46,230,168,.25)" stroke="rgba(46,230,168,.85)" stroke-width="1.5"/>
+            <text x="255" y="90" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">P2</text>
+
+            <circle cx="290" cy="170" r="14" fill="rgba(255,182,72,.25)" stroke="rgba(255,182,72,.85)" stroke-width="1.5"/>
+            <text x="290" y="175" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">P3</text>
+
+            <circle cx="255" cy="255" r="14" fill="rgba(160,107,255,.25)" stroke="rgba(160,107,255,.85)" stroke-width="1.5"/>
+            <text x="255" y="260" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">P4</text>
+
+            <circle cx="170" cy="290" r="14" fill="rgba(255,77,109,.25)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+            <text x="170" y="295" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">P5</text>
+
+            <circle cx="85" cy="255" r="14" fill="rgba(91,141,255,.25)" stroke="rgba(91,141,255,.85)" stroke-width="1.5"/>
+            <text x="85" y="260" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">P6</text>
+
+            <circle cx="50" cy="170" r="14" fill="rgba(46,230,168,.25)" stroke="rgba(46,230,168,.85)" stroke-width="1.5"/>
+            <text x="50" y="175" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">P7</text>
+
+            <circle cx="85" cy="85" r="14" fill="rgba(255,182,72,.25)" stroke="rgba(255,182,72,.85)" stroke-width="1.5"/>
+            <text x="85" y="90" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">P8</text>
+
+            <!-- Rotating arrow -->
+            <g style="transform-origin:170px 170px;animation:spin 6s linear infinite;">
+              <path d="M 170 30 A 140 140 0 0 1 290 100" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" marker-end="url(#arrowSched)"/>
+              <defs>
+                <marker id="arrowSched" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                  <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,255,255,.5)"/>
+                </marker>
+              </defs>
+            </g>
+          </svg>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Each process gets a turn around the ring. Quantum controls how much time each gets.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="The Three Algorithms">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Three Foundational Algorithms</span>
+    <h2 style="margin-bottom:16px;">One question, three answers</h2>
+    <div class="split">
+      <div class="panel blue" style="padding:18px">
+        <span class="panel-label">FCFS</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Queue by <strong>arrival time</strong>. Run each process to completion before starting the next. Non-preemptive. Simple. Trivial to implement.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--crimson);font-family:var(--mono);font-weight:800">⚠ Convoy effect</p>
+      </div>
+      <div class="panel emerald" style="padding:18px">
+        <span class="panel-label">SJF</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Pick the process with the <strong>shortest burst time</strong>. Non-preemptive (in this form). Provably optimal for average wait. Requires burst time prediction.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--crimson);font-family:var(--mono);font-weight:800">⚠ Starvation for long jobs</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:16px">
+      <div class="panel amber" style="padding:18px">
+        <span class="panel-label">Round Robin (RR)</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px">Give each process a <strong>fixed quantum</strong>. Preempt and rotate when it expires. Responsive for interactive workloads. Requires timer interrupts.</p>
+        <p style="margin-top:10px;font-size:11.5px;color:var(--crimson);font-family:var(--mono);font-weight:800">⚠ Quantum tuning matters</p>
+      </div>
+      <div class="panel violet" style="padding:18px">
+        <span class="panel-label">The dimension they differ on</span>
+        <p style="line-height:1.7;margin-top:6px;font-size:14px"><strong>Preemption.</strong> FCFS and SJF are cooperative — once a process starts, it runs to completion. RR is preemptive — the timer forces a switch.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Three Metrics">
+  <div class="slide-inner">
+    <span class="badge">📊 The Three Metrics — What We're Optimizing</span>
+    <h2 style="margin-bottom:16px;">Three numbers that grade every policy</h2>
+    <div class="metric-grid">
+      <div class="metric-card turnaround">
+        <div class="mc-label">Metric 01</div>
+        <div class="mc-name">Turnaround Time</div>
+        <div class="mc-desc">Total time from arrival to completion. "How long did the customer wait in the store?"</div>
+        <div class="mc-formula">= completion − arrival</div>
+      </div>
+      <div class="metric-card wait">
+        <div class="mc-label">Metric 02</div>
+        <div class="mc-name">Waiting Time</div>
+        <div class="mc-desc">Time spent in READY (not running). "How long was the customer stuck in line?"</div>
+        <div class="mc-formula">= turnaround − burst</div>
+      </div>
+      <div class="metric-card response">
+        <div class="mc-label">Metric 03</div>
+        <div class="mc-name">Response Time</div>
+        <div class="mc-desc">Time from arrival to <em>first</em> execution. "How long until the cashier said hello?"</div>
+        <div class="mc-formula">= first_run − arrival</div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:18px">
+      <div class="panel blue">
+        <span class="panel-label">Which matters most?</span>
+        <p><strong>Batch systems</strong> care about throughput and average turnaround. <strong>Interactive systems</strong> care about response time — you want the shell to echo your keystroke instantly, even if the total time to completion is long.</p>
+      </div>
+      <div class="panel amber">
+        <span class="panel-label">What the exam will test</span>
+        <p>Given a workload and a policy, compute all three for each process and the averages. In L07's practical example, we'll do exactly this for the three-algorithm workload.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="FCFS">
+  <div class="slide-inner">
+    <span class="badge blue">🔵 FCFS — First-Come First-Served</span>
+    <h2 style="margin-bottom:16px;">The simplest possible scheduler. <span class="grad-blue">Also the worst for mixed workloads.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The rule</span>
+          <p>Processes are placed in a FIFO queue by <strong>arrival time</strong>. When the CPU is free, take the head of the queue and run it to completion. Non-preemptive — once it starts, it finishes.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The convoy effect</span>
+          <p>A long process at the front of the queue <strong>blocks every short process behind it</strong>. On a mixed workload — say one 24 ms job followed by ten 1 ms jobs — the ten short jobs wait the full 24 ms.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it still matters</span>
+          <p>FCFS is the conceptual baseline every other policy is measured against. It's also the <strong>default when nothing else works</strong> — some schedulers degrade to FCFS when overloaded.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · FCFS Gantt chart</div>
+        <div class="gantt-wrap">
+          <div class="gantt-chart">
+            <div class="gantt-row">
+              <div class="gantt-label">CPU</div>
+              <div class="gantt-track">
+                <div class="gantt-block p1" style="left:0%;width:66%">P1 (24ms)</div>
+                <div class="gantt-block p2" style="left:66%;width:17%">P2</div>
+                <div class="gantt-block p3" style="left:83%;width:17%">P3</div>
+              </div>
+            </div>
+            <div class="gantt-timeline">
+              <div class="gantt-tick" style="left:0%">0</div>
+              <div class="gantt-tick" style="left:66%">24</div>
+              <div class="gantt-tick" style="left:83%">27</div>
+              <div class="gantt-tick" style="left:100%">30</div>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:14px;padding:12px 16px">
+            <span class="panel-label">P2 waits for P1 to finish</span>
+            <p style="font-size:12.5px;line-height:1.6">P2 arrives at t=0 but can't run until t=24. P3 arrives at t=0 but can't run until t=27. <strong>Both are starved by the convoy.</strong></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="FCFS · Worked Example">
+  <div class="slide-inner">
+    <span class="badge blue">📐 FCFS — Worked Example Step by Step</span>
+    <h2 style="margin-bottom:16px;">The canonical three-process example</h2>
+    <div class="workload-cards">
+      <div class="wl-card p1"><div class="wl-name">P1</div><div class="wl-burst">24</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p2"><div class="wl-name">P2</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p3"><div class="wl-name">P3</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="vis-frame">
+        <div class="vis-cap">Gantt chart</div>
+        <div class="gantt-chart">
+          <div class="gantt-row">
+            <div class="gantt-label">CPU</div>
+            <div class="gantt-track">
+              <div class="gantt-block p1" style="left:0%;width:80%">P1 (24)</div>
+              <div class="gantt-block p2" style="left:80%;width:10%">P2</div>
+              <div class="gantt-block p3" style="left:90%;width:10%">P3</div>
+            </div>
+          </div>
+          <div class="gantt-timeline">
+            <div class="gantt-tick" style="left:0%">0</div>
+            <div class="gantt-tick" style="left:80%">24</div>
+            <div class="gantt-tick" style="left:90%">27</div>
+            <div class="gantt-tick" style="left:100%">30</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The numbers</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13.5px">
+            <strong>P1</strong> — completion 24, wait = 24 − 24 = <strong style="color:#b9d0ff">0</strong><br>
+            <strong>P2</strong> — completion 27, wait = 27 − 3 = <strong style="color:#b9d0ff">24</strong><br>
+            <strong>P3</strong> — completion 30, wait = 30 − 3 = <strong style="color:#b9d0ff">27</strong>
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Average wait</span>
+          <p style="font-family:var(--mono);font-size:16px;font-weight:800;color:#ff9fb1">(0 + 24 + 27) / 3 = 17 ms</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Turnaround time</span>
+          <p style="line-height:1.7;margin-top:4px;font-size:12.5px">
+            P1 = 24, P2 = 27, P3 = 30 → avg = (24 + 27 + 30) / 3 = 27 ms
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="FCFS · Convoy Effect">
+  <div class="slide-inner">
+    <span class="badge crimson">🚗 The Convoy Effect — Why FCFS Fails</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-crimson">single long job</span> paralyzes every short job behind it</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The scenario</span>
+          <p>One 24 ms job followed by nine 1 ms jobs, all arriving at t=0. FCFS runs the 24 ms job first. The nine 1 ms jobs wait 24 + 25 + 26 + ... ms. Total system time: 33 ms with most wasted on the convoy.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The average wait</span>
+          <p>FCFS: (0 + 24 + 25 + 26 + 27 + 28 + 29 + 30 + 31 + 32) / 10 = <strong style="color:#ffd18a">25.2 ms</strong>. SJF: (0 + 1 + 2 + ... + 8 + 24) / 10 = <strong style="color:#88ffd8">7.9 ms</strong>. A <strong style="color:#ffd18a">3× improvement</strong> from reordering alone.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Where it hurts most</span>
+          <p>Interactive workloads. If your terminal, browser, and music player are all blocked behind a big compile job, the whole desktop stutters for 30+ seconds.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The convoy effect is why preemption exists.</b> If you can't reorder, at least you can force the long job to yield periodically — that's what RR does.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Convoy effect visualization</div>
+        <div class="gantt-wrap">
+          <div class="gantt-chart">
+            <div class="gantt-row">
+              <div class="gantt-label">CPU</div>
+              <div class="gantt-track" style="height:40px">
+                <div class="gantt-block p1" style="left:0;width:72%">Long job (24ms)</div>
+                <div class="gantt-block p2" style="left:72%;width:3%">1</div>
+                <div class="gantt-block p2" style="left:75%;width:3%">2</div>
+                <div class="gantt-block p2" style="left:78%;width:3%">3</div>
+                <div class="gantt-block p2" style="left:81%;width:3%">4</div>
+                <div class="gantt-block p2" style="left:84%;width:3%">5</div>
+                <div class="gantt-block p2" style="left:87%;width:3%">6</div>
+                <div class="gantt-block p2" style="left:90%;width:3%">7</div>
+                <div class="gantt-block p2" style="left:93%;width:3%">8</div>
+                <div class="gantt-block p2" style="left:96%;width:4%">9</div>
+              </div>
+            </div>
+            <div class="gantt-timeline" style="margin-top:6px">
+              <div class="gantt-tick" style="left:0%">0</div>
+              <div class="gantt-tick" style="left:72%">24</div>
+              <div class="gantt-tick" style="left:100%">33</div>
+            </div>
+          </div>
+          <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">Nine 1-ms jobs each wait between 24 and 32 ms. That's the convoy effect — the long job holds the CPU hostage.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="SJF">
+  <div class="slide-inner">
+    <span class="badge emerald">🟢 SJF — Shortest Job First</span>
+    <h2 style="margin-bottom:16px;">Reorder the queue by <span class="grad-emerald">burst time</span> — optimal for average wait</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · SJF Gantt chart</div>
+        <div class="gantt-wrap">
+          <div class="gantt-chart">
+            <div class="gantt-row">
+              <div class="gantt-label">CPU</div>
+              <div class="gantt-track">
+                <div class="gantt-block p2" style="left:0%;width:10%">P2</div>
+                <div class="gantt-block p3" style="left:10%;width:10%">P3</div>
+                <div class="gantt-block p1" style="left:20%;width:80%">P1 (24)</div>
+              </div>
+            </div>
+            <div class="gantt-timeline">
+              <div class="gantt-tick" style="left:0%">0</div>
+              <div class="gantt-tick" style="left:10%">3</div>
+              <div class="gantt-tick" style="left:20%">6</div>
+              <div class="gantt-tick" style="left:100%">30</div>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:14px;padding:12px 16px">
+            <span class="panel-label">Average wait</span>
+            <p style="font-family:var(--mono);font-size:16px;font-weight:800;color:#88ffd8">(0 + 3 + 6) / 3 = 3 ms</p>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The rule</span>
+          <p>Pick the process with the <strong>shortest burst time</strong>. Non-preemptive in this form — once it starts, it runs to completion. Requires knowing burst time in advance.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it's optimal</span>
+          <p>Reordering moves short jobs forward, and the arithmetic mean of wait times is minimized by the shortest-first order. <strong>Provably optimal</strong> — no policy can beat SJF on average wait for a non-preemptive queue.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The catch</span>
+          <p>The scheduler can't actually know the burst time in advance. Real SJF systems use <strong>exponential averaging</strong> of past burst times as a heuristic prediction.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="SJF · Worked Example">
+  <div class="slide-inner">
+    <span class="badge emerald">📐 SJF — Worked Example</span>
+    <h2 style="margin-bottom:16px;">Same three jobs, reordered, <span class="grad-emerald">5.7× better</span></h2>
+    <div class="workload-cards">
+      <div class="wl-card p1"><div class="wl-name">P1</div><div class="wl-burst">24</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p2"><div class="wl-name">P2</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p3"><div class="wl-name">P3</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="vis-frame">
+        <div class="vis-cap">Gantt chart (reordered)</div>
+        <div class="gantt-chart">
+          <div class="gantt-row">
+            <div class="gantt-label">CPU</div>
+            <div class="gantt-track">
+              <div class="gantt-block p2" style="left:0%;width:10%">P2</div>
+              <div class="gantt-block p3" style="left:10%;width:10%">P3</div>
+              <div class="gantt-block p1" style="left:20%;width:80%">P1 (24)</div>
+            </div>
+          </div>
+          <div class="gantt-timeline">
+            <div class="gantt-tick" style="left:0%">0</div>
+            <div class="gantt-tick" style="left:10%">3</div>
+            <div class="gantt-tick" style="left:20%">6</div>
+            <div class="gantt-tick" style="left:100%">30</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The numbers</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13.5px">
+            <strong>P2</strong> — completion 3, wait = 3 − 3 = <strong style="color:#88ffd8">0</strong><br>
+            <strong>P3</strong> — completion 6, wait = 6 − 3 = <strong style="color:#88ffd8">3</strong><br>
+            <strong>P1</strong> — completion 30, wait = 30 − 24 = <strong style="color:#88ffd8">6</strong>
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Average wait</span>
+          <p style="font-family:var(--mono);font-size:16px;font-weight:800;color:#88ffd8">(0 + 3 + 6) / 3 = 3 ms</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The comparison</span>
+          <p>FCFS: 17 ms average wait. SJF: 3 ms average wait. That's a <strong>5.7× improvement</strong> from the same three jobs — just by reordering. Demonstrates the radical optimization efficiency of shortest-job prioritization.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="SJF · Starvation">
+  <div class="slide-inner">
+    <span class="badge crimson">⚠️ SJF — The Starvation Problem</span>
+    <h2 style="margin-bottom:16px;">Short jobs always win. <span class="grad-crimson">Long jobs may never run.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The failure mode</span>
+          <p>If short jobs keep arriving, the long job at the back of the queue never gets picked. On a busy server, a background data export could be starved indefinitely by a constant stream of 1-ms interactive requests.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mitigation — aging</span>
+          <p>Gradually increase a process's priority the longer it waits. After enough time, even a 24 ms job can out-prioritize the fresh 1-ms jobs. Aging converts SJF's starvation into a temporary delay.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The tradeoff</span>
+          <p>Aging partially defeats SJF's optimality — you're no longer always choosing the shortest job. But it prevents the pathological case where a job <strong>never</strong> runs. In practice, aging is the standard fix.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Same starvation problem hits every priority scheme.</b> Any time you can indefinitely prefer some class of jobs, you risk the other class never running. L08 dives into aging in detail.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Starvation scenario</div>
+        <div style="padding:8px 0">
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.08);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-family:var(--mono);color:#ff9fb1;font-size:11px;font-weight:800">Big job</span>
+            <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">burst = 24 · waiting forever</span>
+          </div>
+          <div style="padding:8px 0;text-align:center;color:var(--crimson);font-size:11px;font-weight:800;letter-spacing:.1em">▼ keeps getting passed over ▼</div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">1ms</div>
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">1ms</div>
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">2ms</div>
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">1ms</div>
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">3ms</div>
+            <div style="padding:6px;border-radius:6px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:#88ffd8">2ms</div>
+          </div>
+          <p style="margin-top:10px;font-size:11px;color:var(--muted);text-align:center;font-family:var(--mono)">… a constant stream of short jobs …</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="SJF · SRTF">
+  <div class="slide-inner">
+    <span class="badge amber">🟢 SJF Variant — Shortest Remaining Time First (SRTF)</span>
+    <h2 style="margin-bottom:16px;">Preemptive SJF — <span class="grad-amber">new short jobs can interrupt running ones</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The rule</span>
+          <p>When a new process arrives, compare its burst time to the current running process's <strong>remaining time</strong>. If the new one is shorter, preempt — even mid-execution.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">When it wins</span>
+          <p>SRTF can beat SJF's average wait when jobs arrive at different times. Example: if a 5 ms job is running and a 1 ms job arrives, SRTF switches to the 1 ms job immediately, shaving 4 ms off its wait.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Every preemption is a context switch. If short jobs arrive constantly, the system may spend more time switching than doing work. Starvation is also worse — the long job gets interrupted continuously.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> SRTF is mostly of theoretical interest — no production OS uses it. But it's a common exam question because it tests whether you understand preemption vs. non-preemption.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">SJF vs SRTF with late arrival</div>
+        <div class="gantt-wrap">
+          <div class="gantt-chart">
+            <div class="gantt-row">
+              <div class="gantt-label" style="color:var(--blue-2);font-size:10px">SJF</div>
+              <div class="gantt-track">
+                <div class="gantt-block p1" style="left:0%;width:50%">P1</div>
+                <div class="gantt-block p2" style="left:50%;width:30%">P2</div>
+                <div class="gantt-block p3" style="left:80%;width:20%">P3</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label" style="color:var(--amber);font-size:10px">SRTF</div>
+              <div class="gantt-track">
+                <div class="gantt-block p1" style="left:0%;width:20%">P1a</div>
+                <div class="gantt-block p2" style="left:20%;width:30%">P2</div>
+                <div class="gantt-block p3" style="left:50%;width:20%">P3</div>
+                <div class="gantt-block p1" style="left:70%;width:30%">P1b</div>
+              </div>
+            </div>
+            <div class="gantt-timeline">
+              <div class="gantt-tick" style="left:0%">0</div>
+              <div class="gantt-tick" style="left:20%">2</div>
+              <div class="gantt-tick" style="left:50%">5</div>
+              <div class="gantt-tick" style="left:70%">7</div>
+              <div class="gantt-tick" style="left:100%">10</div>
+            </div>
+          </div>
+          <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55">SRTF preempts P1 at t=2 to run the shorter P2, then resumes P1 at t=7.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Round Robin">
+  <div class="slide-inner">
+    <span class="badge amber">🟡 Round Robin — Preemptive Fairness</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">time quantum</span> is the entire policy</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The quantum rotation</div>
+        <div class="quantum-wheel">
+          <div class="quantum-hand"><span></span></div>
+        </div>
+        <p style="font-size:11.5px;margin-top:16px;color:var(--muted);line-height:1.55;text-align:center">Each process gets one quantum per round. Preemption is timer-driven.</p>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The rule</span>
+          <p>Each process gets a fixed <strong>time quantum</strong> (typically 1–100 ms). When the quantum expires, the process is preempted and moved to the back of the ready queue. Next process gets its turn.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it's fair</span>
+          <p>No process waits longer than (n−1) × quantum before running again, where n = number of ready processes. <strong>Bounded wait time</strong> — that's the killer feature for interactive systems.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's preemptive</span>
+          <p>The timer interrupt fires at the end of every quantum. That interrupt preempts the current process even if it's mid-computation. No cooperation required — RR works on any process, including buggy ones.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>RR + L06:</b> every quantum expiry is a context switch. That's why quantum tuning matters so much — too small, and you spend all your time saving/loading registers.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="RR · Worked Example">
+  <div class="slide-inner">
+    <span class="badge amber">📐 Round Robin — Worked Example</span>
+    <h2 style="margin-bottom:16px;">The same three jobs, with <span class="grad-amber">quantum = 4</span></h2>
+    <div class="workload-cards">
+      <div class="wl-card p1"><div class="wl-name">P1</div><div class="wl-burst">24</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p2"><div class="wl-name">P2</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+      <div class="wl-card p3"><div class="wl-name">P3</div><div class="wl-burst">3</div><div class="wl-label">burst (ms)</div></div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="vis-frame">
+        <div class="vis-cap">Gantt chart (RR, quantum = 4)</div>
+        <div class="gantt-chart">
+          <div class="gantt-row">
+            <div class="gantt-label">CPU</div>
+            <div class="gantt-track" style="height:40px">
+              <div class="gantt-block p1" style="left:0;width:13%">P1a</div>
+              <div class="gantt-block p2" style="left:13%;width:10%">P2</div>
+              <div class="gantt-block p3" style="left:23%;width:10%">P3</div>
+              <div class="gantt-block p1" style="left:33%;width:13%">P1b</div>
+              <div class="gantt-block p1" style="left:46%;width:13%">P1c</div>
+              <div class="gantt-block p1" style="left:59%;width:13%">P1d</div>
+              <div class="gantt-block p1" style="left:72%;width:13%">P1e</div>
+              <div class="gantt-block p1" style="left:85%;width:15%">P1f</div>
+            </div>
+          </div>
+          <div class="gantt-timeline">
+            <div class="gantt-tick" style="left:0%">0</div>
+            <div class="gantt-tick" style="left:13%">4</div>
+            <div class="gantt-tick" style="left:23%">7</div>
+            <div class="gantt-tick" style="left:33%">10</div>
+            <div class="gantt-tick" style="left:100%">30</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What happened</span>
+          <p>P1 runs 0–4, preempted. P2 runs 4–7, done (burst 3). P3 runs 7–10, done (burst 3). P1 then resumes in 4-ms slices: 10–14, 14–18, 18–22, 22–26, 26–30.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The numbers</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>P1</strong> — completion 30, wait = 30 − 24 − 0 = 6<br>
+            <strong>P2</strong> — completion 7, wait = 7 − 3 − 0 = 4<br>
+            <strong>P3</strong> — completion 10, wait = 10 − 3 − 0 = 7
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Average wait</span>
+          <p style="font-family:var(--mono);font-size:15px;font-weight:800;color:#88ffd8">(6 + 4 + 7) / 3 = 5.67 ms</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Response time comparison</span>
+          <p style="font-size:12px;line-height:1.6">Under FCFS: P2 first responds at t=24. Under RR(q=4): P2 first responds at t=4. <strong>6× better response time</strong> at the cost of slightly worse turnaround for P1.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="RR · Quantum Tradeoff">
+  <div class="slide-inner">
+    <span class="badge crimson">⚖️ The Quantum Tradeoff</span>
+    <h2 style="margin-bottom:16px;">Quantum is a dial between <span class="grad-crimson">fairness</span> and <span class="grad-amber">overhead</span></h2>
+    <div class="tradeoff-grid">
+      <div class="tradeoff-card too-big">
+        <h4>⚠ Quantum too large</h4>
+        <p>If the quantum is bigger than most processes' burst times, they finish in one slice — and Round Robin <strong>degenerates into FCFS</strong>. You lose responsiveness and re-inherit the convoy effect.</p>
+        <div class="metric-mini">Example: q = 100 ms on a workload with 5 ms jobs → effectively FCFS</div>
+      </div>
+      <div class="tradeoff-card too-small">
+        <h4>⚠ Quantum too small</h4>
+        <p>If the quantum is tiny compared to the switch cost, the system spends most of its time <strong>context switching</strong> rather than running processes. Throughput collapses.</p>
+        <div class="metric-mini">Example: q = 100 µs on a 2 µs switch → 2% overhead per switch, but 2000 switches/sec</div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:18px">
+      <div class="panel blue">
+        <span class="panel-label">The rule of thumb</span>
+        <p>Quantum should be <strong>slightly larger than the typical interactive task</strong>. If most tasks finish in 5–10 ms, use q = 20–50 ms. Enough to complete most jobs in one slice, small enough to keep preemption responsive.</p>
+      </div>
+      <div class="panel amber">
+        <span class="panel-label">The typical numbers</span>
+        <p>Linux CFS (Completely Fair Scheduler) uses <strong>targeted latency ≈ 6–24 ms</strong> with dynamic quantum per task. Windows uses ~15 ms. macOS uses ~10 ms. All within an order of magnitude.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Comparison">
+  <div class="slide-inner">
+    <span class="badge">📊 Head-to-Head Comparison</span>
+    <h2 style="margin-bottom:20px;">Same workload, three metrics, three policies</h2>
+    <div class="comp-table">
+      <div class="comp-cell comp-corner">Metric</div>
+      <div class="comp-cell comp-head fcfs">FCFS</div>
+      <div class="comp-cell comp-head sjf">SJF</div>
+      <div class="comp-cell comp-head rr">RR (q=4)</div>
+
+      <div class="comp-cell comp-label">Preemption</div>
+      <div class="comp-cell comp-val bad">Non-preemptive</div>
+      <div class="comp-cell comp-val bad">Non-preemptive</div>
+      <div class="comp-cell comp-val good">Preemptive</div>
+
+      <div class="comp-cell comp-label">Avg Wait</div>
+      <div class="comp-cell comp-val bad">17 ms</div>
+      <div class="comp-cell comp-val good">3 ms</div>
+      <div class="comp-cell comp-val warn">5.67 ms</div>
+
+      <div class="comp-cell comp-label">Avg Turnaround</div>
+      <div class="comp-cell comp-val bad">27 ms</div>
+      <div class="comp-cell comp-val good">13 ms</div>
+      <div class="comp-cell comp-val warn">15.67 ms</div>
+
+      <div class="comp-cell comp-label">Response Time</div>
+      <div class="comp-cell comp-val bad">Bad for late jobs</div>
+      <div class="comp-cell comp-val warn">Depends on arrival</div>
+      <div class="comp-cell comp-val good">Bounded by (n−1)·q</div>
+
+      <div class="comp-cell comp-label">Starvation</div>
+      <div class="comp-cell comp-val bad">Yes — convoy</div>
+      <div class="comp-cell comp-val bad">Yes — long jobs</div>
+      <div class="comp-cell comp-val good">No</div>
+
+      <div class="comp-cell comp-label">Predictability</div>
+      <div class="comp-cell comp-val good">High</div>
+      <div class="comp-cell comp-val warn">Needs burst estimate</div>
+      <div class="comp-cell comp-val good">High</div>
+
+      <div class="comp-cell comp-label">Real-world use</div>
+      <div class="comp-cell comp-val">Legacy batch</div>
+      <div class="comp-cell comp-val">Rare — basis for priority</div>
+      <div class="comp-cell comp-val good">Linux CFS · Windows</div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>Reading this table:</b> no policy wins every column. SJF wins average wait but loses starvation. RR wins response time and fairness but costs switches. Production systems almost always use <strong>some variant of RR</strong> — because responsiveness matters more than optimal throughput on a general-purpose machine.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Live Demo" data-anim="livegantt">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Watch the Scheduler Decide</span>
+    <h2 style="margin-bottom:16px;">The same three jobs, animated under <span class="grad-emerald">each policy</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Cycles between FCFS, SJF, RR automatically</div>
+        <div class="live-gantt" id="liveGantt">
+          <div class="live-row">
+            <div class="live-label">FCFS</div>
+            <div class="live-track">
+              <div class="live-block p1" data-policy="fcfs" style="left:0;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block p2" data-policy="fcfs" style="left:80%;width:0%;background:rgba(46,230,168,.85)">P2</div>
+              <div class="live-block p3" data-policy="fcfs" style="left:90%;width:0%;background:rgba(255,182,72,.85)">P3</div>
+            </div>
+          </div>
+          <div class="live-row">
+            <div class="live-label">SJF</div>
+            <div class="live-track">
+              <div class="live-block p2" data-policy="sjf" style="left:0;width:0%;background:rgba(46,230,168,.85)">P2</div>
+              <div class="live-block p3" data-policy="sjf" style="left:10%;width:0%;background:rgba(255,182,72,.85)">P3</div>
+              <div class="live-block p1" data-policy="sjf" style="left:20%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+            </div>
+          </div>
+          <div class="live-row">
+            <div class="live-label">RR q=4</div>
+            <div class="live-track">
+              <div class="live-block" data-policy="rr" style="left:0%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block" data-policy="rr" style="left:13%;width:0%;background:rgba(46,230,168,.85)">P2</div>
+              <div class="live-block" data-policy="rr" style="left:23%;width:0%;background:rgba(255,182,72,.85)">P3</div>
+              <div class="live-block" data-policy="rr" style="left:33%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block" data-policy="rr" style="left:46%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block" data-policy="rr" style="left:59%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block" data-policy="rr" style="left:72%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+              <div class="live-block" data-policy="rr" style="left:85%;width:0%;background:rgba(91,141,255,.85)">P1</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What the animation shows</span>
+          <p>Each Gantt row fills in according to its policy. FCFS stretches P1 to 24 ms then rushes through P2 and P3. SJF finishes P2 and P3 first, then runs P1. RR gives P1 a 4-ms slice, then P2, P3, then P1 in 4-ms slices.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The visual story</span>
+          <p>Notice how FCFS's P2 block is tiny compared to P1's, and how RR's P1 slices are visually interrupted. <strong>The Gantt chart's shape is the policy</strong> — you can identify the algorithm just by looking.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Add to the mental model</span>
+          <p>Every Gantt chart is a signature. FCFS = solid long bar + tiny tails. SJF = short bars then long bar. RR = repeating sliced pattern. Once you can read Gantts, you can diagnose any scheduler.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Code" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge">💻 Code — Implementing a Basic Scheduler</span>
+    <h2 style="margin-bottom:16px;">The core of <span class="grad-blue">any scheduler</span> in 20 lines</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head"><span>scheduler.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Simplified scheduler · picks the next process to run</span></span><span class="code-line"><span class="c-kw">typedef struct</span> {</span><span class="code-line">    <span class="c-type">int</span> <span class="c-var">pid</span>, <span class="c-var">burst</span>, <span class="c-var">remaining</span>, <span class="c-var">arrival</span>;</span><span class="code-line">    <span class="c-kw">enum</span> {<span class="c-num">READY</span>, <span class="c-num">RUNNING</span>, <span class="c-num">DONE</span>} <span class="c-var">state</span>;</span><span class="code-line">} <span class="c-type">task_t</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-com">// FCFS: pick the earliest-arrived READY task</span></span><span class="code-line"><span class="c-type">task_t</span>* <span class="c-name">pick_fcfs</span>(<span class="c-type">task_t</span> <span class="c-var">*tasks</span>, <span class="c-type">int</span> <span class="c-var">n</span>) {</span><span class="code-line">    <span class="c-type">task_t</span> *<span class="c-var">best</span> = <span class="c-num">NULL</span>;</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-var">n</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-kw">if</span> (<span class="c-var">tasks</span>[<span class="c-var">i</span>].state != <span class="c-num">READY</span>) <span class="c-kw">continue</span>;</span><span class="code-line">        <span class="c-kw">if</span> (!<span class="c-var">best</span> || <span class="c-var">tasks</span>[<span class="c-var">i</span>].arrival &lt; <span class="c-var">best</span>-&gt;arrival)</span><span class="code-line">            <span class="c-var">best</span> = &amp;<span class="c-var">tasks</span>[<span class="c-var">i</span>];</span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">best</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-com">// SJF: pick the shortest READY task (compare burst)</span></span><span class="code-line"><span class="c-type">task_t</span>* <span class="c-name">pick_sjf</span>(<span class="c-type">task_t</span> <span class="c-var">*tasks</span>, <span class="c-type">int</span> <span class="c-var">n</span>) {</span><span class="code-line">    <span class="c-type">task_t</span> *<span class="c-var">best</span> = <span class="c-num">NULL</span>;</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-var">n</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-kw">if</span> (<span class="c-var">tasks</span>[<span class="c-var">i</span>].state != <span class="c-num">READY</span>) <span class="c-kw">continue</span>;</span><span class="code-line">        <span class="c-kw">if</span> (!<span class="c-var">best</span> || <span class="c-var">tasks</span>[<span class="c-var">i</span>].burst &lt; <span class="c-var">best</span>-&gt;burst)</span><span class="code-line">            <span class="c-var">best</span> = &amp;<span class="c-var">tasks</span>[<span class="c-var">i</span>];</span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">best</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What's identical</span>
+          <p>Both policies have the same loop — scan every READY task, keep a pointer to the "best" one so far. The only difference is the <strong>comparison key</strong>: arrival time for FCFS, burst time for SJF.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What's missing</span>
+          <p>This is the policy layer only. A real scheduler also needs: a way to invoke it on a timer (<code style="font-family:var(--mono);color:#ffd18a">RR</code>'s preemption), a ready queue data structure, and the context switch mechanism itself.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The generalization</span>
+          <p>If you replace the comparison with "highest priority" you get a <strong>priority scheduler</strong>. Replace it with "smallest remaining time" you get SRTF. Replace it with "least recently run" you get a fairness-biased policy. <strong>Every scheduler is a comparison function.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Real World · Linux CFS">
+  <div class="slide-inner">
+    <span class="badge emerald">🌍 Real World — Linux's Completely Fair Scheduler</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">modern production scheduler</span> — a very fancy RR variant</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The core idea</span>
+          <p>Track each task's <strong>virtual runtime</strong> (vruntime) — roughly how much CPU time it has consumed. Always run the task with the <strong>smallest vruntime</strong>. This gives absolute fairness in the long run.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it differs from textbook RR</span>
+          <p>No fixed quantum. Instead, CFS picks a <strong>targeted latency</strong> (typically 6–24 ms) and divides it proportionally among runnable tasks. Two tasks → each gets ~50% of the latency. Ten tasks → each gets ~10%. <strong>Dynamic quantum per task.</strong></p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The efficient data structure</span>
+          <p>All runnable tasks live in a <strong>red-black tree</strong> keyed on vruntime. Picking the next task is O(log n) — finding the leftmost node. Adding a task is O(log n). This scales to thousands of threads.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>What this means for you:</b> CFS's near-perfect fairness is why your music doesn't skip even when the CPU is saturated. It's also why a runaway process makes <em>every</em> other process slower — not just the ones behind it in a queue.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">CFS's red-black tree</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <circle cx="170" cy="40" r="18" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.75)" stroke-width="1.5"/>
+          <text x="170" y="45" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">500</text>
+
+          <circle cx="90" cy="100" r="16" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.75)" stroke-width="1.5"/>
+          <text x="90" y="104" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">300</text>
+          <circle cx="250" cy="100" r="16" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.75)" stroke-width="1.5"/>
+          <text x="250" y="104" text-anchor="middle" font-size="8.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">700</text>
+
+          <circle cx="50" cy="160" r="14" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.75)" stroke-width="1.5"/>
+          <text x="50" y="164" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">150</text>
+          <circle cx="130" cy="160" r="14" fill="rgba(160,107,255,.20)" stroke="rgba(160,107,255,.75)" stroke-width="1.5"/>
+          <text x="130" y="164" text-anchor="middle" font-size="8" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">400</text>
+
+          <circle cx="210" cy="160" r="14" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="210" y="164" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">650</text>
+
+          <line x1="170" y1="58" x2="90" y2="84" stroke="rgba(255,255,255,.20)" stroke-width="1.3"/>
+          <line x1="170" y1="58" x2="250" y2="84" stroke="rgba(255,255,255,.20)" stroke-width="1.3"/>
+          <line x1="90" y1="116" x2="50" y2="146" stroke="rgba(255,255,255,.20)" stroke-width="1.3"/>
+          <line x1="90" y1="116" x2="130" y2="146" stroke="rgba(255,255,255,.20)" stroke-width="1.3"/>
+          <line x1="250" y1="116" x2="210" y2="146" stroke="rgba(255,255,255,.20)" stroke-width="1.3"/>
+
+          <text x="50" y="200" text-anchor="middle" font-size="8.5" fill="rgba(46,230,168,.85)" font-family="JetBrains Mono" font-weight="700">◀ pick this</text>
+          <text x="50" y="212" text-anchor="middle" font-size="8" fill="rgba(46,230,168,.6)" font-family="JetBrains Mono">smallest vruntime</text>
+
+          <rect x="30" y="240" width="280" height="65" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.45)" stroke-width="1.2"/>
+          <text x="170" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">CFS PICKS THE LEFTMOST</text>
+          <text x="170" y="278" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">O(log n) insertion · O(1) pick</text>
+          <text x="170" y="294" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">thousands of tasks, still fast</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Common Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about scheduling</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"SJF is always best because it minimizes average wait"</div>
+        <div class="pc-desc">SJF minimizes average wait <em>assuming you know burst times and every job eventually runs</em>. It causes starvation and is unimplementable without burst prediction. Production systems almost never use pure SJF — they use RR variants with priority aging.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Round Robin has no starvation"</div>
+        <div class="pc-desc">True for tasks in the same priority class, but a high-priority process can still starve a low-priority one if there's a strict hierarchy. And RR's guarantee is that every <em>ready</em> task gets a turn — but a task blocked on I/O isn't ready, and can be bypassed for a long time.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"The response time is the same as the wait time"</div>
+        <div class="pc-desc">They're different. Response time = arrival to first dispatch. Wait time = total time in READY across all dispatches. A process could respond instantly but then be preempted repeatedly, giving huge wait time with tiny response time.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Preemption &amp; Quantum</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Preemption</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The ability of an operating system to forcefully pause a running process to hand the CPU core to a different task.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The kernel's ability to hit pause on a running program — without asking. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Which policies preempt?</span>
+          <p>RR and SRTF do. FCFS and basic SJF don't — they run each process to completion.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Time Quantum</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The maximum continuous block of time a thread is permitted to run under a preemptive scheduling policy before being context-switched.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The timer that says "you've had enough CPU for now — step aside." )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Typical values</span>
+          <p>1–100 ms. Linux CFS uses ~6–24 ms targeted latency. Windows ~15 ms.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Convoy &amp; Metrics</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Convoy Effect</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A system slowdown scenario where short processes wait a prolonged duration for a long, heavy process to vacate the CPU core.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( One slow truck blocks a highway of fast cars. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Which policy causes it?</span>
+          <p>FCFS — the strictest offender. It's the entire reason preemption exists.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Avg Wait Time</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The arithmetic mean of the total time processes spent sitting inside the READY queue waiting for execution access.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( On average, how long did your program sit in line? )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Formula</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">wait[i] = completion[i] − arrival[i] − burst[i]</code><br>avg = sum(wait) / n</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L07 Sits</span>
+    <h2 style="margin-bottom:20px;">The policy layer on top of the mechanism</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L06 (Context Switch)</h4>
+            <p>Round Robin requires firing hardware clock timer interrupts to force a context switch when a thread's time slice expires. Without context switching, no preemption exists.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L08 (Advanced Scheduling)</h4>
+            <p>Forms the essential mathematical foundation needed to analyze Multi-Level Feedback Queues, priority aging, and priority inversion.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Downstream impact</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Module 4 (Sync):</strong> scheduling interacts with locks — priority inversion happens when a low-priority lock holder can't run to release it.<br>
+            <strong>Module 6 (I/O):</strong> I/O-bound vs. CPU-bound tasks need different scheduling treatment.<br>
+            <strong>L08:</strong> Multi-Level Feedback Queues use scheduling history to classify processes dynamically.
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The pattern:</b> L05 said "here's the PCB". L06 said "here's how we switch". L07 says "here's when to switch". L08 says "here's how to switch intelligently, based on history."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="48" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="50" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L06 · Context Switch</text>
+          <text x="90" y="66" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">the mechanism</text>
+
+          <rect x="180" y="30" width="140" height="48" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="50" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L05 · PCB</text>
+          <text x="250" y="66" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">state tracking</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L07 · SCHEDULING</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">FCFS · SJF · RR</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L08 · Advanced</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">MLFQ · aging</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="10" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">priority inversion</text>
+
+          <line x1="90" y1="78" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="78" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Physical Checkout Lane Simulation</span>
+    <h2 style="margin-bottom:16px;">Five students. Three policies. <span class="grad-violet">Watch the waits shift.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Line up five students at the front of the classroom. Assign each a slip of paper detailing a task complexity weight — e.g., "writing 2 sentences on the board" (small) vs. "writing 10 sentences" (large).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Run three rounds</span>
+          <p style="line-height:1.85;margin-top:4px">
+            <strong>Round 1 · FCFS</strong> — line up in arrival order<br>
+            <strong>Round 2 · SJF</strong> — re-sort by shortest task<br>
+            <strong>Round 3 · RR(15s)</strong> — everyone gets 15 seconds, then step to the back
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief</span>
+          <p>Which round finished the most tasks? Which round felt fairest? Which round did the long-task person feel most frustrated? The answers won't agree — that's the point.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Learning goal:</b> students physically experience the tradeoff. FCFS is orderly but the long-task person hogs the board. SJF is fast but the long-task person waits. RR is fair but wastes time on rotations.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three line-ups, side by side</div>
+        <div class="mini-label">FCFS · arrival order</div>
+        <div class="act-lineup">
+          <div class="act-person t5">10 sentences</div>
+          <div class="act-person t1">2 sentences</div>
+          <div class="act-person t2">3 sentences</div>
+          <div class="act-person t3">5 sentences</div>
+          <div class="act-person t4">8 sentences</div>
+        </div>
+        <div class="mini-label" style="margin-top:14px">SJF · shortest first</div>
+        <div class="act-lineup">
+          <div class="act-person t1">2 sentences</div>
+          <div class="act-person t2">3 sentences</div>
+          <div class="act-person t3">5 sentences</div>
+          <div class="act-person t4">8 sentences</div>
+          <div class="act-person t5">10 sentences</div>
+        </div>
+        <div class="mini-label" style="margin-top:14px">RR · rotate every 15s</div>
+        <div class="act-lineup">
+          <div class="act-person t1">2s</div>
+          <div class="act-person t2">3s</div>
+          <div class="act-person t3">5s</div>
+          <div class="act-person t4">8s</div>
+          <div class="act-person t5">10s</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L07 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>The scheduler picks <strong>which READY process</strong> gets the CPU. Three foundational policies: <strong>FCFS</strong> (arrival order), <strong>SJF</strong> (shortest burst), <strong>RR</strong> (time quantum).</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>FCFS</strong> is trivial but suffers the convoy effect — one long job blocks everything behind it. Average wait: 17 ms in the canonical example.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>SJF</strong> is provably optimal for average wait (3 ms in the same example), but requires burst-time prediction and causes starvation.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Round Robin</strong> provides bounded wait time via preemption. The <strong>quantum size</strong> is the entire policy — too big degenerates to FCFS, too small burns on context switches. Modern Linux CFS is a highly evolved RR variant.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L08 — CPU Scheduling II (Advanced MLFQ &amp; Edge Cases)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Now that we have basic policies, L08 shows how to combine them. <strong>Multi-Level Feedback Queues</strong> adaptively classify processes by behavior. Priority aging prevents starvation. Priority inversion is the trap that nearly killed the Mars Pathfinder.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L08: CPU Scheduling II &nbsp;|&nbsp; [L8.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad7" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad7)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad7)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : scheduler canvas ---------- */
+reg('schedcanvas', function(){
+  const c = document.getElementById('schedCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const policies = [
+    {name:'FCFS', color:'#8fb4ff', order:['P1','P2','P3'],
+      blocks:[{p:'P1',dur:80},{p:'P2',dur:10},{p:'P3',dur:10}]},
+    {name:'SJF', color:'#2ee6a8', order:['P2','P3','P1'],
+      blocks:[{p:'P2',dur:10},{p:'P3',dur:10},{p:'P1',dur:80}]},
+    {name:'RR q=4', color:'#ffb648', order:['P1','P2','P3'],
+      blocks:[
+        {p:'P1',dur:13},{p:'P2',dur:10},{p:'P3',dur:10},
+        {p:'P1',dur:13},{p:'P1',dur:13},{p:'P1',dur:13},{p:'P1',dur:13},{p:'P1',dur:15}
+      ]}
+  ];
+
+  const blockColor = {
+    P1:'rgba(91,141,255,0.8)',
+    P2:'rgba(46,230,168,0.8)',
+    P3:'rgba(255,182,72,0.8)'
+  };
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('SAME WORKLOAD · THREE POLICIES', W/2, 16);
+
+    const startY = 60;
+    const rowH = 120;
+
+    policies.forEach((pol, pIdx) => {
+      const y = startY + pIdx * rowH;
+
+      // policy label
+      ctx.fillStyle = pol.color;
+      ctx.font = '800 12px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pol.name, 20, y + 20);
+
+      // gantt bar background
+      const gx = 20, gw = W - 40, gy = y + 42, gh = 40;
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillRect(gx, gy, gw, gh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(gx, gy, gw, gh);
+
+      // calculate total duration
+      const total = pol.blocks.reduce((a, b) => a + b.dur, 0);
+      let xPos = 0;
+      const phase = (t / 60) % 2; // animation drive
+      const revealAmount = phase < 1 ? Math.min(1, phase * 1.5) : 1;
+
+      pol.blocks.forEach((b, i) => {
+        const bw = (b.dur / total) * gw;
+        const bx = gx + xPos;
+        if (xPos / total < revealAmount) {
+          const clampedW = Math.min(bw, gw * revealAmount - (bx - gx));
+          if (clampedW > 0) {
+            ctx.fillStyle = blockColor[b.p];
+            ctx.fillRect(bx, gy + 2, clampedW, gh - 4);
+
+            if (clampedW > 30) {
+              ctx.fillStyle = 'rgba(0,0,0,0.85)';
+              ctx.font = '800 11px Inter, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(b.p, bx + clampedW / 2, gy + gh / 2);
+            }
+          }
+        }
+        xPos += b.dur;
+      });
+
+      // time labels
+      ctx.fillStyle = 'rgba(132,148,180,0.85)';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('0', gx, gy + gh + 4);
+      ctx.textAlign = 'right';
+      ctx.fillText(String(total), gx + gw, gy + gh + 4);
+
+      // avg wait annotation
+      const waits = {
+        FCFS: '(0+24+27)/3 = 17',
+        SJF: '(0+3+6)/3 = 3',
+        'RR q=4': '(6+4+7)/3 = 5.67'
+      };
+      ctx.fillStyle = pol.color;
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('avg wait ' + waits[pol.name], gx + gw, y + 22);
+    });
+
+    // bottom hint
+    ctx.fillStyle = 'rgba(132,148,180,0.6)';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('reordering the same three jobs changes average wait by 5.7×', W/2, H - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 18 : live Gantt ---------- */
+reg('livegantt', function(){
+  const blocks = document.querySelectorAll('#liveGantt .live-block');
+  if(!blocks.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    blocks.forEach(b => { b.style.width = '0%'; });
+    blocks[idx % blocks.length].style.width = '100%';
+    // Actually we need to animate sequential — better approach: reveal per-row
+    // Simpler: reveal one block per tick, cycle after full
+    void idx;
+  }
+
+  // Sequential reveal per row
+  let step = 0;
+  const totalBlocks = blocks.length;
+  function reveal(){
+    blocks.forEach((b, i) => {
+      const dur = b.style.width || '0%';
+      // Reset if we're at start
+      if (step === 0) b.style.width = '0%';
+      // Actually set width progressively: reveal one block at a time
+      // width as percentage of track — each block ends at a known left+width
+      // Easier: use the `left` value to know start, and set width to its target
+      if (i === step) {
+        // parse the target width from a data attribute or infer from left of next
+        // Let me set explicit widths via data attributes
+        void dur;
+      }
+    });
+    step++;
+    if (step > totalBlocks) step = 0;
+  }
+
+  // Alternative: use fixed widths per block based on their `left` values
+  const blockData = [
+    {sel:'[data-policy="fcfs"]', widths:['80%','10%','10%']},
+    {sel:'[data-policy="sjf"]', widths:['10%','10%','80%']},
+    {sel:'[data-policy="rr"]', widths:['13%','10%','10%','13%','13%','13%','13%','15%']}
+  ];
+
+  // Init all widths to 0
+  blocks.forEach(b => { b.style.width = '0%'; });
+
+  let currentRow = 0;
+  let currentIdxInRow = 0;
+  function advance(){
+    // Reset row
+    const rowData = blockData[currentRow];
+    const rowBlocks = document.querySelectorAll('#liveGantt ' + rowData.sel);
+    if (currentIdxInRow === 0) {
+      rowBlocks.forEach(b => { b.style.width = '0%'; });
+    }
+    if (currentIdxInRow < rowData.widths.length) {
+      rowBlocks[currentIdxInRow].style.width = rowData.widths[currentIdxInRow];
+      currentIdxInRow++;
+    } else {
+      // Move to next row
+      currentIdxInRow = 0;
+      currentRow = (currentRow + 1) % blockData.length;
+    }
+  }
+  advance();
+  const timer = setInterval(advance, 320);
+
+  return { stop(){ clearInterval(timer); blocks.forEach(b => b.style.width = '0%'); } };
+});
+
+/* ---------- Slide 19 : code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,6,7,8,9,10,11,12,13,14,16,17,18,19,20,21,22,23];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const target = seq[i % seq.length];
+    if(lines[target]) lines[target].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 550);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
