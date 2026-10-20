@@ -1,0 +1,2166 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L01 — The Architecture Matrix (Five-Paradigm Edition)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root{
+  --bg:#06090f;
+  --bg-2:#0b1120;
+  --panel:rgba(255,255,255,.038);
+  --panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);
+  --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;
+  --ink-2:#c4cfe6;
+  --muted:#8494b4;
+  --blue:#5b8dff;
+  --blue-2:#8fb4ff;
+  --blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;
+  --amber:#ffb648;
+  --crimson:#ff4d6d;
+  --violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(91,141,255,.16), transparent 62%),
+    radial-gradient(800px 560px at 100% 108%, rgba(160,107,255,.13), transparent 60%),
+    radial-gradient(700px 500px at 82% 4%, rgba(46,230,168,.07), transparent 58%);
+  pointer-events:none;z-index:0;
+}
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 45%, #000 20%, transparent 82%);
+  pointer-events:none;z-index:0;
+}
+
+/* ============================================================
+   HUD
+   ============================================================ */
+.hud{
+  position:fixed;top:0;left:0;right:0;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;z-index:60;
+  font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;
+  pointer-events:none;
+}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{
+  position:fixed;top:54px;left:0;right:0;height:2px;
+  background:rgba(255,255,255,.06);z-index:60;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));
+  transition:width .45s var(--ease);
+  box-shadow:0 0 14px rgba(91,141,255,.7);
+}
+
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{
+  width:44px;height:44px;border-radius:14px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.05);
+  color:var(--ink);font-size:17px;cursor:pointer;
+  display:grid;place-items:center;backdrop-filter:blur(12px);
+  transition:.22s var(--ease);font-family:var(--font);
+}
+.controls button:hover{
+  background:rgba(91,141,255,.20);
+  border-color:rgba(91,141,255,.55);
+  transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);
+}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+
+.hint{
+  position:fixed;bottom:28px;left:26px;z-index:60;
+  font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:rgba(132,148,180,.55);font-weight:600;
+  transition:opacity .6s ease;
+}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+/* ============================================================
+   STAGE
+   ============================================================ */
+.stage{position:fixed;inset:0;z-index:10;}
+
+.slide{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:80px 60px 92px;
+  opacity:0;visibility:hidden;
+  transform:translateY(22px) scale(.988);
+  transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+
+.slide-inner{width:min(1320px,100%);}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;
+  color:var(--blue-2);background:var(--blue-soft);
+  border:1px solid rgba(91,141,255,.32);
+  padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;
+}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{
+  border:1px solid var(--stroke);background:var(--panel);
+  border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);
+}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+
+.panel-label{
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin-bottom:9px;display:block;
+}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:13px 16px;border-radius:14px;
+  border-left:3px solid var(--violet);background:rgba(160,107,255,.07);
+  font-size:13.5px;line-height:1.55;color:#bcc8e0;
+}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{
+  position:relative;border:1px solid var(--stroke);
+  border-radius:var(--radius);
+  background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  padding:18px;overflow:hidden;
+  box-shadow:0 22px 60px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.vis-frame::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);
+}
+.vis-cap{
+  font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;
+}
+.mini-label{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin:4px 0 9px;
+}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* ============================================================
+   SLIDE 01 — Ring field
+   ============================================================ */
+#ringCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* ============================================================
+   SLIDE 02 — 2D matrix
+   ============================================================ */
+.matrix2d{width:100%;display:block;}
+.matrix2d .bubble{cursor:pointer;transition:filter .25s;}
+.matrix2d .bubble:hover{filter:brightness(1.5) drop-shadow(0 0 12px rgba(255,255,255,.6));}
+.matrix2d .bubble circle{
+  animation:bubblePulse 3s ease-in-out infinite;
+  transform-box:fill-box;transform-origin:center;
+}
+.matrix2d .bubble:nth-child(2) circle{animation-delay:.4s}
+.matrix2d .bubble:nth-child(3) circle{animation-delay:.8s}
+.matrix2d .bubble:nth-child(4) circle{animation-delay:1.2s}
+.matrix2d .bubble:nth-child(5) circle{animation-delay:1.6s}
+@keyframes bubblePulse{0%,100%{opacity:.75}50%{opacity:1}}
+
+/* ============================================================
+   SLIDE 03 — Monolithic floor
+   ============================================================ */
+.floor{
+  display:grid;grid-template-columns:repeat(8,1fr);gap:6px;
+  padding:14px;border-radius:14px;
+  background:rgba(255,77,109,.05);
+  border:1px solid rgba(255,77,109,.30);
+}
+.floor .worker{
+  aspect-ratio:1;border-radius:50%;
+  background:rgba(46,230,168,.22);
+  border:1px solid rgba(46,230,168,.45);
+  animation:workerInfect 4.2s ease-in-out infinite;
+}
+.floor .worker:nth-child(2n){animation-delay:.15s}
+.floor .worker:nth-child(3n){animation-delay:.3s}
+.floor .worker:nth-child(5n){animation-delay:.5s}
+.floor .worker:nth-child(7n){animation-delay:.7s}
+@keyframes workerInfect{
+  0%,18%{background:rgba(46,230,168,.22);border-color:rgba(46,230,168,.45);box-shadow:none;}
+  22%{background:rgba(255,77,109,.9);border-color:#ff4d6d;box-shadow:0 0 22px rgba(255,77,109,.9);}
+  82%{background:rgba(255,77,109,.9);border-color:#ff4d6d;box-shadow:0 0 22px rgba(255,77,109,.9);}
+  96%,100%{background:rgba(46,230,168,.22);border-color:rgba(46,230,168,.45);box-shadow:none;}
+}
+.floor.flash{border-color:rgba(255,77,109,.7);animation:floorCrash 4.2s ease-in-out infinite;}
+@keyframes floorCrash{
+  0%,22%{background:rgba(255,77,109,.05);}
+  26%,82%{background:rgba(255,77,109,.22);}
+  96%,100%{background:rgba(255,77,109,.05);}
+}
+
+/* ============================================================
+   SLIDE 04 — Microkernel rooms
+   ============================================================ */
+.rooms{display:flex;gap:10px;align-items:stretch;position:relative;padding:14px 8px;}
+.room{
+  flex:1;border-radius:12px;padding:14px 10px;text-align:center;
+  border:1px solid rgba(46,230,168,.35);
+  background:rgba(46,230,168,.06);
+  font-size:11.5px;font-weight:700;color:#88ffd8;letter-spacing:.06em;
+  position:relative;
+  animation:roomSafe 5s ease-in-out infinite;
+}
+.room:nth-child(3){animation-delay:.2s}
+.room:nth-child(5){animation-delay:.4s}
+@keyframes roomSafe{0%,100%{opacity:.85}50%{opacity:1}}
+.room.crash{
+  animation:roomCrash 5s ease-in-out infinite;
+}
+@keyframes roomCrash{
+  0%,45%{background:rgba(46,230,168,.06);border-color:rgba(46,230,168,.35);color:#88ffd8;}
+  55%,90%{background:rgba(255,77,109,.18);border-color:rgba(255,77,109,.7);color:#ff9fb1;}
+  100%{background:rgba(46,230,168,.06);border-color:rgba(46,230,168,.35);color:#88ffd8;}
+}
+.room .ic{font-size:22px;display:block;margin-bottom:4px;}
+.checkpoint{
+  align-self:center;width:14px;height:54px;
+  background:repeating-linear-gradient(0deg,rgba(255,182,72,.55) 0 6px,transparent 6px 10px);
+  border-radius:4px;
+  animation:cpPulse 1.6s ease-in-out infinite;
+}
+@keyframes cpPulse{0%,100%{opacity:.5}50%{opacity:1;filter:drop-shadow(0 0 6px rgba(255,182,72,.85));}}
+.latency-meter{
+  margin-top:12px;padding:10px 14px;border-radius:10px;
+  border:1px solid rgba(255,182,72,.4);background:rgba(255,182,72,.08);
+  font-family:var(--mono);font-size:12px;color:#ffd18a;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.latency-meter b{color:#ff4d6d;font-size:14px;}
+
+/* ============================================================
+   SLIDE 05 — Skyscraper
+   ============================================================ */
+.sky{display:flex;flex-direction:column;gap:8px;position:relative;}
+.floor-row{
+  border-radius:12px;padding:11px 16px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.04);
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;font-weight:700;
+  animation:floorFreeze 5.5s ease-in-out infinite;
+  transition:.3s;
+}
+.floor-row.f3{animation-delay:0s;color:#b9d0ff;border-color:rgba(91,141,255,.4);}
+.floor-row.f2{animation-delay:.35s;color:#ffd18a;border-color:rgba(255,182,72,.4);}
+.floor-row.f1{animation-delay:.7s;color:#88ffd8;border-color:rgba(46,230,168,.4);}
+.floor-row.f0{animation-delay:0s;color:#c9a7ff;border-color:rgba(160,107,255,.4);animation:floorFreezeBase 5.5s ease-in-out infinite;}
+@keyframes floorFreeze{
+  0%,25%{background:rgba(255,255,255,.04);}
+  35%,90%{background:rgba(255,77,109,.18);border-color:rgba(255,77,109,.6);color:#ff9fb1;}
+  100%{background:rgba(255,255,255,.04);}
+}
+@keyframes floorFreezeBase{
+  0%,100%{background:rgba(255,255,255,.04);}
+}
+.floor-arrow{
+  font-family:var(--mono);font-size:18px;text-align:center;
+  color:var(--emerald);letter-spacing:.2em;opacity:.85;
+  animation:arrowFlow 1.4s linear infinite;
+}
+@keyframes arrowFlow{0%{opacity:.4;transform:translateY(-2px)}50%{opacity:1;transform:translateY(0)}100%{opacity:.4;transform:translateY(-2px)}}
+
+/* ============================================================
+   SLIDE 06 — Modular
+   ============================================================ */
+.modular-wrap{position:relative;padding:14px;border-radius:14px;border:1px solid rgba(91,141,255,.32);background:rgba(91,141,255,.06);overflow:hidden;min-height:230px;}
+.modular-core{
+  border-radius:10px;padding:14px;text-align:center;
+  border:1px dashed rgba(91,141,255,.5);background:rgba(12,20,38,.6);
+  font-size:12px;font-weight:700;color:#b9d0ff;letter-spacing:.08em;
+}
+.slots{display:flex;gap:8px;justify-content:center;margin-top:10px;}
+.slot{width:56px;height:12px;border-radius:4px;border:1px solid rgba(91,141,255,.45);background:rgba(91,141,255,.10);}
+.lkm-module{
+  position:absolute;top:50%;right:-120px;
+  transform:translateY(-50%);
+  padding:9px 14px;border-radius:10px;
+  border:1px solid rgba(46,230,168,.65);
+  background:rgba(46,230,168,.14);color:#88ffd8;
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  box-shadow:0 0 24px rgba(46,230,168,.4);
+  animation:lkmSlide 4.2s ease-in-out infinite;
+}
+@keyframes lkmSlide{
+  0%,20%{right:-120px;opacity:0;}
+  30%{right:50%;opacity:1;transform:translateY(-50%) translateX(50%);}
+  60%,85%{right:50%;opacity:1;transform:translateY(-50%) translateX(50%);}
+  95%,100%{right:-120px;opacity:0;}
+}
+
+/* ============================================================
+   SLIDE 07 — Hybrid fire
+   ============================================================ */
+.hybrid-stage{position:relative;display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px;padding:16px;align-items:center;}
+.hybrid-core{
+  border-radius:14px;padding:16px 10px;text-align:center;
+  border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.10);
+  font-size:11.5px;font-weight:800;color:#88ffd8;letter-spacing:.06em;
+  animation:coreGlow 4s ease-in-out infinite;
+}
+@keyframes coreGlow{
+  0%,100%{box-shadow:0 0 18px rgba(46,230,168,.4);}
+  50%{box-shadow:0 0 32px rgba(46,230,168,.9);}
+}
+.outbuilding{
+  border-radius:12px;padding:12px 8px;text-align:center;
+  border:1px solid rgba(91,141,255,.35);background:rgba(91,141,255,.06);
+  font-size:10.5px;font-weight:700;color:#b9d0ff;letter-spacing:.05em;
+}
+.outbuilding.fire{
+  animation:fireBurn 4s ease-in-out infinite;
+}
+@keyframes fireBurn{
+  0%,20%{background:rgba(91,141,255,.06);border-color:rgba(91,141,255,.35);color:#b9d0ff;}
+  30%,80%{background:rgba(255,77,109,.22);border-color:rgba(255,77,109,.75);color:#ff9fb1;box-shadow:0 0 24px rgba(255,77,109,.6);}
+  100%{background:rgba(91,141,255,.06);border-color:rgba(91,141,255,.35);color:#b9d0ff;}
+}
+
+/* ============================================================
+   CODE STEPPER
+   ============================================================ */
+.code-block{
+  border-radius:16px;overflow:hidden;border:1px solid var(--stroke);
+  background:#080d17;
+}
+.code-head{
+  padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;
+  border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;
+}
+.code-head.mono{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.micro{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head.layed{color:#ffd18a;background:rgba(255,182,72,.08);}
+.code-head.hybrid{color:#c9a7ff;background:rgba(160,107,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(91,141,255,.16);}
+.code-line.hl-warn{background:rgba(255,77,109,.18);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* ============================================================
+   TERMINAL / PANIC / DEMO
+   ============================================================ */
+.terminal{
+  border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;
+  font-family:var(--mono);
+  box-shadow:0 24px 70px -30px rgba(0,0,0,.95);
+  transition:background .3s;
+}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);
+}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,13px);line-height:1.75;min-height:210px;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.big{font-size:1.3em;font-weight:800;letter-spacing:.15em;margin:10px 0;color:#fff;}
+
+.terminal.panicking{background:#1a0309;border-color:rgba(255,77,109,.85);animation:panicPulse .5s ease-in-out infinite;}
+@keyframes panicPulse{
+  0%,100%{box-shadow:0 0 40px -12px rgba(255,77,109,.7);}
+  50%{box-shadow:0 0 80px -8px rgba(255,77,109,1);}
+}
+.terminal.panicking .term-body{background:rgba(255,77,109,.05);}
+
+/* Desktop UI (slide 25) */
+.desktop-scene{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch;}
+.daemon-box{
+  border-radius:12px;padding:14px;text-align:center;
+  border:1px solid rgba(255,182,72,.45);background:rgba(255,182,72,.07);
+  animation:daemonDie 5s ease-in-out infinite;
+}
+@keyframes daemonDie{
+  0%,40%{opacity:1;filter:none;background:rgba(255,182,72,.07);border-color:rgba(255,182,72,.45);}
+  55%,100%{opacity:.3;filter:grayscale(1);background:rgba(255,255,255,.03);border-color:var(--stroke);}
+}
+.daemon-box .ic{font-size:26px;display:block;margin-bottom:6px;}
+.daemon-box b{font-size:11.5px;color:#ffd18a;letter-spacing:.06em;display:block;}
+.daemon-box small{font-size:10px;color:var(--muted);}
+
+.desktop-ui{
+  border-radius:12px;padding:14px;
+  border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.07);
+  animation:uiStable 5s ease-in-out infinite;
+}
+@keyframes uiStable{
+  0%,100%{box-shadow:0 0 18px rgba(46,230,168,.3);}
+  50%{box-shadow:0 0 28px rgba(46,230,168,.6);}
+}
+.desktop-ui .icons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.desktop-ui .icon{
+  aspect-ratio:1;border-radius:9px;
+  background:rgba(255,255,255,.07);border:1px solid var(--stroke);
+  display:grid;place-items:center;font-size:18px;
+  animation:iconBounce 2s ease-in-out infinite;
+}
+.desktop-ui .icon:nth-child(2){animation-delay:.2s}
+.desktop-ui .icon:nth-child(3){animation-delay:.4s}
+.desktop-ui .icon:nth-child(4){animation-delay:.6s}
+@keyframes iconBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+/* ============================================================
+   LEXICON CARDS
+   ============================================================ */
+.lex-card{
+  border-radius:24px;padding:clamp(22px,2.8vw,40px);
+  border:1px solid rgba(91,141,255,.34);
+  background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));
+  box-shadow:0 30px 80px -40px rgba(91,141,255,.85), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.lex-term{
+  font-size:clamp(30px,4.2vw,60px);font-weight:900;letter-spacing:-.04em;line-height:1;
+  margin-bottom:8px;
+  background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+
+.tri-lex{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.quad-lex{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+
+/* ============================================================
+   MATRIX GRID (slide 13)
+   ============================================================ */
+.matrix-table{
+  display:grid;grid-template-columns:170px repeat(5,1fr);gap:1px;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);
+  border-radius:16px;overflow:hidden;
+}
+.mtx-cell{background:#0a0f1c;padding:13px 11px;font-size:12px;line-height:1.45;}
+.mtx-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.mtx-head{background:#0d1425;font-size:12px;font-weight:800;letter-spacing:-.01em;color:var(--blue-2);text-align:center;}
+.mtx-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.mtx-cell.val{color:var(--ink-2);text-align:center;font-weight:600;}
+.mtx-cell.val.good{color:#88ffd8;}
+.mtx-cell.val.warn{color:#ffd18a;}
+.mtx-cell.val.bad{color:#ff9fb1;}
+.mtx-row-name{color:#b9d0ff;font-weight:800;display:flex;align-items:center;font-size:12px;}
+
+/* ============================================================
+   MINDMAP (slide 26)
+   ============================================================ */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{
+  padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;
+}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{
+  border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;
+  box-shadow:0 0 26px -4px rgba(91,141,255,.85);
+  animation:nodeActive 2.4s ease-in-out infinite;
+}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.mono-leaf{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.mm-node.micro-leaf{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.hybrid-leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.lay-leaf{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* ============================================================
+   GATEWAY
+   ============================================================ */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{
+  display:inline-flex;align-items:center;gap:10px;margin-top:18px;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  padding:11px 18px;border-radius:12px;
+  border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;
+}
+
+/* ============================================================
+   SVG ANIMATION HELPERS
+   ============================================================ */
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes gentlePulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+.svg-blocked{
+  stroke-dasharray:3 4;
+  animation:blockedFlash 1s ease-in-out infinite;
+}
+@keyframes blockedFlash{0%,100%{opacity:.35}50%{opacity:1}}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway{grid-template-columns:1fr;}
+  .matrix-table{grid-template-columns:130px repeat(5,1fr);font-size:11px;}
+  .slide{padding:76px 26px 96px;}
+  .tri-lex,.quad-lex{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .floor{grid-template-columns:repeat(6,1fr);}
+  .rooms{flex-wrap:wrap;}
+  .checkpoint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L01 Architecture Matrix</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Paradigm 1 · Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- ============================================================
+     SLIDE 01 — Title
+     ============================================================ -->
+<section class="slide" data-chapter="L01 · Architecture Matrix" data-anim="ringfield">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L01 · The Architecture Matrix (Full Five-Paradigm Edition)</span>
+    <div class="split">
+      <div class="stack">
+        <h1>How does a kernel layout shape <span class="grad-blue">performance, isolation, and failure blast radius?</span></h1>
+        <p class="lead">Contrast monolithic performance with microkernel isolation, hybrid balances, layered tiers, and modular extensibility — under real-world driver failure scenarios.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of Module 1</span>
+          <p>How do we give programs access to powerful hardware <strong>without</strong> letting them accidentally or maliciously destroy the system?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery Note:</b> Open with the ring field on the right. Ask the room which layout they'd trust to run a driver written by a stranger.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Ring 0 boundary vs. Ring 3 space</div>
+        <canvas id="ringCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 02 — Core Problem 2D plot
+     ============================================================ -->
+<section class="slide" data-chapter="Paradigm 1 · Overview">
+  <div class="slide-inner">
+    <span class="badge">🎯 The Tradeoff Axis · Five Layouts, One Spectrum</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Performance ↔ Isolation (hover any bubble)</div>
+        <svg class="matrix2d" viewBox="0 0 400 300">
+          <line x1="40" y1="260" x2="380" y2="260" stroke="rgba(255,255,255,.16)" stroke-width="1"/>
+          <line x1="40" y1="20" x2="40" y2="260" stroke="rgba(255,255,255,.16)" stroke-width="1"/>
+          <text x="380" y="282" text-anchor="end" font-size="9.5" fill="rgba(132,148,180,.85)" font-family="Inter,sans-serif" font-weight="700" letter-spacing="1.4">PERFORMANCE →</text>
+          <text x="20" y="26" text-anchor="middle" font-size="9.5" fill="rgba(132,148,180,.85)" font-family="Inter,sans-serif" font-weight="700" letter-spacing="1.4" transform="rotate(-90 20 26)">ISOLATION →</text>
+
+          <g class="bubble">
+            <circle cx="108" cy="44" r="20" fill="rgba(46,230,168,.28)" stroke="#2ee6a8" stroke-width="1.8"/>
+            <text x="108" y="49" text-anchor="middle" font-size="10" font-weight="800" fill="#88ffd8" font-family="Inter,sans-serif">µK</text>
+            <text x="108" y="20" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.95)" font-family="Inter,sans-serif" font-weight="700">Microkernel</text>
+          </g>
+          <g class="bubble">
+            <circle cx="261" cy="97" r="20" fill="rgba(160,107,255,.28)" stroke="#a06bff" stroke-width="1.8"/>
+            <text x="261" y="102" text-anchor="middle" font-size="10" font-weight="800" fill="#c9a7ff" font-family="Inter,sans-serif">HY</text>
+            <text x="261" y="73" text-anchor="middle" font-size="9.5" fill="rgba(201,167,255,.95)" font-family="Inter,sans-serif" font-weight="700">Hybrid</text>
+          </g>
+          <g class="bubble">
+            <circle cx="159" cy="128" r="20" fill="rgba(255,182,72,.28)" stroke="#ffb648" stroke-width="1.8"/>
+            <text x="159" y="133" text-anchor="middle" font-size="10" font-weight="800" fill="#ffd18a" font-family="Inter,sans-serif">LY</text>
+            <text x="159" y="104" text-anchor="middle" font-size="9.5" fill="rgba(255,209,138,.95)" font-family="Inter,sans-serif" font-weight="700">Layered</text>
+          </g>
+          <g class="bubble">
+            <circle cx="319" cy="176" r="20" fill="rgba(91,141,255,.28)" stroke="#5b8dff" stroke-width="1.8"/>
+            <text x="319" y="181" text-anchor="middle" font-size="10" font-weight="800" fill="#b9d0ff" font-family="Inter,sans-serif">MD</text>
+            <text x="319" y="152" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.95)" font-family="Inter,sans-serif" font-weight="700">Modular</text>
+          </g>
+          <g class="bubble">
+            <circle cx="346" cy="224" r="20" fill="rgba(255,77,109,.28)" stroke="#ff4d6d" stroke-width="1.8"/>
+            <text x="346" y="229" text-anchor="middle" font-size="10" font-weight="800" fill="#ff9fb1" font-family="Inter,sans-serif">MO</text>
+            <text x="346" y="200" text-anchor="middle" font-size="9.5" fill="rgba(255,159,177,.95)" font-family="Inter,sans-serif" font-weight="700">Monolithic</text>
+          </g>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>The fundamental engineering tradeoff</h2>
+        <p>Every architectural choice on this spectrum trades <strong>raw speed</strong> for <strong>fault containment</strong>. Nothing is free — you are always balancing three things:</p>
+        <div class="panel crimson">
+          <span class="panel-label">Performance</span>
+          <p>How fast can a subsystem call another subsystem? Direct function jumps inside one address space are nanoseconds; crossing a privilege boundary via IPC is microseconds.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Isolation</span>
+          <p>If one component catches fire, how much of the machine burns with it? Monolithic: everything. Microkernel: only that one server process.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Extensibility</span>
+          <p>Can you add a driver live without rebooting? Modular and hybrid say yes — clean monolithic builds and pure microkernels require more ceremony.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 03 — Monolithic analogy
+     ============================================================ -->
+<section class="slide" data-chapter="Analogy · Paradigm 1">
+  <div class="slide-inner">
+    <span class="badge crimson">🏢 Analogy 1 · Corporate Office — Monolithic</span>
+    <h2 style="margin-bottom:14px;">A massive <span class="grad-crimson">open-floor office</span> with no walls</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The Setup</span>
+          <p>Managers, developers, and accountants all sit side-by-side with zero internal walls. Every worker can whisper directly to any other instantly — <strong>communication is lightning fast</strong>.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The Failure</span>
+          <p>If one worker catches a highly contagious virus, everyone gets sick <strong>and the entire office shuts down immediately</strong> (total system crash).</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Takeaway:</b> Speed is maximal — there's zero overhead to reach a colleague. But a single bad hire can bring down the whole floor.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One infection, whole floor burns</div>
+        <div class="floor flash">
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+          <div class="worker"></div><div class="worker"></div><div class="worker"></div><div class="worker"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 04 — Microkernel analogy
+     ============================================================ -->
+<section class="slide" data-chapter="Analogy · Paradigm 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏢 Analogy 1 · Corporate Office — Microkernel</span>
+    <h2 style="margin-bottom:14px;">A secure building with <span class="grad-emerald">keycard-locked departments</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The Setup</span>
+          <p>Every department operates inside its own isolated room behind thick concrete walls. Each room's keycard must be presented to enter — <strong>strict isolation</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Safety</span>
+          <p>If the accounting room catches a fire, that department locks down safely <strong>without bringing down the rest of the company</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Cost</span>
+          <p>Moving paperwork across departments requires passing through explicit, slow security checkpoints every time — the <strong>IPC messaging performance tax</strong>.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Checkpoints + latency meter</div>
+        <div class="rooms">
+          <div class="room"><span class="ic">🧾</span>FS</div>
+          <div class="checkpoint"></div>
+          <div class="room crash"><span class="ic">🌐</span>NET</div>
+          <div class="checkpoint"></div>
+          <div class="room"><span class="ic">🖨️</span>DRV</div>
+          <div class="checkpoint"></div>
+          <div class="room"><span class="ic">📁</span>MM</div>
+        </div>
+        <div class="latency-meter">
+          <span>IPC latency per cross-room message</span>
+          <b>14.7 µs</b>
+        </div>
+        <p style="font-size:11.5px;margin-top:10px;color:var(--muted);line-height:1.5">The NET room dies — but FS, DRV and MM keep running. That's the entire pitch of a microkernel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 05 — Layered analogy
+     ============================================================ -->
+<section class="slide" data-chapter="Analogy · Paradigm 3">
+  <div class="slide-inner">
+    <span class="badge amber">🏢 Analogy 1 · Corporate Office — Layered</span>
+    <h2 style="margin-bottom:14px;">A strict <span class="grad-amber">multi-story skyscraper</span> — no skipping floors</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The Setup</span>
+          <p>Departments are stacked by rank. Floor 3 workers are <strong>legally blocked from talking to Floor 1 directly</strong>. They may only pass physical folders down to Floor 2, which processes them and drops them down to Floor 1.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Failure</span>
+          <p>It's orderly — but if <strong>Floor 2 freezes, the entire chain breaks</strong>. Floors 3 and above are now stranded, unable to reach the ground.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Takeaway:</b> Perfect logical hierarchy, but zero redundancy. One broken middle tier kills everything above it.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Middle-tier freeze cascade</div>
+        <div class="sky">
+          <div class="floor-row f3"><span>FLOOR 3 · User Application Layer</span><span>blocked</span></div>
+          <div class="floor-arrow">▼</div>
+          <div class="floor-row f2"><span>FLOOR 2 · File Subsystem Layer</span><span>FROZEN</span></div>
+          <div class="floor-arrow">▼</div>
+          <div class="floor-row f1"><span>FLOOR 1 · Device Driver Layer</span><span>starved</span></div>
+          <div class="floor-arrow">▼</div>
+          <div class="floor-row f0"><span>FLOOR 0 · Hardware</span><span>silent</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 06 — Modular analogy
+     ============================================================ -->
+<section class="slide" data-chapter="Analogy · Paradigm 4">
+  <div class="slide-inner">
+    <span class="badge">🏢 Analogy 1 · Corporate Office — Modular</span>
+    <h2 style="margin-bottom:14px;">The <span class="grad-blue">open floor</span> with <span class="grad-emerald">hot-swappable expansion slots</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The Setup</span>
+          <p>The outer edge of the office is lined with standardized expansion slots. If you suddenly need foreign tax specialists (a new device driver), you don't rebuild the facility — <strong>you wheel in a pre-built desk module and plug it in live</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Tradeoff</span>
+          <p>You retain lightning-fast communication across the whole floor — but <strong>that new desk is exposed to the open room's virus risks</strong>, just like everyone else.</p>
+        </div>
+        <div class="note">
+          <span class="ic">📘</span>
+          <div><b>Takeaway:</b> Add hardware live, without reboot. But the new code sits right next to the core — blast radius is unchanged.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · LKM slides into Ring 0 while work continues</div>
+        <div class="modular-wrap">
+          <div class="modular-core">
+            KERNEL CORE · Ring 0<br>
+            <small style="color:var(--muted);font-weight:400;letter-spacing:.03em;font-size:10.5px">scheduler · VFS · net stack · memory</small>
+          </div>
+          <div class="slots">
+            <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+            <div class="slot"></div><div class="slot"></div>
+          </div>
+          <div class="lkm-module">📦 new_driver.ko</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 07 — Hybrid analogy
+     ============================================================ -->
+<section class="slide" data-chapter="Analogy · Paradigm 5">
+  <div class="slide-inner">
+    <span class="badge violet">🏢 Analogy 1 · Corporate Office — Hybrid</span>
+    <h2 style="margin-bottom:14px;">The modern <span class="grad-violet">corporate compromise</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The Setup</span>
+          <p>Core management, schedulers and memory managers sit together in a fast, open-floor <strong>center room</strong> — sharing files instantly with no paperwork delays.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Tradeoff</span>
+          <p>Dangerous or untrusted personnel — third-party graphic designers, printer technicians — get <strong>detached outbuildings</strong> across the courtyard.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The Safety</span>
+          <p>If a technician catches a virus in their isolated outbuilding, <strong>they crash alone</strong> while the executive center room stays alive at maximum speed.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Outbuilding burns, core keeps running</div>
+        <div class="hybrid-stage">
+          <div class="outbuilding fire"><span style="font-size:22px;display:block;margin-bottom:4px">🖨️</span>OUTBUILDING<br>printer driver</div>
+          <div class="hybrid-core"><span style="font-size:22px;display:block;margin-bottom:4px">🏛️</span>CORE ROOM<br>VMM · sched · FS · net<br><small style="color:var(--emerald);letter-spacing:.15em;font-size:9.5px">100% ALIVE</small></div>
+          <div class="outbuilding"><span style="font-size:22px;display:block;margin-bottom:4px">🎨</span>OUTBUILDING<br>GUI render</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 08 — Technical Monolithic
+     ============================================================ -->
+<section class="slide" data-chapter="Technical · Paradigm 1">
+  <div class="slide-inner">
+    <span class="badge crimson">💻 Analogy 2 · Technical — Monolithic</span>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Every function can touch every other function</div>
+        <svg viewBox="0 0 320 300" style="width:100%;height:auto">
+          <rect x="6" y="6" width="308" height="288" rx="16" fill="rgba(255,77,109,.04)" stroke="rgba(255,77,109,.55)" stroke-width="1.6"/>
+          <circle cx="160" cy="150" r="30" fill="rgba(255,77,109,.30)" stroke="#ff4d6d" stroke-width="2"/>
+          <text x="160" y="155" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">SCHED</text>
+          <circle cx="60" cy="60" r="22" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="60" y="65" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">VMM</text>
+          <circle cx="260" cy="60" r="22" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="260" y="65" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">VFS</text>
+          <circle cx="60" cy="240" r="22" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="60" y="245" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">NET</text>
+          <circle cx="260" cy="240" r="22" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="260" y="245" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="700">DRV</text>
+          <line x1="60" y1="60" x2="160" y2="150" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="260" y1="60" x2="160" y2="150" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="60" y1="240" x2="160" y2="150" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="260" y1="240" x2="160" y2="150" stroke="rgba(255,77,109,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="60" y1="60" x2="260" y2="60" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="svg-flow-slow"/>
+          <line x1="60" y1="240" x2="260" y2="240" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="svg-flow-slow"/>
+          <line x1="60" y1="60" x2="60" y2="240" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="svg-flow-slow"/>
+          <line x1="260" y1="60" x2="260" y2="240" stroke="rgba(255,77,109,.32)" stroke-width="1.2" class="svg-flow-slow"/>
+          <line x1="60" y1="60" x2="260" y2="240" stroke="rgba(255,77,109,.24)" stroke-width="1.2" class="svg-flow-slow"/>
+          <line x1="260" y1="60" x2="60" y2="240" stroke="rgba(255,77,109,.24)" stroke-width="1.2" class="svg-flow-slow"/>
+          <text x="160" y="288" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono" letter-spacing="1.6">ZERO INTERNAL WALLS · ONE ADDRESS SPACE</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>Monolithic — <span class="grad-crimson">one giant statically-linked binary</span></h2>
+        <div class="panel crimson">
+          <span class="panel-label">Structural Form</span>
+          <p>A massive single statically-linked compiled C binary where <strong>every internal function can directly access global memory pointers</strong> with zero boundaries.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why It's Fast</span>
+          <p>Calling from the scheduler into the VFS is just a <code style="font-family:var(--mono);color:#b9d0ff">call</code> instruction — no privilege hop, no message packaging, no scheduler round-trip.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why It's Fragile</span>
+          <p>Any driver with a single bad pointer dereference corrupts the entire address space — including the scheduler you needed to recover.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 09 — Technical Microkernel
+     ============================================================ -->
+<section class="slide" data-chapter="Technical · Paradigm 2">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Analogy 2 · Technical — Microkernel</span>
+    <div class="split wide-right">
+      <div class="stack">
+        <h2>Microkernel — <span class="grad-emerald">a local network of microservices</span></h2>
+        <div class="panel emerald">
+          <span class="panel-label">Structural Form</span>
+          <p>A local network of microservices running on a machine, communicating <strong>strictly via isolated socket messages</strong> over network loops — even though they're on the same box.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What stays in Ring 0</span>
+          <p>Only the bare minimum: address space management, thread scheduling, and IPC. Everything else — FS, network, drivers — runs unprivileged.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The Cost</span>
+          <p>Every read now packages a message, queues it, context-switches to the server, then returns the answer. That's the <strong>IPC overhead</strong> made visible.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Message packaged, queued, and answered</div>
+        <svg viewBox="0 0 380 300" style="width:100%;height:auto">
+          <rect x="14" y="122" width="90" height="56" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.5)" stroke-width="1.4"/>
+          <text x="59" y="146" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">CLIENT</text>
+          <text x="59" y="162" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="146" y="60" width="90" height="72" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.6)" stroke-width="1.4"/>
+          <text x="191" y="88" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">IPC CORE</text>
+          <text x="191" y="104" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">Ring 0</text>
+          <text x="191" y="120" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">msg queue</text>
+
+          <rect x="276" y="122" width="90" height="56" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.5)" stroke-width="1.4"/>
+          <text x="321" y="146" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">FS SERVER</text>
+          <text x="321" y="162" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <line x1="104" y1="150" x2="146" y2="110" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="236" y1="110" x2="276" y2="150" stroke="rgba(46,230,168,.85)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="276" y1="155" x2="236" y2="132" stroke="rgba(91,141,255,.85)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="146" y1="132" x2="104" y2="155" stroke="rgba(91,141,255,.85)" stroke-width="1.8" class="svg-flow"/>
+
+          <circle cx="125" cy="130" r="3.5" fill="#2ee6a8" class="svg-pulse"/>
+          <circle cx="256" cy="130" r="3.5" fill="#2ee6a8" class="svg-pulse" style="animation-delay:.4s"/>
+          <circle cx="256" cy="143" r="3.5" fill="#5b8dff" class="svg-pulse" style="animation-delay:.8s"/>
+          <circle cx="125" cy="143" r="3.5" fill="#5b8dff" class="svg-pulse" style="animation-delay:1.2s"/>
+
+          <rect x="14" y="230" width="352" height="42" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.45)" stroke-width="1.3"/>
+          <text x="190" y="248" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800" letter-spacing="1">EVERY CALL = 2 PRIVILEGE HOPS + QUEUE</text>
+          <text x="190" y="263" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">~14 µs vs. nanoseconds direct</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 10 — Technical Layered
+     ============================================================ -->
+<section class="slide" data-chapter="Technical · Paradigm 3">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Analogy 2 · Technical — Layered</span>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Only N→N-1 allowed (red X = blocked)</div>
+        <svg viewBox="0 0 320 320" style="width:100%;height:auto">
+          <rect x="26" y="20" width="268" height="52" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="160" y="44" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">LAYER 3 · File Abstraction</text>
+          <text x="160" y="60" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">posix API surface</text>
+
+          <rect x="26" y="94" width="268" height="52" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="160" y="118" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">LAYER 2 · Logical Block Mapping</text>
+          <text x="160" y="134" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">sector → block translation</text>
+
+          <rect x="26" y="168" width="268" height="52" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="160" y="192" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">LAYER 1 · Hardware Abstraction</text>
+          <text x="160" y="208" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">raw device primitives</text>
+
+          <rect x="26" y="242" width="268" height="52" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.4"/>
+          <text x="160" y="266" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">LAYER 0 · Physical Hardware</text>
+          <text x="160" y="282" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">silicon</text>
+
+          <line x1="160" y1="72" x2="160" y2="94" stroke="rgba(46,230,168,.9)" stroke-width="2" class="svg-flow"/>
+          <line x1="160" y1="146" x2="160" y2="168" stroke="rgba(46,230,168,.9)" stroke-width="2" class="svg-flow"/>
+          <line x1="160" y1="220" x2="160" y2="242" stroke="rgba(46,230,168,.9)" stroke-width="2" class="svg-flow"/>
+
+          <line x1="270" y1="72" x2="270" y2="168" stroke="rgba(255,77,109,.55)" stroke-width="1.6" class="svg-blocked"/>
+          <text x="292" y="124" text-anchor="middle" font-size="16" fill="#ff4d6d" font-family="Inter" font-weight="900">✕</text>
+          <text x="292" y="144" text-anchor="middle" font-size="7.5" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">L3→L1<br>blocked</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>Layered — <span class="grad-amber">a rigid vertical software stack</span></h2>
+        <div class="panel amber">
+          <span class="panel-label">Structural Form</span>
+          <p>A rigid vertical software stack utilizing strict API boundaries where <strong>layer N can only invoke functions belonging to layer N−1</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The Discipline</span>
+          <p>Each layer is built strictly on top of the layer below's hardware abstraction primitives. No skipping — no shortcuts.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The Fragility</span>
+          <p>Because every layer trusts the one below it to work, a frozen layer-2 cascades into layers 3 and above. The chain never recovers by itself.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 11 — Technical Modular
+     ============================================================ -->
+<section class="slide" data-chapter="Technical · Paradigm 4">
+  <div class="slide-inner">
+    <span class="badge">💻 Analogy 2 · Technical — Modular</span>
+    <div class="split wide-right">
+      <div class="stack">
+        <h2>Modular — <span class="grad-blue">a monolithic core with a runtime symbol table</span></h2>
+        <div class="panel blue">
+          <span class="panel-label">Structural Form</span>
+          <p>A monolithic core binary that provides an internal <strong>runtime symbol table and loading gateway</strong>, allowing object files (<code style="font-family:var(--mono);color:#88ffd8">.ko</code> modules) to link themselves directly into Ring 0 kernel space at runtime.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why It's Fast</span>
+          <p>Once loaded, the module is inside the same address space — same speed as if it had been compiled into the kernel originally.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why It's Risky</span>
+          <p>Nothing isolates the newly linked module from the rest of the kernel. A buggy <code style="font-family:var(--mono);color:#ff9fb1">.ko</code> file can panic the whole system.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Symbol resolution + dynamic link</div>
+        <svg viewBox="0 0 360 280" style="width:100%;height:auto">
+          <rect x="20" y="20" width="200" height="240" rx="14" fill="rgba(91,141,255,.05)" stroke="rgba(91,141,255,.45)" stroke-width="1.4"/>
+          <text x="120" y="42" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">KERNEL CORE · RING 0</text>
+
+          <text x="40" y="80" font-size="9.5" fill="rgba(143,180,255,.85)" font-family="JetBrains Mono">SYMBOL TABLE</text>
+          <rect x="34" y="88" width="172" height="22" rx="4" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.32)" stroke-width="1"/>
+          <text x="46" y="104" font-size="8.5" fill="#b9d0ff" font-family="JetBrains Mono">kmalloc → 0xA400</text>
+          <rect x="34" y="114" width="172" height="22" rx="4" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.32)" stroke-width="1"/>
+          <text x="46" y="130" font-size="8.5" fill="#b9d0ff" font-family="JetBrains Mono">printk  → 0xB120</text>
+          <rect x="34" y="140" width="172" height="22" rx="4" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.65)" stroke-width="1.2" class="svg-pulse"/>
+          <text x="46" y="156" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">register_dev → RESOLVED</text>
+          <rect x="34" y="166" width="172" height="22" rx="4" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.32)" stroke-width="1"/>
+          <text x="46" y="182" font-size="8.5" fill="#b9d0ff" font-family="JetBrains Mono">mutex_lock → 0xC810</text>
+
+          <rect x="34" y="204" width="172" height="44" rx="8" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.18)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="120" y="222" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">📦 new_driver.ko</text>
+          <text x="120" y="237" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">linked live · no reboot</text>
+
+          <line x1="206" y1="226" x2="290" y2="226" stroke="rgba(46,230,168,.85)" stroke-width="2" class="svg-flow"/>
+          <circle cx="248" cy="226" r="3.5" fill="#2ee6a8" class="svg-pulse"/>
+
+          <rect x="290" y="196" width="60" height="60" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="320" y="220" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">HARDWARE</text>
+          <text x="320" y="236" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">chip</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 12 — Technical Hybrid
+     ============================================================ -->
+<section class="slide" data-chapter="Technical · Paradigm 5">
+  <div class="slide-inner">
+    <span class="badge violet">💻 Analogy 2 · Technical — Hybrid</span>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Fast core + isolated subsystems</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="20" y="20" width="140" height="260" rx="14" fill="rgba(160,107,255,.06)" stroke="rgba(160,107,255,.55)" stroke-width="1.5"/>
+          <text x="90" y="44" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">SUPERVISOR CORE</text>
+          <text x="90" y="60" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">Ring 0 · speed-critical</text>
+
+          <rect x="40" y="76" width="100" height="30" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.6)" stroke-width="1.2"/>
+          <text x="90" y="95" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">VMM</text>
+          <rect x="40" y="112" width="100" height="30" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.6)" stroke-width="1.2"/>
+          <text x="90" y="131" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">FILE SYSTEM</text>
+          <rect x="40" y="148" width="100" height="30" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.6)" stroke-width="1.2"/>
+          <text x="90" y="167" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">NETWORK STACK</text>
+          <rect x="40" y="184" width="100" height="30" rx="6" fill="rgba(46,230,168,.16)" stroke="rgba(46,230,168,.6)" stroke-width="1.2"/>
+          <text x="90" y="203" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="700">SCHEDULER</text>
+
+          <line x1="160" y1="150" x2="200" y2="150" stroke="rgba(91,141,255,.75)" stroke-width="1.6" class="svg-flow"/>
+          <circle cx="180" cy="150" r="3.5" fill="#5b8dff" class="svg-pulse"/>
+          <text x="180" y="144" text-anchor="middle" font-size="7.5" fill="rgba(143,180,255,.85)" font-family="JetBrains Mono">fast call</text>
+
+          <rect x="200" y="20" width="122" height="260" rx="14" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.55)" stroke-width="1.5"/>
+          <text x="261" y="44" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">USER SPACE</text>
+          <text x="261" y="60" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">Ring 3 · volatile</text>
+
+          <rect x="216" y="76" width="90" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="261" y="95" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">GUI RENDER</text>
+          <rect x="216" y="112" width="90" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="261" y="131" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">PRINTER DRV</text>
+          <rect x="216" y="148" width="90" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="261" y="167" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">3D GPU DRV</text>
+          <rect x="216" y="184" width="90" height="30" rx="6" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="261" y="203" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="700">DIAGNOSTICS</text>
+
+          <text x="261" y="252" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">crash here ≠ reboot</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>Hybrid — <span class="grad-violet">supervisor core + user-space subsystems</span></h2>
+        <div class="panel violet">
+          <span class="panel-label">Structural Form</span>
+          <p>A monolithic core framework that <strong>deliberately encapsulates</strong> its file systems and network stacks inside supervisor memory space for speed, but runs graphical rendering engines and user drivers inside <strong>isolated user-space subsystem microservices</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The Win</span>
+          <p>You keep monolithic-class performance for the things that must be fast (VMM, FS, network) and get microkernel-class safety for the things that are volatile (GUI, third-party drivers).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real-world reference:</b> Windows NT and macOS use this exact layout — kernel core in Ring 0, GUI subsystem and some drivers out in user space.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 13 — Comparison matrix
+     ============================================================ -->
+<section class="slide" data-chapter="Comparison">
+  <div class="slide-inner">
+    <span class="badge">📊 Five-Paradigm Comparison Matrix</span>
+    <h2 style="margin-bottom:20px;">Same five options, side-by-side</h2>
+    <div class="matrix-table">
+      <div class="mtx-cell mtx-corner">Paradigm</div>
+      <div class="mtx-cell mtx-head">Performance</div>
+      <div class="mtx-cell mtx-head">Isolation</div>
+      <div class="mtx-cell mtx-head">Failure Blast</div>
+      <div class="mtx-cell mtx-head">Extensibility</div>
+      <div class="mtx-cell mtx-head">Canonical Example</div>
+
+      <div class="mtx-cell mtx-row-name" style="color:#ff9fb1">Monolithic</div>
+      <div class="mtx-cell val good">Highest</div>
+      <div class="mtx-cell val bad">Lowest</div>
+      <div class="mtx-cell val bad">Whole kernel</div>
+      <div class="mtx-cell val warn">Rebuild + reboot</div>
+      <div class="mtx-cell val">Linux (classic)</div>
+
+      <div class="mtx-cell mtx-row-name" style="color:#88ffd8">Microkernel</div>
+      <div class="mtx-cell val bad">Lowest</div>
+      <div class="mtx-cell val good">Highest</div>
+      <div class="mtx-cell val good">Single server</div>
+      <div class="mtx-cell val good">Add a server</div>
+      <div class="mtx-cell val">Mach · seL4</div>
+
+      <div class="mtx-cell mtx-row-name" style="color:#ffd18a">Layered</div>
+      <div class="mtx-cell val warn">Moderate</div>
+      <div class="mtx-cell val good">Strong</div>
+      <div class="mtx-cell val warn">Layer + above</div>
+      <div class="mtx-cell val bad">Fixed tiers</div>
+      <div class="mtx-cell val">THE system</div>
+
+      <div class="mtx-cell mtx-row-name" style="color:#b9d0ff">Modular</div>
+      <div class="mtx-cell val good">High</div>
+      <div class="mtx-cell val warn">Same as mono</div>
+      <div class="mtx-cell val warn">Whole kernel</div>
+      <div class="mtx-cell val good">Live LKM load</div>
+      <div class="mtx-cell val">Linux LKMs</div>
+
+      <div class="mtx-cell mtx-row-name" style="color:#c9a7ff">Hybrid</div>
+      <div class="mtx-cell val good">High</div>
+      <div class="mtx-cell val good">Strong</div>
+      <div class="mtx-cell val good">Only crashed subsystem</div>
+      <div class="mtx-cell val good">Both paths</div>
+      <div class="mtx-cell val">Windows NT · macOS</div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>How to read this:</b> no column is universally "best". The design question is always: <em>for this workload, which column matters most?</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 14 — Core Breakdown: Monolithic
+     ============================================================ -->
+<section class="slide" data-chapter="Core Breakdown · 1/4">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — Monolithic Deep-Dive</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Monolithic Kernels pack everything into <span class="grad-crimson">one address space</span></h2>
+        <div class="panel crimson">
+          <span class="panel-label">What sits in the single address space</span>
+          <p>Virtual Memory Manager · Scheduler · Virtual File System · <strong>Device Drivers</strong> — all running with maximum privilege levels.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The reason it survives in production</span>
+          <p>Every one of these subsystems can be a normal C function call. That's the fastest possible kernel design and why Linux, FreeBSD and classic UNIX all use it.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The price</span>
+          <p>Any one subsystem's bug corrupts the shared heap. A driver crash and a scheduler crash produce <strong>the same outcome</strong>: a kernel panic.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The single-address-space picture</div>
+        <svg viewBox="0 0 320 280" style="width:100%;height:auto">
+          <rect x="20" y="20" width="280" height="240" rx="16" fill="rgba(255,77,109,.05)" stroke="rgba(255,77,109,.55)" stroke-width="1.6"/>
+          <text x="160" y="44" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">RING 0 · ONE ADDRESS SPACE</text>
+          <rect x="40" y="60" width="120" height="42" rx="8" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="100" y="86" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">VMM</text>
+          <rect x="170" y="60" width="120" height="42" rx="8" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="230" y="86" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">SCHEDULER</text>
+          <rect x="40" y="112" width="120" height="42" rx="8" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="100" y="138" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">VFS</text>
+          <rect x="170" y="112" width="120" height="42" rx="8" fill="rgba(255,77,109,.16)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="230" y="138" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">NET STACK</text>
+          <rect x="40" y="164" width="250" height="42" rx="8" fill="rgba(255,77,109,.24)" stroke="rgba(255,77,109,.85)" stroke-width="1.4" class="svg-pulse"/>
+          <text x="165" y="190" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">ALL DEVICE DRIVERS</text>
+          <rect x="40" y="216" width="250" height="32" rx="8" fill="rgba(255,77,109,.08)" stroke="rgba(255,77,109,.4)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="165" y="236" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">shared heap · shared globals · no walls</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 15 — Core Breakdown: Microkernel
+     ============================================================ -->
+<section class="slide" data-chapter="Core Breakdown · 2/4">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — Microkernel Deep-Dive</span>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">Bare-minimum Ring 0, everything else moves out</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="90" y="90" width="160" height="120" rx="14" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="114" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">RING 0 · MICROKERNEL</text>
+          <rect x="106" y="128" width="128" height="24" rx="5" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+          <text x="170" y="144" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">address space mgmt</text>
+          <rect x="106" y="156" width="128" height="24" rx="5" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+          <text x="170" y="172" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">thread scheduling</text>
+          <rect x="106" y="184" width="128" height="24" rx="5" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+          <text x="170" y="200" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">IPC primitives</text>
+
+          <rect x="20" y="30" width="90" height="46" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="65" y="50" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">FS SERVER</text>
+          <text x="65" y="66" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="230" y="30" width="90" height="46" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="275" y="50" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">NET SERVER</text>
+          <text x="275" y="66" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="20" y="222" width="90" height="46" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="65" y="242" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">DRIVER A</text>
+          <text x="65" y="258" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <rect x="230" y="222" width="90" height="46" rx="9" fill="rgba(91,141,255,.12)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="275" y="242" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">DRIVER B</text>
+          <text x="275" y="258" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+
+          <line x1="110" y1="76" x2="140" y2="90" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="230" y1="76" x2="200" y2="90" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="110" y1="222" x2="140" y2="210" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="230" y1="222" x2="200" y2="210" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+        </svg>
+      </div>
+      <div class="stack">
+        <h2>Microkernels keep only the <span class="grad-emerald">bare essentials</span> in Ring 0</h2>
+        <div class="panel emerald">
+          <span class="panel-label">What stays inside</span>
+          <p>Address space management · Thread scheduling · IPC primitives. That's it. Roughly 10,000 lines of code vs. millions in a monolithic kernel.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What moves out</span>
+          <p><strong>All other classic components</strong> — file systems, networking stacks, device drivers — are relegated to user space as modular servers. They must go through IPC to accomplish anything.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mechanism</span>
+          <p>Every server sits in its own address space. Even if the FS server crashes catastrophically, the IPC core keeps running — and can <strong>restart just the FS server</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 16 — Core Breakdown: Layered + Modular
+     ============================================================ -->
+<section class="slide" data-chapter="Core Breakdown · 3/4">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — Layered &amp; Modular</span>
+    <div class="split">
+      <div class="stack">
+        <h2>Layered — <span class="grad-amber">ordered isolated operational layers</span></h2>
+        <div class="panel amber">
+          <span class="panel-label">Structure</span>
+          <p>The OS is split into an ordered stack of isolated operational layers (0 to N), where each layer is built strictly on top of the lower layer's hardware abstraction primitives.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What "strictly" means</span>
+          <p>Layer N can only see layer N−1's exported functions. It cannot call N−2 or N−3 directly. The discipline is enforced by the interface, not by convention.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Extra function calls to walk down the stack add latency, and a frozen middle layer takes everything above it out of service simultaneously.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Modular — <span class="grad-blue">dynamic monolithic</span></h2>
+        <div class="panel blue">
+          <span class="panel-label">Structure</span>
+          <p>A dynamic monolithic architecture where the core kernel remains lightweight, but allows loadable modules (network drivers, file system layers) to be <strong>dynamically added or removed from Ring 0 memory on-the-fly without rebooting</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this matters operationally</span>
+          <p>You can ship a Linux kernel with just the core, then load the exact drivers your hardware needs at boot — no recompilation, no custom binaries.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The tradeoff</span>
+          <p>Loaded modules sit in the same trusted space as the scheduler — so their bugs become kernel bugs.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 17 — Core Breakdown: Hybrid
+     ============================================================ -->
+<section class="slide" data-chapter="Core Breakdown · 4/4">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Core Breakdown — Hybrid Deep-Dive</span>
+    <div class="split wide-right">
+      <div class="stack">
+        <h2>Hybrid — <span class="grad-violet">combine monolithic efficiency with microkernel safety</span></h2>
+        <div class="panel emerald">
+          <span class="panel-label">What's inside supervisor space (fast path)</span>
+          <p>VMM · file systems · networking stacks · the scheduler. These get the raw speed of direct function calls because their performance is critical to everything else.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">What's isolated in user space</span>
+          <p>Volatile multimedia interfaces · third-party device drivers · software diagnostics. Anything that ships frequently and can crash independently gets its own address space.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The structural rule of thumb</span>
+          <p><strong>Speed-sensitive → supervisor. Volatile or third-party → user space.</strong> This single rule is what separates hybrid from both pure monolithic and pure microkernel designs.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The hybrid decision</div>
+        <svg viewBox="0 0 300 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="260" height="60" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.6)" stroke-width="1.4"/>
+          <text x="150" y="44" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SPEED-SENSITIVE?</text>
+          <text x="150" y="62" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">every microsecond counts</text>
+
+          <line x1="100" y1="80" x2="80" y2="120" stroke="rgba(46,230,168,.75)" stroke-width="1.6" class="svg-flow"/>
+          <text x="60" y="112" text-anchor="end" font-size="10" font-weight="800" fill="#88ffd8" font-family="Inter">YES →</text>
+          <line x1="200" y1="80" x2="220" y2="120" stroke="rgba(160,107,255,.75)" stroke-width="1.6" class="svg-flow"/>
+          <text x="240" y="112" font-size="10" font-weight="800" fill="#c9a7ff" font-family="Inter">← NO</text>
+
+          <rect x="20" y="130" width="120" height="120" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="80" y="150" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SUPERVISOR</text>
+          <text x="80" y="166" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">Ring 0</text>
+          <text x="80" y="192" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter">VMM</text>
+          <text x="80" y="210" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter">FS</text>
+          <text x="80" y="228" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter">NET</text>
+
+          <rect x="160" y="130" width="120" height="120" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.4"/>
+          <text x="220" y="150" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">USER SPACE</text>
+          <text x="220" y="166" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">Ring 3</text>
+          <text x="220" y="192" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter">GUI</text>
+          <text x="220" y="210" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter">3rd-party drv</text>
+          <text x="220" y="228" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter">diagnostics</text>
+
+          <text x="150" y="290" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="JetBrains Mono" letter-spacing="1.2">ONE RULE — TWO DESTINATIONS</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 18 — Lexicon 1
+     ============================================================ -->
+<section class="slide" data-chapter="Lexicon · 1/2">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Paradigm Names</span>
+    <div class="tri-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Monolithic</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A design architecture where all operating system services execute together in the supervisor address space.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( One giant room, everyone shares the same air. Fast, but one sick worker infects the whole floor. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Microkernel</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 02 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A minimalist design architecture that runs only basic primitives in supervisor space and handles extra services via user-space processes.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A tiny skeleton crew inside the vault. Everyone else works in separate buildings and passes notes through security. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Hybrid</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 03 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An architecture that runs core services inside a monolithic address space for performance, but isolates non-essential services inside user-space containers for safety.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Executives in the fast center room. Dangerous contractors in detached outbuildings. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 19 — Lexicon 2
+     ============================================================ -->
+<section class="slide" data-chapter="Lexicon · 2/2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Structural Terms</span>
+    <div class="quad-lex">
+      <div class="lex-card">
+        <div class="lex-term">Layered</div>
+        <div class="lex-sub">Term 04 of 07</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A hierarchical design where system services are separated into distinct vertical tiers, only communicating with immediately adjacent layers.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Multi-story building — you can only talk to the floor right below yours. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02))">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">LKM</div>
+        <div class="lex-sub">Term 05 of 07</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Loadable Kernel Module — an object code file that can be dynamically linked into the running kernel's Ring 0 memory space at runtime without rebuilding the core OS image.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A pre-built desk module you wheel into the open office — live, no construction. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02))">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Ring 0</div>
+        <div class="lex-sub">Term 06 of 07</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Supervisor Mode — the execution state that unlocks uninhibited access to all hardware instructions and system memory registers.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The master key to the entire machine. Nothing is off limits. )</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02))">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">IPC Tax</div>
+        <div class="lex-sub">Term 07 of 07</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>IPC Overhead (Messaging Tax) — the performance tax paid in CPU cycles when passing memory packets back and forth between isolated user-space processes across the privilege boundary.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Every sealed door you walk through costs time. The price of safety. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 20 — Code Monolithic
+     ============================================================ -->
+<section class="slide" data-chapter="Code · 1/4" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="badge crimson">💻 Code Dissection — Monolithic / Modular Path</span>
+    <h2 style="margin-bottom:18px;">Direct, fast function jump <span class="grad-crimson">inside Ring 0</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head mono"><span>read_block_monolithic.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// 1. Monolithic / Modular (Dynamic LKM): Direct fast function jump</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">read_block_monolithic</span>(<span class="c-type">int</span> <span class="c-var">sector_id</span>, <span class="c-type">void</span>* <span class="c-var">buffer</span>) {</span><span class="code-line">    <span class="c-com">// Direct, fast calling of file system code inside Ring 0 supervisor space</span></span><span class="code-line">    <span class="c-name">vfs_raw_read</span>(<span class="c-var">sector_id</span>, <span class="c-var">buffer</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What's happening</span>
+          <p>The caller is already in Ring 0. <code style="font-family:var(--mono);color:#ff9fb1">vfs_raw_read</code> is a plain function pointer resolved at build time or at LKM load — a single <code style="font-family:var(--mono);color:#ff9fb1">call</code> instruction lands inside the target function.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Cost</span>
+          <p><strong>≈ 5–20 ns.</strong> No privilege hop. No message packaging. No scheduler round-trip.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Risk</span>
+          <p>If <code style="font-family:var(--mono);color:#ffd18a">vfs_raw_read</code> is buggy, there is no address-space wall between it and your caller. Both live or die together.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 21 — Code Microkernel
+     ============================================================ -->
+<section class="slide" data-chapter="Code · 2/4" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Code Dissection — Microkernel Path</span>
+    <h2 style="margin-bottom:18px;">Package a message, cross the <span class="grad-emerald">IPC boundary</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head micro"><span>read_block_microkernel.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// 2. Microkernel: IPC message passing boundary tax</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">read_block_microkernel</span>(<span class="c-type">int</span> <span class="c-var">sector_id</span>, <span class="c-type">void</span>* <span class="c-var">buffer</span>) {</span><span class="code-line">    <span class="c-type">Message</span> <span class="c-var">msg</span>;</span><span class="code-line">    <span class="c-var">msg</span>.type = <span class="c-str">FILE_READ_REQUEST</span>;</span><span class="code-line">    <span class="c-var">msg</span>.payload.sector = <span class="c-var">sector_id</span>;</span><span class="code-line">    <span class="c-com">// Forces a message transmission over IPC to an isolated user-space file server</span></span><span class="code-line">    <span class="c-name">ipc_send</span>(<span class="c-str">FILE_SERVER_PID</span>, &amp;<span class="c-var">msg</span>);</span><span class="code-line">    <span class="c-name">ipc_receive</span>(<span class="c-str">FILE_SERVER_PID</span>, <span class="c-var">buffer</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What's happening</span>
+          <p>Every field of a request must be <strong>marshalled into a Message struct</strong>, then transmitted to a separate process. The receiving server must unpack it, execute in its own address space, and transmit the reply.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Cost</span>
+          <p><strong>≈ 5–15 µs</strong> per request. That's 500–1000× slower than the monolithic path — the entire "messaging tax".</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What you get for it</span>
+          <p>A hard boundary. If the file server crashes, the kernel can restart it. <strong>The calling process never loses context.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 22 — Code Layered
+     ============================================================ -->
+<section class="slide" data-chapter="Code · 3/4" data-anim="codestep3">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code Dissection — Layered Path</span>
+    <h2 style="margin-bottom:18px;">Strict down-stack <span class="grad-amber">structural tier invocation</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head layed"><span>read_block_layered.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// 3. Layered Model: Strict down-stack structural tier invocation</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">read_block_layered</span>(<span class="c-type">int</span> <span class="c-var">sector_id</span>, <span class="c-type">void</span>* <span class="c-var">buffer</span>) {</span><span class="code-line">    <span class="c-com">// Layer 3 (File Abstraction) calls Layer 2 (Logical Block Mapping)</span></span><span class="code-line">    <span class="c-name">Layer2_ProcessBlockRequest</span>(<span class="c-var">sector_id</span>, <span class="c-var">buffer</span>);</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What's happening</span>
+          <p>This function lives in layer 3. It only knows about layer 2's exported interface. It has <strong>no reference</strong> to layer 1's block-mapping primitives or layer 0's hardware calls.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Discipline</span>
+          <p>Layer 2 will call layer 1 internally, layer 1 will call layer 0. The stack "walks down" — one tier at a time. No shortcuts.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Cost</span>
+          <p>Three extra function frames deep on every read. Cheap — but the design guarantee breaks the moment any layer violates its interface.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 23 — Code Hybrid
+     ============================================================ -->
+<section class="slide" data-chapter="Code · 4/4" data-anim="codestep4">
+  <div class="slide-inner">
+    <span class="badge violet">💻 Code Dissection — Hybrid Path</span>
+    <h2 style="margin-bottom:18px;">Combined <span class="grad-violet">fast-core</span> with <span class="grad-violet">isolated outbuilding</span> routing</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head hybrid"><span>read_block_hybrid.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// 4. Hybrid Architecture: Combined fast-core with isolated outbuilding routing</span></span><span class="code-line"><span class="c-fn">void</span> <span class="c-name">read_block_hybrid</span>(<span class="c-type">int</span> <span class="c-var">sector_id</span>, <span class="c-type">void</span>* <span class="c-var">buffer</span>) {</span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-name">is_critical_core_request</span>()) {</span><span class="code-line">        <span class="c-com">// Runs inside the fast monolithic core block</span></span><span class="code-line">        <span class="c-name">vfs_raw_read</span>(<span class="c-var">sector_id</span>, <span class="c-var">buffer</span>);</span><span class="code-line">    } <span class="c-kw">else</span> {</span><span class="code-line">        <span class="c-com">// Dispatches to a sandboxed user-space virtualization layer</span></span><span class="code-line">        <span class="c-type">Message</span> <span class="c-var">msg</span>;</span><span class="code-line">        <span class="c-name">ipc_send</span>(<span class="c-str">USER_STORAGE_SERVER_PID</span>, &amp;<span class="c-var">msg</span>);</span><span class="code-line">    }</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What's happening</span>
+          <p>A single function has <strong>two possible paths</strong>. Trusted, critical requests stay inside the monolithic core. Untrusted or risky requests get packaged and dispatched to a sandboxed server.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The payoff</span>
+          <p>The critical path keeps monolithic speed. The risky path gets microkernel-style isolation. <strong>Best of both, per request.</strong></p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The question this raises</span>
+          <p>Who decides which path a request takes? That policy question is exactly what a hybrid kernel's routing layer exists to answer.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 24 — Live Crash Showdown · Phase A
+     ============================================================ -->
+<section class="slide" data-chapter="Live Demo · Phase A" data-anim="panic">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Live Crash Showdown — Phase A · The Monolithic/Modular Risk</span>
+    <h2 style="margin-bottom:16px;">A bad LKM fires and <span class="grad-crimson">the whole machine panics</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live simulation · Loop restarts every ~5s</div>
+        <div class="terminal" id="panicTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">root@kernel — insmod</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">sudo insmod evil_driver.ko</span></span>
+            <span class="term-line dim">[ 1234.567] evil_driver: module verification passed</span>
+            <span class="term-line dim">[ 1234.789] evil_driver: init called</span>
+            <span class="term-line err">[ 1234.812] BUG: unable to handle page fault for address: 0xDEADBEEF</span>
+            <span class="term-line err">[ 1234.813] #PF: supervisor write access in kernel mode</span>
+            <span class="term-line big" id="panicBig">💥  KERNEL PANIC  💥</span>
+            <span class="term-line err">[ 1234.814] not syncing: Fatal exception in interrupt</span>
+            <span class="term-line dim">— system halted —</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What just happened</span>
+          <p>A Loadable Kernel Module wrote to an illegal memory address. Because it lives <strong>inside Ring 0 alongside the scheduler and VMM</strong>, there is no referee above it to catch the fault.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The proof</span>
+          <p>Any faulty driver module sitting inside Ring 0 can crash a monolithic system. That's why a bug in a USB driver can take your entire desktop down.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Show this before anything else when explaining why anyone would ever accept the IPC tax — <em>this</em> is what they're buying protection from.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 25 — Live Crash Showdown · Phase B
+     ============================================================ -->
+<section class="slide" data-chapter="Live Demo · Phase B" data-anim="daemonkill">
+  <div class="slide-inner">
+    <span class="badge emerald">✅ Live Crash Showdown — Phase B · The Microkernel/Hybrid Contrast</span>
+    <h2 style="margin-bottom:16px;">Kill an isolated daemon and <span class="grad-emerald">the desktop never blinks</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@desktop — kill daemon</span>
+          </div>
+          <div class="term-body">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">kill -9 2847</span></span>
+            <span class="term-line dim">[ 1420.100] sending SIGKILL to PID 2847 (system_daemon)</span>
+            <span class="term-line ok">[ 1420.102] process terminated — sandboxed, no kernel impact</span>
+            <span class="term-line ok">[ 1420.103] desktop server: still serving windows: 4</span>
+            <span class="term-line ok">[ 1420.104] audio server: still active</span>
+            <span class="term-line ok">[ 1420.104] filesystem server: still active</span>
+            <span class="term-line dim">— system uptime unchanged: 14d 06:22 —</span>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What just happened</span>
+          <p>In a microkernel or hybrid architecture, the killed daemon was <strong>unprivileged and isolated</strong>. Its death has zero effect on the kernel core or the GUI subsystem.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald" style="padding:14px 16px">
+          <span class="panel-label">Desktop runtime · currently alive</span>
+          <div class="desktop-scene">
+            <div class="desktop-ui">
+              <div style="font-size:11px;font-weight:800;color:#88ffd8;letter-spacing:.06em">DESKTOP</div>
+              <div class="icons">
+                <div class="icon">📁</div>
+                <div class="icon">🌐</div>
+                <div class="icon">📝</div>
+                <div class="icon">🎵</div>
+              </div>
+              <div style="font-size:10px;color:var(--muted);margin-top:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:800">Responsive · 100%</div>
+            </div>
+            <div class="daemon-box">
+              <span class="ic">⚙️</span>
+              <b>system_daemon</b>
+              <small>PID 2847 · killed</small>
+            </div>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The point:</b> microkernel isolation and hybrid design strategies protect system uptime from software failures — but the price is the IPC tax we saw in slide 21.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 26 — Cohesion + Mindmap + Gateway
+     ============================================================ -->
+<section class="slide" data-chapter="Synthesis · Next">
+  <div class="slide-inner">
+    <span class="badge">🧭 System Cohesion · Mindmap · Next Gateway</span>
+    <div class="split" style="margin-bottom:20px">
+      <div class="stack">
+        <h2>Where this lecture fits</h2>
+        <div class="panel blue">
+          <span class="panel-label">Feeds Into · Module 2 (Process Management)</span>
+          <p>Decides whether process managers, threads, and schedulers execute within a <strong>privileged shared context</strong> or <strong>isolated address spaces</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Feeds Into · Module 6 (I/O Device Management)</span>
+          <p>Determines if hardware drivers run <strong>natively inside kernel space</strong> with complete access, or as <strong>unprivileged user-space servers</strong>.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum map — where you are now</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 1: OS Structure &amp; Design</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L01: The Architecture Matrix 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node mono-leaf">Monolithic (Linux, FreeBSD)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node micro-leaf">Microkernel (Mach, seL4)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node hybrid-leaf">Hybrid (Windows NT, macOS)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node lay-leaf">Layered (THE Multiprogramming System)</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="gateway">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next Unit</span>
+          <p style="font-size:clamp(15px,1.15vw,18px);color:#fff;font-weight:700">Lecture 02 — The Dual-Mode Barrier</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Next Focus</span>
+          <p>We'll investigate how the CPU hardware enforces isolation using privilege states, and how all five architectures distribute their software components across the Ring 3 / Ring 0 boundary line.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L02: The Dual-Mode Barrier &nbsp;|&nbsp; [L2.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad2" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad2)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad2)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+/* ============================================================
+   ANIMATION REGISTRY
+   ============================================================ */
+const ANIM = {};
+const RUNNING = {};
+
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 01 : Ring field ---------- */
+reg('ringfield', function(){
+  const c = document.getElementById('ringCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const cx = W/2, cy = H/2;
+  let active = true, raf = null, t = 0;
+
+  const particles = [];
+  for(let i = 0; i < 44; i++){
+    particles.push({
+      a: Math.random()*Math.PI*2,
+      r: 52 + Math.random()*132,
+      speed: (0.004 + Math.random()*0.008) * (Math.random() < 0.5 ? 1 : -1),
+      size: 1.4 + Math.random()*2.2,
+      hue: Math.random() < 0.5 ? 214 : (Math.random() < 0.5 ? 152 : 265)
+    });
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // pulse rings
+    for(let i = 0; i < 3; i++){
+      const phase = (t*0.007 + i*0.333) % 1;
+      const rad = 56 + phase * 148;
+      const alpha = (1 - phase) * 0.42;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(91,141,255,${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // inner amber ring boundary
+    ctx.beginPath();
+    ctx.arc(cx, cy, 118, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,182,72,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // center chip
+    const CW = 130, CH = 72;
+    ctx.beginPath();
+    ctx.roundRect(cx - CW/2, cy - CH/2, CW, CH, 14);
+    ctx.fillStyle = 'rgba(12,20,38,0.96)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(91,141,255,0.92)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // inner glow
+    const pulse = 0.5 + 0.5*Math.sin(t/22);
+    ctx.beginPath();
+    ctx.roundRect(cx - CW/2 + 14, cy - CH/2 + 14, CW - 28, CH - 28, 8);
+    ctx.fillStyle = `rgba(91,141,255,${0.10 + pulse*0.15})`;
+    ctx.fill();
+
+    ctx.fillStyle = '#eaf0fc';
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RING 0', cx, cy - 8);
+    ctx.fillStyle = 'rgba(143,180,255,0.85)';
+    ctx.font = '600 9px Inter, sans-serif';
+    ctx.fillText('SUPERVISOR', cx, cy + 10);
+
+    // particles
+    for(const p of particles){
+      p.a += p.speed;
+      const x = cx + Math.cos(p.a) * p.r;
+      const y = cy + Math.sin(p.a) * p.r;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI*2);
+      ctx.fillStyle = `hsla(${p.hue}, 90%, 72%, 0.9)`;
+      ctx.fill();
+    }
+
+    // outer labels
+    ctx.fillStyle = 'rgba(132,148,180,0.75)';
+    ctx.font = '700 9.5px Inter, sans-serif';
+    ctx.letterSpacing = '1.4px';
+    ctx.fillText('RING 3 · USER SPACE', cx, cy + H/2 - 22);
+    ctx.fillText('syscalls cross here →', cx, cy + 118 + 20);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slides 20-23 : Code line steppers ---------- */
+function makeCodeStepper(slideSelector, sequence, interval){
+  return function(){
+    const lines = Array.from(document.querySelectorAll(slideSelector + ' .code-line'));
+    if(!lines.length) return { stop(){} };
+    let i = 0;
+    let timer = null;
+    function tick(){
+      lines.forEach(l => l.classList.remove('hl'));
+      const target = sequence[i % sequence.length];
+      if(lines[target]) lines[target].classList.add('hl');
+      i++;
+    }
+    tick();
+    timer = setInterval(tick, interval || 1000);
+    return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+  };
+}
+reg('codestep1', makeCodeStepper('.slide[data-anim="codestep1"]', [3, 0, 3, 4], 1100));
+reg('codestep2', makeCodeStepper('.slide[data-anim="codestep2"]', [3, 5, 6, 7], 1100));
+reg('codestep3', makeCodeStepper('.slide[data-anim="codestep3"]', [2, 3, 4], 1200));
+reg('codestep4', makeCodeStepper('.slide[data-anim="codestep4"]', [2, 4, 5, 9, 10], 1000));
+
+/* ---------- Slide 24 : Kernel Panic ---------- */
+reg('panic', function(){
+  const term = document.getElementById('panicTerminal');
+  if(!term) return { stop(){} };
+  let timer = null;
+  let stage = 0; // 0=idle, 1=panicking
+  function tick(){
+    stage = 1 - stage;
+    if(stage === 1){
+      term.classList.add('panicking');
+    } else {
+      term.classList.remove('panicking');
+    }
+  }
+  tick(); // start in panicking state to show the drama
+  timer = setInterval(tick, 2200);
+
+  return {
+    stop(){
+      clearInterval(timer);
+      term.classList.remove('panicking');
+    }
+  };
+});
+
+/* ---------- Slide 25 : Daemon kill is pure CSS ---------- */
+reg('daemonkill', function(){
+  // CSS handles the animations; no JS needed. But register so the lifecycle is symmetric.
+  return { stop(){} };
+});
+
+/* ============================================================
+   DECK CONTROLLER
+   ============================================================ */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+
+  if(idx > 0) hintEl.classList.add('hide');
+}
+
+go(0);
+
+/* Keyboard */
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight':
+    case 'PageDown':
+    case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft':
+    case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home':
+      e.preventDefault(); go(0); break;
+    case 'End':
+      e.preventDefault(); go(TOTAL - 1); break;
+    case 'f':
+    case 'F':
+      if(!document.fullscreenElement){
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+      break;
+  }
+});
+
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+/* Touch */
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1);
+    else go(idx - 1);
+  }
+}, { passive: true });
+
+/* Wheel */
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
