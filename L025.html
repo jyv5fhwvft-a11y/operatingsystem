@@ -1,0 +1,2281 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L25 — Encryption Fundamentals: Symmetric, Asymmetric &amp; Hybrid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.14),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(255,182,72,.08),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--emerald),var(--violet),var(--amber));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(160,107,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(160,107,255,.20);border-color:rgba(160,107,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(160,107,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#88ffd8;background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.34);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.blue{color:#b9d0ff;background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(160,107,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* House key analogy */
+.housekey-scene{padding:12px 0;display:flex;flex-direction:column;gap:14px;}
+.key-vis{display:flex;align-items:center;justify-content:center;gap:20px;padding:16px 0;}
+.key-shape{width:60px;height:60px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#8affd6,#2ee6a8 60%,#0d8a60);box-shadow:0 0 24px rgba(46,230,168,.6),inset -3px -4px 8px rgba(0,0,0,.25);display:grid;place-items:center;font-size:26px;animation:keyPulse 2.6s ease-in-out infinite;position:relative;}
+.key-shape::after{content:'';position:absolute;right:-24px;top:50%;transform:translateY(-50%);width:40px;height:8px;background:linear-gradient(90deg,#2ee6a8,#0d8a60);border-radius:0 4px 4px 0;}
+.key-shape::before{content:'';position:absolute;right:-24px;top:calc(50% + 6px);width:10px;height:10px;background:#2ee6a8;border-radius:2px;}
+@keyframes keyPulse{0%,100%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.05) rotate(-4deg)}}
+.key-label{font-family:var(--mono);font-size:11px;color:#88ffd8;font-weight:900;letter-spacing:.06em;text-align:center;line-height:1.6;}
+
+.door-frame{width:120px;height:170px;border-radius:6px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:2px solid rgba(46,230,168,.5);position:relative;display:grid;place-items:center;transition:.4s;}
+.door-frame.locked{border-color:rgba(255,77,109,.65);box-shadow:0 0 24px rgba(255,77,109,.3);}
+.door-frame.unlocked{border-color:rgba(46,230,168,.85);box-shadow:0 0 30px rgba(46,230,168,.5);}
+.door-knob{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#c4cfe6 60%,#6b7894);position:absolute;right:12px;top:50%;transform:translateY(-50%);}
+.door-lock{font-size:26px;}
+
+/* Mailbox analogy */
+.mailbox-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;align-items:center;}
+.mailbox-svg{width:100%;max-width:340px;height:auto;}
+
+/* Cipher comparison */
+.cipher-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.cipher-card{padding:16px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.cipher-card.sym{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.cipher-card.asym{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.cipher-card .cc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.cipher-card .cc-icon{font-size:26px;}
+.cipher-card .cc-title{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.06em;}
+.cipher-card.sym .cc-title{color:#88ffd8;}
+.cipher-card.asym .cc-title{color:#c9a7ff;}
+.cipher-card .cc-body{font-size:11.5px;line-height:1.65;color:var(--ink-2);}
+.cipher-card .cc-body strong{color:#fff;}
+.cipher-card .cc-stats{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.05em;line-height:1.7;}
+
+/* Key distribution visual */
+.kd-visual{padding:10px 0;}
+.kd-row{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:14px 0;}
+.kd-node{padding:14px;border-radius:10px;border:1.4px solid;text-align:center;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;}
+.kd-node.alice{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.10);color:#b9d0ff;}
+.kd-node.bob{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.10);color:#ffd18a;}
+.kd-channel{text-align:center;font-size:22px;color:var(--muted);}
+.kd-problem{padding:12px;border-radius:8px;border:1px dashed rgba(255,77,109,.55);background:rgba(255,77,109,.05);text-align:center;font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2);}
+.kd-problem strong{color:#ff9fb1;}
+
+/* Hybrid flow */
+.hybrid-flow{display:flex;flex-direction:column;gap:8px;padding:6px 0;}
+.hybrid-phase{padding:12px 14px;border-radius:10px;border:1.4px solid;background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11px;line-height:1.6;}
+.hybrid-phase.handshake{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.hybrid-phase.switch{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.hybrid-phase.data{border-color:rgba(46,230,168,.75);background:rgba(46,230,168,.08);}
+.hybrid-phase .hp-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:6px;display:block;}
+.hybrid-phase.handshake .hp-label{color:#c9a7ff;}
+.hybrid-phase.switch .hp-label{color:#ffd18a;}
+.hybrid-phase.data .hp-label{color:#88ffd8;}
+.hybrid-phase .hp-body{color:var(--ink-2);}
+.hybrid-phase .hp-body strong{color:#fff;}
+
+/* Algorithm table */
+.algo-table{width:100%;border-collapse:separate;border-spacing:4px;font-family:var(--mono);font-size:11px;}
+.algo-table th{font-size:9.5px;letter-spacing:.10em;text-transform:uppercase;font-weight:900;color:var(--muted);padding:6px 4px;text-align:left;}
+.algo-table td{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:var(--ink-2);line-height:1.5;}
+.algo-table td.name{color:#fff;font-weight:800;}
+.algo-table tr.sym td{border-color:rgba(46,230,168,.35);background:rgba(46,230,168,.05);}
+.algo-table tr.asym td{border-color:rgba(160,107,255,.35);background:rgba(160,107,255,.05);}
+.algo-table tr.hybrid td{border-color:rgba(255,182,72,.35);background:rgba(255,182,72,.05);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+.term-vio{color:#c9a7ff;font-weight:700;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head.violet{color:#c9a7ff;background:rgba(160,107,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Lexicon */
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.lex-card{border-radius:22px;padding:clamp(20px,2.6vw,34px);border:1px solid;background:linear-gradient(150deg,rgba(46,230,168,.08),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-card.em{border-color:rgba(46,230,168,.4);}
+.lex-card.vi{border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-card.am{border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(20px,2.6vw,34px);font-weight:900;letter-spacing:-.04em;line-height:1.05;margin-bottom:8px;}
+.lex-card.em .lex-term{background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-card.vi .lex-term{background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-card.am .lex-term{background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;margin-bottom:18px;}
+.lex-card.em .lex-sub{color:#88ffd8;}
+.lex-card.vi .lex-sub{color:#c9a7ff;}
+.lex-card.am .lex-sub{color:#ffd18a;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:12px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13px,.94vw,14.5px);line-height:1.6;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(255,77,109,.4);background:rgba(255,77,109,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--crimson);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(160,107,255,.45);background:rgba(160,107,255,.10);color:#c9a7ff;font-weight:700;}
+.mm-node.active{border-color:rgba(160,107,255,.85);background:rgba(160,107,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(160,107,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(160,107,255,.8)}50%{box-shadow:0 0 40px -2px rgba(160,107,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Takeaway */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(46,230,168,.14);border:1px solid rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(2) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(3) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway:nth-child(4) .tk-num{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(255,77,109,.5))}50%{filter:drop-shadow(0 0 28px rgba(255,77,109,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.42);background:rgba(255,77,109,.09);color:#ff9fb1;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;}
+.act-prompt{padding:14px 16px;border-radius:12px;border:1.5px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700;text-align:center;transition:.4s;min-height:54px;display:grid;place-items:center;}
+.act-prompt .ap-q{color:#fff;}
+
+/* Real-world cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.example-card{padding:18px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.example-card .ec-icon{font-size:32px;margin-bottom:10px;display:block;}
+.example-card .ec-name{font-size:13px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-2);margin-bottom:12px;}
+.example-card .ec-win{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:6px;}
+
+/* Handshake visual */
+.hs-vis{padding:6px 0;}
+.hs-step{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-radius:9px;border:1.5px solid;background:rgba(0,0,0,.20);margin-bottom:6px;font-family:var(--mono);font-size:11px;transition:.4s;}
+.hs-step.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.hs-step.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.hs-step .hs-num{font-size:12px;font-weight:900;color:var(--muted);min-width:18px;}
+.hs-step.active .hs-num{color:#ffd18a;}
+.hs-step.done .hs-num{color:#88ffd8;}
+.hs-step .hs-body{color:var(--ink-2);line-height:1.5;}
+.hs-step .hs-body strong{color:#fff;}
+.hs-step .hs-tag{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;padding:3px 8px;border-radius:5px;}
+.hs-step .hs-tag.asym{background:rgba(160,107,255,.20);color:#c9a7ff;}
+.hs-step .hs-tag.sym{background:rgba(46,230,168,.20);color:#88ffd8;}
+.hs-step .hs-tag.both{background:rgba(255,182,72,.20);color:#ffd18a;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.example-grid,.cipher-compare{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L25 Encryption</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L25 · Overview" data-anim="encryptioncanvas">
+  <div class="slide-inner">
+    <span class="badge">🔐 🛡️ L25 · Encryption Fundamentals — Symmetric, Asymmetric &amp; Hybrid</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Protect data <span class="grad-emerald">even when the attacker sees it</span></h1>
+        <p class="lead">Distinguish <strong>symmetric</strong> from <strong>asymmetric</strong> encryption architectures, and name where each shows up in modern computer networks — then see how <strong>hybrid encryption</strong> combines them into the real-world TLS protocol.</p>
+        <div class="panel emerald">
+          <span class="panel-label">Where we are · Module 7 continues</span>
+          <p>L22 gave us access policy. L23 gave us identity. L24 showed how memory bugs can hand an attacker code execution. L25 shows how to protect the <strong>data itself</strong> — across disks and network links — even when the attacker controls the wire.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Prerequisites · Module 6 (Network Data Streams)</span>
+          <p>Packets, sockets, and the network stack. Encryption is applied to data as it moves through this stack — every HTTPS request you've ever made went through the mechanisms in this lecture.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Opening hook:</b> "You type your password into a login box. That password travels through maybe 15 routers, a dozen switches, and a Wi-Fi access point that anyone in the coffee shop can sniff. Yet nobody steals it. How? The wire is public — but the data is <em>encrypted</em>. This is the story of how that works."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Plaintext → ciphertext → plaintext</div>
+        <canvas id="encryptionCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — The Public Wire</span>
+    <h2 style="margin-bottom:16px;">Data in transit is <span class="grad-crimson">visible to everyone on the path</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The exposure</span>
+          <p>Operating systems must protect data privacy across <strong>non-volatile disks and network links</strong>. Every packet crosses routers, switches, and radio links owned by strangers. Without encryption, anyone on the path can read every byte.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The threat model</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Passive eavesdropping</strong> — packet sniffers on public Wi-Fi<br>
+            <strong>Active interception</strong> — MITM proxies, hostile ISPs<br>
+            <strong>Storage theft</strong> — stolen laptops, leaked backup tapes<br>
+            <strong>Legal seizure</strong> — disks that can be read later
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution — encryption</span>
+          <p>Encryption transforms plaintext into <strong>ciphertext</strong> that looks like random noise to anyone without the key. The wire can still be tapped — but the bytes are useless without the secret.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The two questions every crypto system answers:</b> <em>"Who can decrypt this?"</em> — only the holders of the right key. <em>"How does that key get to them?"</em> — the key distribution problem, which is the entire reason asymmetric encryption exists.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The public wire problem</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">A PACKET'S JOURNEY</text>
+
+          <rect x="14" y="40" width="70" height="46" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="49" y="60" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">You</text>
+          <text x="49" y="76" text-anchor="middle" font-size="7.5" fill="rgba(185,208,255,.6)" font-family="JetBrains Mono">laptop</text>
+
+          <rect x="135" y="40" width="70" height="46" rx="7" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="60" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">☕ Wi-Fi</text>
+          <text x="170" y="76" text-anchor="middle" font-size="7.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">public · sniffable</text>
+
+          <rect x="256" y="40" width="70" height="46" rx="7" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="291" y="60" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">🌐 ISP</text>
+          <text x="291" y="76" text-anchor="middle" font-size="7.5" fill="rgba(255,159,177,.6)" font-family="JetBrains Mono">13 routers</text>
+
+          <line x1="84" y1="63" x2="135" y2="63" stroke="rgba(255,77,109,.85)" stroke-width="2"/>
+          <line x1="205" y1="63" x2="256" y2="63" stroke="rgba(255,77,109,.85)" stroke-width="2"/>
+
+          <!-- attacker eavesdrop -->
+          <rect x="130" y="110" width="80" height="32" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.4"/>
+          <text x="170" y="130" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="800">👤 ATTACKER</text>
+          <line x1="170" y1="86" x2="170" y2="110" stroke="rgba(255,77,109,.7)" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+          <!-- plaintext bytes -->
+          <rect x="20" y="170" width="300" height="55" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="190" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="800">WITHOUT ENCRYPTION</text>
+          <text x="170" y="208" text-anchor="middle" font-size="9" fill="#fff" font-family="JetBrains Mono">"password=Hunter2!@#"</text>
+          <text x="170" y="220" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.65)" font-family="JetBrains Mono">attacker reads it immediately</text>
+
+          <!-- encrypted bytes -->
+          <rect x="20" y="238" width="300" height="55" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.3"/>
+          <text x="170" y="258" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">WITH ENCRYPTION</text>
+          <text x="170" y="276" text-anchor="middle" font-size="9" fill="#fff" font-family="JetBrains Mono">a7 f3 2e 91 b4 55 c8 …</text>
+          <text x="170" y="288" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">attacker reads garbage</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · House key" data-anim="housekey">
+  <div class="slide-inner">
+    <span class="badge emerald">🔑 Analogy 1a · The Shared House Key (Symmetric)</span>
+    <h2 style="margin-bottom:16px;">One key. <span class="grad-emerald">Locks and unlocks.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The setup</span>
+          <p><strong>Symmetric Encryption</strong> behaves exactly like a shared house key — <strong>one single key</strong> locks the front door and unlocks the front door. The same secret both encrypts and decrypts.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it's beautiful</span>
+          <p>Because the operation is the same in both directions, it's <strong>extremely fast</strong>. Modern AES implementations encrypt gigabytes per second — fast enough to encrypt streaming video in real time.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The fatal problem</span>
+          <p>It requires <strong>securely sharing that secret key in advance</strong>. If Alice wants to encrypt to Bob, she has to somehow get the key to Bob without an eavesdropper seeing it. But — that's exactly the problem we started with. You can't share a secret over a public channel without already having a secret to protect it.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The chicken-and-egg:</b> symmetric is the ideal cipher — fast, well-understood, mathematically simple. But it presumes the two parties already share a secret. The <em>key distribution problem</em> is what asymmetric encryption solves.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One key, both directions</div>
+        <div class="housekey-scene">
+          <div class="key-vis">
+            <div class="door-frame locked" id="doorFrame1">
+              <div class="door-knob"></div>
+              <div class="door-lock">🔒</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+              <div class="key-shape">🔑</div>
+              <div class="key-label">ONE SHARED KEY</div>
+              <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-align:center;line-height:1.6">same key<br>→ encrypt<br>→ decrypt</div>
+            </div>
+            <div class="door-frame locked" id="doorFrame2">
+              <div class="door-knob"></div>
+              <div class="door-lock">🔒</div>
+            </div>
+          </div>
+          <p style="font-size:11.5px;color:var(--muted);line-height:1.55;text-align:center">Both ends share the exact same secret. Beautiful — but how did the secret get there?</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Mailbox" data-anim="mailbox">
+  <div class="slide-inner">
+    <span class="badge violet">📬 Analogy 1b · The Mailbox Slot (Asymmetric)</span>
+    <h2 style="margin-bottom:16px;">Drop a letter in. <span class="grad-violet">Only the owner can read.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p><strong>Asymmetric Encryption</strong> behaves exactly like a street-side mailbox slot. Anyone passing by can drop a letter through the open slot — <strong>The Public Key</strong> — but they cannot reach inside to steal anything back out.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The magic</span>
+          <p>Only the key-holder holding the master back panel key — <strong>The Private Key</strong> — can open it to retrieve the mail. The public key can only <em>encrypt</em>; only the private key can <em>decrypt</em>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this solves the key distribution problem</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Bob generates a key pair (public + private).<br>
+            <strong>2.</strong> Bob publishes the public key to the world.<br>
+            <strong>3.</strong> Alice downloads it and encrypts her message.<br>
+            <strong>4.</strong> Only Bob can decrypt it — no secret was ever shared.
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The tradeoff</span>
+          <p>Asymmetric is <strong>very slow</strong> — hundreds or thousands of times slower than symmetric. Large modular exponentiation per operation. You can use it for a small key exchange, not for encrypting gigabytes of video.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The mailbox with a public slot</div>
+        <div class="mailbox-scene">
+          <svg class="mailbox-svg" viewBox="0 0 340 240">
+            <!-- mailbox body -->
+            <rect x="60" y="80" width="220" height="120" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.8"/>
+            <text x="170" y="105" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">MAILBOX</text>
+            <text x="170" y="122" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">the recipient's container</text>
+
+            <!-- public slot -->
+            <rect x="90" y="140" width="160" height="18" rx="4" fill="rgba(0,0,0,.5)" stroke="rgba(255,182,72,.85)" stroke-width="1.5"/>
+            <text x="170" y="170" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">PUBLIC SLOT · anyone can drop</text>
+
+            <!-- private key on back -->
+            <rect x="130" y="185" width="80" height="22" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.85)" stroke-width="1.5"/>
+            <text x="170" y="200" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">🔒 PRIVATE KEY</text>
+
+            <!-- letter being dropped -->
+            <g id="letterDrop">
+              <rect x="150" y="30" width="40" height="26" rx="3" fill="rgba(255,255,255,.85)" stroke="rgba(255,255,255,.4)" stroke-width="1"/>
+              <text x="170" y="47" text-anchor="middle" font-size="8" fill="#06090f" font-family="JetBrains Mono" font-weight="800">✉️</text>
+            </g>
+
+            <!-- drop arrow -->
+            <line x1="170" y1="56" x2="170" y2="140" stroke="rgba(255,182,72,.85)" stroke-width="2" stroke-dasharray="4 3"/>
+            <polygon points="170,138 165,130 175,130" fill="rgba(255,182,72,.9)"/>
+
+            <text x="170" y="20" text-anchor="middle" font-size="9.5" fill="rgba(255,209,138,.85)" font-family="JetBrains Mono" font-weight="800">Alice encrypts</text>
+            <text x="170" y="230" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">only Bob's private key opens it</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 1 · Combined">
+  <div class="slide-inner">
+    <span class="badge amber">🔑📬 Analogy 1 · The Two Models Side by Side</span>
+    <h2 style="margin-bottom:16px;">One key both ways. <span class="grad-amber">Or one-way in, one-way out.</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The two key models</div>
+        <div class="cipher-compare">
+          <div class="cipher-card sym">
+            <div class="cc-head">
+              <span class="cc-icon">🔑</span>
+              <div class="cc-title">SYMMETRIC</div>
+            </div>
+            <div class="cc-body">
+              <strong>The shared house key.</strong> Same secret encrypts and decrypts. Both sides must already share the secret.
+            </div>
+            <div class="cc-stats">
+              ⚡ fast · GB/s<br>
+              ✓ well understood<br>
+              ✕ key distribution<br>
+              ✕ N users → N² keys
+            </div>
+          </div>
+          <div class="cipher-card asym">
+            <div class="cc-head">
+              <span class="cc-icon">📬</span>
+              <div class="cc-title">ASYMMETRIC</div>
+            </div>
+            <div class="cc-body">
+              <strong>The mailbox slot.</strong> Public key encrypts. Private key decrypts. Anyone can encrypt — only the holder can read.
+            </div>
+            <div class="cc-stats">
+              🐢 slow · modular exp<br>
+              ✓ no shared secret<br>
+              ✓ N users → N keypairs<br>
+              ✕ heavy compute cost
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The symmetric dream</span>
+          <p>Perfect security, zero overhead — <em>if</em> both parties already share the key. Symmetric is what you want for the actual data flow. Fast, efficient, well-analyzed for decades.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The asymmetric bootstrap</span>
+          <p>Asymmetric gives you the one thing symmetric can't: <strong>you can encrypt to someone you've never shared a secret with</strong>. It solves the distribution problem — at a heavy computational cost.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The hybrid insight</span>
+          <p>What if we used asymmetric encryption <em>only</em> to establish a shared symmetric key — and then did all the actual data with symmetric? You get the best of both: no distribution problem, and full symmetric speed. <strong>That's HTTPS. That's everything.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real numbers:</b> AES-256 encrypts at ~1-4 GB/s on modern CPUs. RSA-2048 encrypts at ~100 KB/s. That's roughly 10,000× slower. Nobody encrypts bulk data with RSA — they use RSA to hand off an AES key.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Analogy 2 · Technical" data-anim="ciphermath">
+  <div class="slide-inner">
+    <span class="badge blue">🔬 Analogy 2 · Pure Technical — Cipher String vs. Prime Coordinate Pair</span>
+    <h2 style="margin-bottom:16px;">Block bit-shifting vs. <span class="grad-blue">large modular exponentiation</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Symmetric · what happens under the hood</span>
+          <p>Symmetric cryptography processes data using <strong>high-speed block bit-shifting ciphers</strong>. AES, for example, repeatedly substitutes, permutes, and mixes 128-bit blocks through 10–14 rounds of table lookups and XORs. Every operation is a CPU-friendly primitive — bitwise, table-lookup, and byte-wise shuffle.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Asymmetric · what happens under the hood</span>
+          <p>Asymmetric cryptography executes <strong>large modular exponentiation loops</strong>. RSA: encrypting a message means computing <code style="font-family:var(--mono);color:#c9a7ff">m^e mod n</code> where <code style="font-family:var(--mono);color:#c9a7ff">e</code> and <code style="font-family:var(--mono);color:#c9a7ff">n</code> are 2048-bit integers. Each operation is 2048 squarings and multiplications on gigantic numbers — a heavy mathematical burden.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why the speed gap exists</span>
+          <p>Both are <strong>mathematically hard</strong> — they resist attacks by being computationally infeasible to reverse. But asymmetric's hardness <em>is</em> the cost. You pay the price on every operation. Symmetric's hardness is amortized across tiny bit-shuffles that run in single CPU cycles.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The deep design insight:</b> both are "one-way" — you can encrypt easily, but can't reverse without the key. Symmetric's one-wayness comes from <em>mixing</em> that destroys structure. Asymmetric's one-wayness comes from <em>number theory</em> (factoring is hard). Different kinds of one-wayness → different performance profiles.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The operations, side by side</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="14" width="300" height="32" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SYMMETRIC · AES-256</text>
+
+          <rect x="20" y="54" width="300" height="34" rx="6" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.35)" stroke-width="1"/>
+          <text x="170" y="74" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">SubBytes — table lookup (256 entries)</text>
+
+          <rect x="20" y="92" width="300" height="34" rx="6" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.35)" stroke-width="1"/>
+          <text x="170" y="112" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">ShiftRows — byte shuffle</text>
+
+          <rect x="20" y="130" width="300" height="34" rx="6" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.35)" stroke-width="1"/>
+          <text x="170" y="150" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">MixColumns — GF(2⁸) arithmetic</text>
+
+          <rect x="20" y="168" width="300" height="34" rx="6" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.35)" stroke-width="1"/>
+          <text x="170" y="188" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">AddRoundKey — XOR with key</text>
+
+          <text x="170" y="222" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">× 14 rounds · each ~1 CPU cycle</text>
+          <text x="170" y="238" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">→ ~1-4 GB/s on modern CPUs</text>
+
+          <rect x="20" y="252" width="300" height="32" rx="7" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="272" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">ASYMMETRIC · RSA-2048</text>
+
+          <rect x="20" y="292" width="300" height="20" rx="6" fill="rgba(160,107,255,.06)" stroke="rgba(160,107,255,.35)" stroke-width="1"/>
+          <text x="170" y="306" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono">m^e mod n (2048-bit modular exponentiation)</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="System Cohesion">
+  <div class="slide-inner">
+    <span class="badge crimson">🧭 System Cohesion — Where L25 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-crimson">cryptographic layer</span> that hides data from L26</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 6 (Network Data Streams)</h4>
+            <p>Encryption is applied to data moving through the network stack. To understand HTTPS you need to know how TLS fits into TCP/IP — packets, sockets, handshakes, the stream abstraction.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L26 (Firewalls &amp; IDS)</h4>
+            <p>High-strength hybrid encryption <strong>masks data payloads</strong>, forcing modern Intrusion Detection Systems to evaluate <em>traffic metadata shapes</em> instead of raw string keywords. This is the source material's direct link: encryption changes what L26 can even detect.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L23 (Authentication)</h4>
+            <p>TLS certificates bind public keys to identities. Without authentication, an attacker could MITM the key exchange and swap their own public key. TLS is authentication + encryption, tightly coupled.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L27 (Isolation)</h4>
+            <p>Sandboxes often need to authenticate and encrypt traffic to the outside world. Container network stacks and secure enclaves rely on cryptographic primitives that this lecture defines.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The Module 7 arc so far:</b> L22 (policy) → L23 (identity) → L24 (exploit) → L25 (encryption) → L26 (filter). Encryption is the response to the fact that the wire is public — every byte that crosses it is potentially observed. The remaining lectures assume this is true and build on it.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">Module 6</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">network streams</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="700">L23 · Auth</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">certificates</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(160,107,255,.14)" stroke="rgba(160,107,255,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">L25 · ENCRYPTION</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">AES · RSA · hybrid TLS</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">L26 · Firewalls</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">IDS · filtering</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L27 · Isolation</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">containers · VMs</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Symmetric AES">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown · Symmetric Encryption (AES)</span>
+    <h2 style="margin-bottom:16px;">One secret. <span class="grad-emerald">Both directions.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The formal definition</span>
+          <p><strong>Symmetric Encryption (AES)</strong> is a cryptographic model where a single, identical secret key handles both data scrambling and unscrambling pipelines.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Alice and Bob share a secret key K (32 bytes for AES-256).<br>
+            <strong>2.</strong> Alice: <code style="font-family:var(--mono);color:#b9d0ff">C = AES_encrypt(K, M)</code><br>
+            <strong>3.</strong> Bob: <code style="font-family:var(--mono);color:#b9d0ff">M = AES_decrypt(K, C)</code><br>
+            <strong>4.</strong> Anyone without K sees only ciphertext.
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it's fast</span>
+          <p>AES runs in hardware on modern CPUs (AES-NI instructions). Each round is a handful of bit-shuffles and table lookups. The whole cipher encrypts gigabytes per second without breaking a sweat.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The key distribution problem</span>
+          <p>Symmetric encryption is <strong>only as strong as the secrecy of the key</strong>. If Alice wants to talk to 100 people, she needs 100 shared secrets — and each one has to be distributed securely. The number of keys grows as N² — this is the scaling problem that asymmetric cryptography solves.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The shared-key pipeline</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SYMMETRIC · ONE KEY BOTH WAYS</text>
+
+          <!-- Alice side -->
+          <rect x="20" y="40" width="100" height="40" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="70" y="58" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">ALICE</text>
+          <text x="70" y="72" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">sender</text>
+
+          <!-- shared key -->
+          <rect x="125" y="130" width="90" height="45" rx="8" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="170" y="152" text-anchor="middle" font-size="12">🔑</text>
+          <text x="170" y="168" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">SHARED KEY K</text>
+
+          <!-- Bob side -->
+          <rect x="220" y="40" width="100" height="40" rx="7" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="270" y="58" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">BOB</text>
+          <text x="270" y="72" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">receiver</text>
+
+          <!-- Alice to key -->
+          <line x1="70" y1="80" x2="140" y2="130" stroke="rgba(91,141,255,.75)" stroke-width="1.6"/>
+          <!-- Bob to key -->
+          <line x1="270" y1="80" x2="200" y2="130" stroke="rgba(255,182,72,.75)" stroke-width="1.6"/>
+
+          <!-- Alice uses key to encrypt -->
+          <rect x="20" y="200" width="140" height="46" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="220" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">AES_encrypt(K, M)</text>
+          <text x="90" y="236" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">→ ciphertext C</text>
+
+          <!-- Bob uses key to decrypt -->
+          <rect x="180" y="200" width="140" height="46" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="250" y="220" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">AES_decrypt(K, C)</text>
+          <text x="250" y="236" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">→ plaintext M</text>
+
+          <line x1="140" y1="160" x2="90" y2="200" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="200" y1="160" x2="250" y2="200" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+
+          <text x="170" y="288" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">same key both ways · very fast · N² key problem</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Key distribution">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">📖 Core Breakdown · The Key Distribution Problem</span>
+    <h2 style="margin-bottom:16px;">How do you share a secret <span class="grad-crimson">over a public wire?</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The fundamental issue</span>
+          <p>Symmetric encryption works — if both sides share the key. But how do they share it? Alice cannot send the key over the network, because anyone listening sees it. Sending an encrypted message with the key doesn't help — you'd need another key to encrypt the key.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The scaling problem</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>2 users</strong> → 1 shared key<br>
+            <strong>10 users</strong> → 45 shared keys<br>
+            <strong>100 users</strong> → 4,950 shared keys<br>
+            <strong>N users</strong> → N(N−1)/2 shared keys
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The physical answer</span>
+          <p>Historically, key exchange was physical: couriers, sealed envelopes, meetings in person. The "red telephone" between Washington and Moscow carried one-time pads by hand. This doesn't scale to the entire internet.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The cryptographic answer</span>
+          <p>Asymmetric encryption. You can encrypt a message <em>to</em> someone without sharing a secret first — you just need their <strong>public key</strong>. The public key can be broadcast to the world; only the private key (kept secret) can decrypt.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The historic motivation:</b> Diffie and Hellman published their key exchange protocol in 1976 specifically to solve this problem — enabling two parties to agree on a shared secret over an entirely public channel. RSA followed in 1977. Modern public-key cryptography traces back to this single insight.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The distribution scaling</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">SYMMETRIC · N² KEY PROBLEM</text>
+
+          <!-- 3 nodes -->
+          <g transform="translate(50, 40)">
+            <circle cx="30" cy="30" r="22" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+            <text x="30" y="35" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">A</text>
+
+            <circle cx="120" cy="30" r="22" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+            <text x="120" y="35" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">B</text>
+
+            <circle cx="75" cy="100" r="22" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+            <text x="75" y="105" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">C</text>
+
+            <line x1="52" y1="30" x2="98" y2="30" stroke="rgba(255,255,255,.3)" stroke-width="1.4"/>
+            <line x1="40" y1="50" x2="65" y2="80" stroke="rgba(255,255,255,.3)" stroke-width="1.4"/>
+            <line x1="110" y1="50" x2="85" y2="80" stroke="rgba(255,255,255,.3)" stroke-width="1.4"/>
+
+            <text x="75" y="142" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">3 users → 3 keys</text>
+          </g>
+
+          <line x1="170" y1="190" x2="170" y2="215" stroke="rgba(255,255,255,.15)" stroke-width="1.4"/>
+
+          <text x="170" y="234" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">ASYMMETRIC · N KEYPAIR PROBLEM</text>
+
+          <!-- 3 nodes with keys -->
+          <g transform="translate(50, 248)">
+            <circle cx="30" cy="30" r="22" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+            <text x="30" y="35" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">A</text>
+
+            <circle cx="120" cy="30" r="22" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+            <text x="120" y="35" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">B</text>
+
+            <circle cx="75" cy="100" r="22" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+            <text x="75" y="105" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">C</text>
+
+            <text x="75" y="142" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">3 users → 3 keypairs</text>
+            <text x="75" y="158" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">each generates their own</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Asymmetric RSA">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Core Breakdown · Asymmetric Encryption (RSA)</span>
+    <h2 style="margin-bottom:16px;">A key pair. <span class="grad-violet">Public encrypts. Private decrypts.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The formal definition</span>
+          <p><strong>Asymmetric Encryption (RSA)</strong> is a dual-key architecture where data locked by a public key can only be unlocked by a matching private key.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works — at a high level</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Bob generates two mathematically linked keys: public key <code style="font-family:var(--mono);color:#b9d0ff">K_pub</code> and private key <code style="font-family:var(--mono);color:#b9d0ff">K_priv</code>.<br>
+            <strong>2.</strong> Bob publishes <code style="font-family:var(--mono);color:#b9d0ff">K_pub</code> — anyone can see it.<br>
+            <strong>3.</strong> Alice: <code style="font-family:var(--mono);color:#b9d0ff">C = RSA_encrypt(K_pub, M)</code><br>
+            <strong>4.</strong> Bob: <code style="font-family:var(--mono);color:#b9d0ff">M = RSA_decrypt(K_priv, C)</code><br>
+            <strong>5.</strong> Without <code style="font-family:var(--mono);color:#b9d0ff">K_priv</code>, the ciphertext is useless.
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mathematical basis</span>
+          <p>RSA relies on the difficulty of <strong>factoring large integers</strong>. Multiplying two 1024-bit primes is trivial; factoring the resulting 2048-bit number is computationally infeasible. The public key is <code style="font-family:var(--mono);color:#ffd18a">(e, n)</code>, the private key is <code style="font-family:var(--mono);color:#ffd18a">(d, n)</code>, where <code style="font-family:var(--mono);color:#ffd18a">n = p·q</code>.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>RSA encrypts at roughly <strong>100 KB/s</strong> — about 10,000× slower than AES. Fine for a 256-byte key exchange. Hopeless for encrypting a video stream, a disk, or a session's worth of HTTP traffic.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two-key pair</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">ASYMMETRIC · KEY PAIR</text>
+
+          <!-- Bob -->
+          <rect x="130" y="40" width="80" height="35" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="62" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">BOB</text>
+
+          <!-- Bob generates keypair -->
+          <line x1="170" y1="75" x2="100" y2="120" stroke="rgba(91,141,255,.65)" stroke-width="1.6"/>
+          <line x1="170" y1="75" x2="240" y2="120" stroke="rgba(46,230,168,.65)" stroke-width="1.6"/>
+
+          <!-- Public key -->
+          <rect x="20" y="120" width="140" height="55" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="90" y="140" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="800">PUBLIC KEY K_pub</text>
+          <text x="90" y="155" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">published to the world</text>
+          <text x="90" y="168" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">anyone can encrypt</text>
+
+          <!-- Private key -->
+          <rect x="180" y="120" width="140" height="55" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+          <text x="250" y="140" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">PRIVATE KEY K_priv</text>
+          <text x="250" y="155" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">never leaves Bob's device</text>
+          <text x="250" y="168" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">only holder can decrypt</text>
+
+          <!-- Alice encrypts -->
+          <rect x="20" y="205" width="140" height="45" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="90" y="223" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">Alice encrypts M</text>
+          <text x="90" y="238" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">using K_pub</text>
+
+          <!-- Bob decrypts -->
+          <rect x="180" y="205" width="140" height="45" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="250" y="223" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">Bob decrypts C</text>
+          <text x="250" y="238" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">using K_priv</text>
+
+          <line x1="90" y1="175" x2="90" y2="205" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="175" x2="250" y2="205" stroke="rgba(46,230,168,.7)" stroke-width="1.4" class="svg-flow"/>
+
+          <text x="170" y="288" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">solves distribution · very slow · N keypairs</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Why not always">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown · Why Not Use Asymmetric for Everything?</span>
+    <h2 style="margin-bottom:16px;">It's <span class="grad-amber">10,000× slower</span> than symmetric</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The performance gap</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>AES-256</strong> — ~1-4 GB/s (HW-accelerated)<br>
+            <strong>RSA-2048</strong> — ~100 KB/s (pure software)<br>
+            <strong>Speed ratio</strong> — roughly 10,000 : 1
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What that means in practice</span>
+          <p>Encrypting a 1 GB file with AES takes ~1 second. Encrypting it with RSA takes ~3 hours. Encrypting a video stream with RSA is out of the question. The overhead is not a "slight slowdown" — it's a complete non-starter.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The other problems</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Size limits</strong> — RSA can only encrypt data smaller than its modulus (256 bytes for RSA-2048)<br>
+            <strong>Security margins</strong> — RSA keys must be long (~2048 bits) which multiplies the cost<br>
+            <strong>Side channels</strong> — timing attacks on modular exponentiation
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fundamental insight</span>
+          <p>Asymmetric encryption is <strong>not a replacement for symmetric</strong>. It's a solution to a different problem. Use it for the thing it's uniquely good at — <em>bootstrapping trust</em> — and let symmetric handle the actual data.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The metaphor:</b> asymmetric is like a courier who can deliver a single sealed envelope to anyone in the world without prior contact. Symmetric is like a phone line that's 10,000× cheaper but only works if both people have already exchanged phone numbers. You use the courier to exchange the phone numbers, then talk on the phone.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The speed comparison</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">SPEED · LOG SCALE</text>
+
+          <!-- AES bar -->
+          <text x="30" y="70" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">AES-256</text>
+          <rect x="30" y="80" width="290" height="35" rx="5" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.75)" stroke-width="1.4"/>
+          <text x="175" y="102" text-anchor="middle" font-size="11" fill="#fff" font-family="JetBrains Mono" font-weight="800">~2 GB/s</text>
+
+          <!-- RSA bar -->
+          <text x="30" y="150" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">RSA-2048</text>
+          <rect x="30" y="160" width="6" height="35" rx="2" fill="rgba(160,107,255,.20)" stroke="rgba(160,107,255,.75)" stroke-width="1.4"/>
+          <text x="80" y="182" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">~100 KB/s</text>
+
+          <!-- ratio -->
+          <text x="30" y="240" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">RATIO</text>
+          <rect x="30" y="250" width="290" height="42" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.4"/>
+          <text x="175" y="273" text-anchor="middle" font-size="14" fill="#ffd18a" font-family="JetBrains Mono" font-weight="900">~20,000× slower</text>
+          <text x="175" y="288" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">RSA is not for bulk data</text>
+
+          <text x="170" y="315" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">exact numbers vary · ratios stay huge</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Core · Hybrid encryption" data-anim="hybridflow">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">📖 Core Breakdown · Hybrid Encryption — The Best of Both</span>
+    <h2 style="margin-bottom:16px;">Asymmetric for keys. <span class="grad-emerald">Symmetric for data.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The formal definition</span>
+          <p><strong>Hybrid Encryption</strong> combines asymmetric cryptography (for secure key exchange) with symmetric cryptography (for fast data stream processing).</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The insight</span>
+          <p>You don't need asymmetric encryption for the whole message. You only need it for the <em>shared session key</em> — 32 bytes. Use asymmetric once to establish a shared AES key, then use that key for all the actual data. The expensive operation happens once, the cheap operation handles everything else.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The protocol</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Server publishes its certificate with a public key<br>
+            <strong>2.</strong> Client verifies the certificate (L23 auth)<br>
+            <strong>3.</strong> Client generates a random session key<br>
+            <strong>4.</strong> Client encrypts the session key with the server's public key (RSA)<br>
+            <strong>5.</strong> Server decrypts it with its private key<br>
+            <strong>6.</strong> Both sides now share the same symmetric key<br>
+            <strong>7.</strong> All further traffic uses fast AES
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why this works</span>
+          <p>The asymmetric operation is cheap — one small piece of data (the key). The symmetric operation carries the actual payload — and symmetric is 10,000× faster. You get <strong>the best of both worlds</strong>: no key distribution problem (asymmetric), no performance hit (symmetric).</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The hybrid flow</div>
+        <div class="hybrid-flow" id="hybridVis">
+          <div class="hybrid-phase handshake">
+            <span class="hp-label">PHASE 1 · ASYMMETRIC HANDSHAKE</span>
+            <div class="hp-body">
+              Client ← Server <strong>public key</strong> (in certificate)<br>
+              Client encrypts a <strong>session key</strong> using the public key<br>
+              Server decrypts with its <strong>private key</strong><br>
+              Both now have the same shared session key
+            </div>
+          </div>
+          <div class="hybrid-phase switch">
+            <span class="hp-label">PHASE 2 · SWITCH</span>
+            <div class="hp-body">
+              Both sides <strong>discard</strong> the asymmetric keys<br>
+              Both sides <strong>adopt</strong> the shared session key<br>
+              All further encryption uses this session key
+            </div>
+          </div>
+          <div class="hybrid-phase data">
+            <span class="hp-label">PHASE 3 · SYMMETRIC DATA</span>
+            <div class="hp-body">
+              AES-256 with the session key<br>
+              Fast · ~2 GB/s<br>
+              Handles <strong>everything</strong>: HTML, images, video
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Live demo · AES symmetric" data-anim="aesdemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — Symmetric AES Encrypt/Decrypt</span>
+    <h2 style="margin-bottom:16px;">Same key. <span class="grad-emerald">Round trip.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · AES symmetric roundtrip</div>
+        <div class="terminal" id="aesTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — openssl aes-256-cbc</span>
+          </div>
+          <div class="term-body" id="aesBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">echo "Hello, world" | openssl enc -aes-256-cbc -K $(hex_key) -iv 0</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're seeing</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> Plaintext "Hello, world" fed to openssl<br>
+            <strong>2.</strong> One 256-bit key — same for encrypt and decrypt<br>
+            <strong>3.</strong> Output: unreadable ciphertext<br>
+            <strong>4.</strong> Round-trip with the same key → back to plaintext
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why AES is the standard</span>
+          <p>Fast, hardware-accelerated (AES-NI), thoroughly analyzed since 1998 (Rijndael won the NIST competition in 2000). Supports 128, 192, and 256-bit keys. The workhorse of all modern encrypted traffic.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The IV</span>
+          <p>The <strong>Initialization Vector</strong> is a random block, different for each message, mixed in before the first encryption round. It ensures identical plaintexts produce different ciphertexts — defeating pattern analysis.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>In practice:</b> don't call openssl directly in production — use libsodium, BoringSSL, or your platform's crypto library. But the underlying mechanism (one key both directions) is identical.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Live demo · RSA asymmetric" data-anim="rsademo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🧪 Live Demo — Asymmetric RSA Keypair</span>
+    <h2 style="margin-bottom:16px;">Generate. Encrypt. Decrypt. <span class="grad-violet">Two different keys.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · RSA keypair roundtrip</div>
+        <div class="terminal" id="rsaTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — openssl rsa</span>
+          </div>
+          <div class="term-body" id="rsaBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">openssl genrsa -out private.pem 2048</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What you're seeing</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> Generate a 2048-bit RSA keypair<br>
+            <strong>2.</strong> Extract the public key (shareable)<br>
+            <strong>3.</strong> Encrypt a message with the public key<br>
+            <strong>4.</strong> Decrypt with the private key<br>
+            <strong>5.</strong> Decrypt with the public key → fails
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What just happened mathematically</span>
+          <p>RSA generated two primes <code style="font-family:var(--mono);color:#b9d0ff">p</code> and <code style="font-family:var(--mono);color:#b9d0ff">q</code>, computed <code style="font-family:var(--mono);color:#b9d0ff">n = p·q</code>. The public key is <code style="font-family:var(--mono);color:#b9d0ff">(e, n)</code>; the private key is <code style="font-family:var(--mono);color:#b9d0ff">(d, n)</code>. Recovering <code style="font-family:var(--mono);color:#b9d0ff">d</code> from <code style="font-family:var(--mono);color:#b9d0ff">(e, n)</code> requires factoring <code style="font-family:var(--mono);color:#b9d0ff">n</code> — which for 2048-bit RSA is beyond all classical computers.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The point</span>
+          <p>Nobody needs to share a secret. Alice can encrypt to Bob with Bob's public key — safe even if the public key is posted on a billboard. Only Bob's private key (never transmitted) can decrypt.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why RSA is not used for bulk data:</b> look at the timing in the demo. RSA encryption of a few bytes takes measurable milliseconds. Multiply by the number of bytes in a web page — and you see why hybrid encryption is the answer.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live demo · TLS handshake" data-anim="tlsdemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — The HTTPS / TLS Handshake</span>
+    <h2 style="margin-bottom:16px;">Watch <span class="grad-amber">asymmetric hand off to symmetric</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · TLS handshake trace</div>
+        <div class="terminal" id="tlsTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — curl -v https://example.com</span>
+          </div>
+          <div class="term-body" id="tlsBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">curl -v https://example.com</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The handshake phases</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Phase 1 (asymmetric):</strong> Client Hello, Server Hello + Certificate with public key, key exchange — RSA/ECDHE.<br>
+            <strong>Phase 2 (switch):</strong> Both sides derive the session keys from the exchanged material.<br>
+            <strong>Phase 3 (symmetric):</strong> All application data flows via AES-GCM with the shared session key.
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What the trace shows</span>
+          <p>The cipher suite negotiation ("TLS_AES_256_GCM_SHA384"), the certificate verification, and the switchover from asymmetric key exchange to symmetric data encryption — all in a few hundred milliseconds.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The result</span>
+          <p>Your browser and the server share a fresh symmetric key that no one else knows — established entirely over a public wire. Every subsequent HTTP request is AES-encrypted. That's the hybrid pattern in action.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Modern evolution:</b> modern TLS 1.3 replaced RSA key exchange with <strong>ECDHE</strong> (Elliptic Curve Diffie-Hellman Ephemeral), which is faster and provides forward secrecy. The hybrid pattern is identical — only the specific asymmetric primitive changed.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Practical · HTTPS/TLS architecture">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">📖 Practical Example · HTTPS/TLS Connection Architecture</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">canonical hybrid protocol</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The core architecture</span>
+          <p>Modern web traffic implements hybrid structures. The system leverages <strong>RSA asymmetric public keys</strong> during the initial network handshake to securely negotiate a <strong>session token</strong>, and immediately shifts to high-speed <strong>AES symmetric blocks</strong> to handle bulk page rendering data.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">What each piece does</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Certificate</strong> — signed by a CA, binds the public key to the domain<br>
+            <strong>Asymmetric exchange</strong> — client and server agree on a session key<br>
+            <strong>Symmetric session</strong> — all traffic after handshake uses AES<br>
+            <strong>MAC / AEAD</strong> — integrity — prevents tampering
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's called hybrid</span>
+          <p>Because it uses <em>both</em> encryption types. Not "either/or" — a definite architectural decision. The asymmetric phase happens once, quickly, with tiny payloads. The symmetric phase carries everything heavy, with hardware acceleration. Combined, they solve what neither could alone.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exact structure in one sentence:</b> asymmetric protects the <em>key exchange</em> (small, rare, expensive); symmetric protects the <em>data stream</em> (large, continuous, cheap). The TLS handshake is the moment when asymmetric steps aside and lets symmetric take over.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two phases of HTTPS</div>
+        <div class="hs-vis" id="tlsVis">
+          <div class="hs-step" data-idx="0">
+            <div class="hs-num">1</div>
+            <div class="hs-body"><strong>Client Hello</strong> — supported ciphers, TLS version, random nonce</div>
+            <div class="hs-tag both">PLAIN</div>
+          </div>
+          <div class="hs-step" data-idx="1">
+            <div class="hs-num">2</div>
+            <div class="hs-body"><strong>Server Hello + Certificate</strong> — server's public key, signed by CA</div>
+            <div class="hs-tag asym">ASYM</div>
+          </div>
+          <div class="hs-step" data-idx="2">
+            <div class="hs-num">3</div>
+            <div class="hs-body"><strong>Client verifies cert</strong> — checks signature chain → L23 auth</div>
+            <div class="hs-tag asym">ASYM</div>
+          </div>
+          <div class="hs-step" data-idx="3">
+            <div class="hs-num">4</div>
+            <div class="hs-body"><strong>Key exchange</strong> — client and server agree on session key</div>
+            <div class="hs-tag asym">ASYM</div>
+          </div>
+          <div class="hs-step" data-idx="4">
+            <div class="hs-num">5</div>
+            <div class="hs-body"><strong>Switch to symmetric</strong> — both sides adopt session key</div>
+            <div class="hs-tag both">SWITCH</div>
+          </div>
+          <div class="hs-step" data-idx="5">
+            <div class="hs-num">6</div>
+            <div class="hs-body"><strong>AES-GCM data flow</strong> — all HTTP traffic, encrypted + authenticated</div>
+            <div class="hs-tag sym">SYM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Lexicon · Symmetric">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏷️ System Lexicon — Symmetric Encryption (AES)</span>
+    <div class="two-lex">
+      <div class="lex-card em">
+        <div class="lex-term">Symmetric Encryption</div>
+        <div class="lex-sub">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A cryptographic model where a single, identical secret key handles both data scrambling and unscrambling pipelines.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The shared house key — one key locks and unlocks the same door. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real algorithms</span>
+          <p>AES-128 · AES-192 · AES-256 · ChaCha20 · Salsa20</p>
+        </div>
+      </div>
+      <div class="lex-card em">
+        <div class="lex-term">AES</div>
+        <div class="lex-sub">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Advanced Encryption Standard — the dominant symmetric block cipher, standardized by NIST in 2001. Selected through an open international competition.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The specific cipher everyone actually uses in production for bulk symmetric encryption. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Key facts</span>
+          <p>128-bit block · 128/192/256-bit keys · 10/12/14 rounds · hardware-accelerated (AES-NI) on modern CPUs</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Lexicon · Asymmetric">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🏷️ System Lexicon — Asymmetric Encryption (RSA)</span>
+    <div class="two-lex">
+      <div class="lex-card vi">
+        <div class="lex-term">Asymmetric Encryption</div>
+        <div class="lex-sub">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A dual-key architecture where data locked by a public key can only be unlocked by a matching private key.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The mailbox slot — anyone can drop in, only the key-holder can retrieve. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real algorithms</span>
+          <p>RSA · ECC (Elliptic Curve Cryptography) · ECDSA · Diffie-Hellman</p>
+        </div>
+      </div>
+      <div class="lex-card vi">
+        <div class="lex-term">RSA</div>
+        <div class="lex-sub">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Rivest-Shamir-Adleman — the first practical public-key cryptosystem, based on the difficulty of factoring the product of two large primes.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The original "public key" crypto. Still widely used, though ECC is slowly replacing it. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Key facts</span>
+          <p>Factoring hardness → security. 2048-bit minimum today, 3072 or 4096 for long-term. Slow — only used for key exchange and signatures.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · Key Exchange & Hybrid">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🏷️ System Lexicon — Key Exchange &amp; Hybrid Encryption</span>
+    <div class="two-lex">
+      <div class="lex-card am">
+        <div class="lex-term">Key Exchange</div>
+        <div class="lex-sub">Term 05 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The structural protocol dance where two distant computing systems securely establish a shared secret token over an insecure channel.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Two strangers agreeing on a password without ever saying it out loud. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real protocols</span>
+          <p>Diffie-Hellman · ECDHE · RSA key transport · TLS handshake</p>
+        </div>
+      </div>
+      <div class="lex-card am">
+        <div class="lex-term">Hybrid Encryption</div>
+        <div class="lex-sub">Bonus Term</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Combining asymmetric cryptography (for secure key exchange) with symmetric cryptography (for fast data stream processing).</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Use the slow-but-easy asymmetric channel to agree on a fast key; use that key for everything else. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real examples</span>
+          <p>HTTPS/TLS · SSH · Signal · VPN tunnels · WhatsApp · every secure messaging app</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about encryption</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Asymmetric is more secure than symmetric"</div>
+        <div class="pc-desc">Not true. Modern AES-256 with proper key management is <strong>at least as secure</strong> as RSA-2048 — often more so, because RSA's safety depends on hard mathematical assumptions that could fall to a quantum computer. The two are not security tiers — they are <strong>different mechanisms for different problems</strong>. Symmetric is the actual encryption. Asymmetric is the key distribution bootstrap.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Encryption is the same as hashing"</div>
+        <div class="pc-desc">Completely different. <strong>Hashing is one-way</strong> — no key, no reverse, ever. <strong>Encryption is reversible with the right key</strong> — that's the whole point. Hashing is used for password storage (L23); encryption is used for data transport (L25). Confusing them is a critical design error.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"HTTPS only encrypts — it doesn't authenticate"</div>
+        <div class="pc-desc">False. HTTPS uses <strong>certificates</strong> to authenticate the server (validating that the public key actually belongs to <em>example.com</em> and not an attacker). Without authentication, an attacker could MITM the asymmetric handshake and substitute their own public key — a passive-only defense would fail. Modern TLS is <strong>authenticated encryption</strong> — TLS 1.3 bundles both together by default.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Real world · algorithms">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — Algorithms in Production</span>
+    <h2 style="margin-bottom:16px;">Where each cipher <span class="grad-emerald">actually shows up</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The algorithm landscape</div>
+        <table class="algo-table">
+          <thead>
+            <tr><th>ALGORITHM</th><th>TYPE</th><th>SPEED</th><th>USED IN</th></tr>
+          </thead>
+          <tbody>
+            <tr class="sym">
+              <td class="name">AES-256</td>
+              <td>Symmetric</td>
+              <td>~2 GB/s</td>
+              <td>TLS bulk data · disk encryption · VPN</td>
+            </tr>
+            <tr class="sym">
+              <td class="name">ChaCha20</td>
+              <td>Symmetric</td>
+              <td>~1 GB/s</td>
+              <td>TLS on mobile · WireGuard</td>
+            </tr>
+            <tr class="asym">
+              <td class="name">RSA-2048</td>
+              <td>Asymmetric</td>
+              <td>~100 KB/s</td>
+              <td>Legacy TLS · SSH · signatures</td>
+            </tr>
+            <tr class="asym">
+              <td class="name">ECDSA (P-256)</td>
+              <td>Asymmetric</td>
+              <td>~5 KB/s</td>
+              <td>Modern TLS · SSH · Bitcoin</td>
+            </tr>
+            <tr class="hybrid">
+              <td class="name">TLS 1.3</td>
+              <td>Hybrid</td>
+              <td>Fast</td>
+              <td>Every HTTPS connection today</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Symmetric — the workhorse</span>
+          <p>AES and ChaCha20 handle every byte of encrypted data on the internet. Your bank's HTTPS connection, your phone's disk encryption, your VPN — all symmetric underneath.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Asymmetric — the bootstrap</span>
+          <p>RSA and ECDSA appear briefly at the start of every connection to establish trust and exchange keys. Then they step aside and let symmetric take over.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Hybrid — the standard</span>
+          <p>Modern TLS 1.3 uses ECDHE for key exchange (faster than RSA + forward secrecy) and AES-GCM or ChaCha20-Poly1305 for data. This combination is the universal standard — no browser or bank relies on RSA alone anymore.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The forward secrecy insight:</b> ECDHE (Ephemeral Diffie-Hellman) generates a new key pair for every connection, so stealing a server's long-term private key does not compromise past sessions. This is a major improvement over RSA key transport — a stolen private key only ever compromises past traffic that used it, and with ECDHE there's nothing to steal.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Activity" data-anim="handshakeact">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Classroom Activity · The Handshake Mapping Race</span>
+    <h2 style="margin-bottom:16px;">Label each step. <span class="grad-violet">Asymmetric or symmetric?</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Draw the chronological vertical lines of a network TLS handshake on the whiteboard. Have students step up with markers to label exactly which step of the negotiation is driven by <strong>asymmetric algorithms</strong> (RSA key exchange) and where the pipeline transitions to <strong>symmetric cryptography</strong> (AES payload stream).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The steps to label</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Client Hello<br>
+            <strong>2.</strong> Server Hello + Certificate<br>
+            <strong>3.</strong> Client verifies the certificate<br>
+            <strong>4.</strong> Key exchange (RSA/ECDHE)<br>
+            <strong>5.</strong> Switch to symmetric<br>
+            <strong>6.</strong> AES-encrypted payload flow
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The debrief questions</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            · Which steps are expensive? Why?<br>
+            · Which steps could be done by a passive sniffer?<br>
+            · Why does the switch happen exactly there?<br>
+            · What would break if the switch never happened?<br>
+            · What would break if the symmetric phase came first?
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The "aha" moment</span>
+          <p>The switch is the whole point of the protocol. Everything before it is asymmetric — the expensive bootstrap. Everything after it is symmetric — the fast data path. The handshake is the transition, not the transaction.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Handshake mapping prompts</div>
+        <div class="act-scene">
+          <div class="act-prompt" id="handshakePrompt">
+            <span class="ap-q">Step 1: Client Hello — which type?</span>
+          </div>
+          <div class="hs-vis">
+            <div class="hs-step done">
+              <div class="hs-num">✓</div>
+              <div class="hs-body"><strong>Client Hello</strong> — plaintext, no encryption</div>
+              <div class="hs-tag both">PLAIN</div>
+            </div>
+            <div class="hs-step">
+              <div class="hs-num">2</div>
+              <div class="hs-body"><strong>Server Hello + Certificate</strong></div>
+              <div class="hs-tag asym">ASYM</div>
+            </div>
+            <div class="hs-step">
+              <div class="hs-num">3</div>
+              <div class="hs-body"><strong>Key Exchange</strong> — the transition</div>
+              <div class="hs-tag asym">ASYM</div>
+            </div>
+            <div class="hs-step">
+              <div class="hs-num">4</div>
+              <div class="hs-body"><strong>AES Payload</strong> — everything after</div>
+              <div class="hs-tag sym">SYM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Mindmap" data-anim="mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🗺️ Mindmap Branch</span>
+    <h2 style="margin-bottom:16px;">L25 in the <span class="grad-blue">course tree</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The branch</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2)">
+            CS 301: Operating Systems<br>
+            &nbsp;&nbsp;→ Module 7: Security &amp; Protection<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;→ <strong style="color:#c9a7ff">L25: Encryption Fundamentals</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Symmetric (AES) vs Asymmetric (RSA)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Hybrid HTTPS Handshakes
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The five core concepts</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Symmetric Encryption</strong> — one key both ways (AES)<br>
+            <strong>Asymmetric Encryption</strong> — dual-key pair (RSA)<br>
+            <strong>Key Exchange</strong> — the distribution protocol<br>
+            <strong>Hybrid Encryption</strong> — asymmetric + symmetric combined<br>
+            <strong>HTTPS/TLS</strong> — the canonical implementation
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The throughline to L26</span>
+          <p>Encryption makes the wire opaque. When L26's firewalls and IDSs can't read the payload, they must fall back to analysing <strong>traffic metadata shapes</strong> — packet sizes, timing, destination ports, TLS handshake patterns. Encryption changes what monitoring can even see.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Mindmap branch</div>
+        <div class="mindmap" id="mindmapVis">
+          <div class="mm-row"><span class="mm-prefix">├─ </span><div class="mm-node root">CS 301 · Operating Systems</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node">Module 7 · Security &amp; Protection</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf amber">L22 · Access Control</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf emerald">L23 · Authentication</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf crimson">L24 · Program Exploits</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node active">L25 · Encryption</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf emerald">Symmetric (AES)</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf">Asymmetric (RSA)</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  └─ </span><div class="mm-node leaf amber">Hybrid HTTPS/TLS</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  └─ </span><div class="mm-node leaf crimson">L26 · Firewalls →</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L25 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p><strong>Symmetric encryption</strong> (AES) — one shared key encrypts and decrypts. Extremely fast (~2 GB/s), but suffers the <strong>key distribution problem</strong>: how do you share the secret without already having a secret to protect it?</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>Asymmetric encryption</strong> (RSA) — a public/private keypair solves distribution: the public key can be broadcast, and only the private key decrypts. But it's ~10,000× slower, so it can't carry bulk data.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Hybrid encryption</strong> — the standard: asymmetric encryption is used <em>only</em> to exchange a symmetric session key (small, one-time cost), then all real data flows symmetrically (fast). <strong>HTTPS/TLS</strong> is the canonical implementation of this pattern.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>In practice, both layers are <strong>required</strong>. Asymmetric for trust bootstrap + key exchange (also serves authentication via certificates — L23). Symmetric for data throughput. The two are not alternatives — they are two halves of the same protocol.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Exam focus">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🎯 Exam Focus — What to Remember</span>
+    <h2 style="margin-bottom:18px;">The exact questions this lecture answers</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Question 1</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Distinguish symmetric from asymmetric encryption."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Symmetric: one shared key, both operations (AES). Asymmetric: public encrypts, private decrypts (RSA). Symmetric is 10,000× faster but requires prior key sharing; asymmetric is slow but solves key distribution.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Question 2</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"What is the key distribution problem, and how does asymmetric solve it?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Symmetric needs a shared key, but you can't send it over a public wire. Asymmetric: publish your public key openly; only the private key can decrypt, so no shared secret needs to be transported.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Question 3</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Why is HTTPS hybrid rather than purely asymmetric or purely symmetric?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Purely asymmetric → too slow for bulk data. Purely symmetric → no way to share the key. Hybrid: asymmetric for one small key exchange, symmetric for the actual data. Best of both.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Question 4</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Name where each shows up in modern networks."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Symmetric: AES in HTTPS bulk data, disk encryption, VPNs, TLS session. Asymmetric: RSA/ECDHE key exchange, TLS certificates, SSH keys, code signing.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four core facts to memorize</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <g transform="translate(20, 20)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">SYMMETRIC · AES</text>
+            <text x="15" y="42" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">one key both ways · fast · N² key problem</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">used for bulk data</text>
+          </g>
+          <g transform="translate(20, 90)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">ASYMMETRIC · RSA</text>
+            <text x="15" y="42" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">public encrypts · private decrypts · slow</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">used for key exchange</text>
+          </g>
+          <g transform="translate(20, 160)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">HYBRID</text>
+            <text x="15" y="42" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">asymmetric for key · symmetric for data</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">HTTPS/TLS = canonical example</text>
+          </g>
+          <g transform="translate(20, 230)">
+            <rect x="0" y="0" width="300" height="68" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">TLS HANDSHAKE</text>
+            <text x="15" y="42" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">1. negotiate ciphers</text>
+            <text x="15" y="57" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">2. exchange keys (asym)</text>
+            <text x="15" y="72" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">3. switch to AES (sym)</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Gateway to L26">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">➡️ Next Lecture — L26 · Firewalls &amp; Intrusion Detection</span>
+    <h2 style="margin-bottom:18px;">From <span class="grad-crimson">"hide the data"</span> to <span class="grad-crimson">"filter the flow"</span></h2>
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The handoff</span>
+          <p>L25 made data opaque — even to an eavesdropper with a packet sniffer. That changes the game for network monitoring. If you can't read the payload, what can you filter? What can you detect?</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">L26 preview</span>
+          <p>Next lecture distinguishes a <strong>firewall</strong> (bouncer at the door — blocks based on rules) from an <strong>IDS</strong> (undercover camera guard — detects suspicious behaviour inside). We'll see how modern monitoring shifts from <em>signature matching</em> (reading payloads) to <em>anomaly detection</em> (looking at traffic metadata shapes) precisely because of encryption.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The connection</span>
+          <p>Encryption is <em>why</em> the IDS can't just pattern-match against "password=" anymore. When the wire is encrypted, monitoring must analyze traffic <strong>shapes</strong> — packet sizes, timing, port numbers, TLS handshake metadata — rather than contents. This is the direct link the source material makes between L25 and L26.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L26: Firewalls &amp; IDS &nbsp;|&nbsp; [L26.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad25" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#ff4d6d" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#ff4d6d"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad25)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad25)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : encryption canvas ---------- */
+reg('encryptioncanvas', function(){
+  const c = document.getElementById('encryptionCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const plain = 'Hello, world';
+  function toCipher(str){
+    // simple visual scramble
+    let out = '';
+    for(let i = 0; i < str.length; i++) out += Math.floor(Math.random()*256).toString(16).padStart(2,'0');
+    return out;
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PLAINTEXT → CIPHERTEXT → PLAINTEXT', W/2, 16);
+
+    const cycle = 300;
+    const phase = (t % cycle) / cycle;
+
+    // Plaintext block (left)
+    const pX = 40, pY = 100;
+    const boxW = 200, boxH = 70;
+    ctx.fillStyle = 'rgba(91,141,255,.10)';
+    ctx.fillRect(pX, pY, boxW, boxH);
+    ctx.strokeStyle = 'rgba(91,141,255,.65)';
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(pX, pY, boxW, boxH);
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PLAINTEXT', pX + 14, pY + 18);
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 12px JetBrains Mono, monospace';
+    ctx.fillText('"Hello, world"', pX + 14, pY + 42);
+    ctx.fillStyle = 'rgba(185,208,255,.6)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('readable', pX + 14, pY + 58);
+
+    // Ciphertext block (middle)
+    const cX = 200, cY = 200;
+    const cipherShown = (phase < 0.5) ? '' : toCipher('H');
+    const cipherStr = (phase < 0.5) ? '' : 'a7 f3 2e 91 b4 55 c8 12 44 6a 9d e0';
+    ctx.fillStyle = 'rgba(160,107,255,.10)';
+    ctx.fillRect(cX, cY, boxW, boxH);
+    ctx.strokeStyle = 'rgba(160,107,255,.65)';
+    ctx.strokeRect(cX, cY, boxW, boxH);
+    ctx.fillStyle = '#c9a7ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.fillText('CIPHERTEXT', cX + 14, cY + 18);
+    if(phase >= 0.5){
+      ctx.fillStyle = '#fff';
+      ctx.font = '800 11px JetBrains Mono, monospace';
+      ctx.fillText(cipherStr, cX + 14, cY + 42);
+      ctx.fillStyle = 'rgba(201,167,255,.6)';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.fillText('garbage without key', cX + 14, cY + 58);
+    } else {
+      ctx.fillStyle = 'rgba(201,167,255,.35)';
+      ctx.font = '800 11px JetBrains Mono, monospace';
+      ctx.fillText('? ? ? ? ? ?', cX + 14, cY + 42);
+    }
+
+    // Decrypted block (right)
+    const dX = 380, dY = 300;
+    ctx.fillStyle = 'rgba(46,230,168,.10)';
+    ctx.fillRect(dX, dY, boxW, boxH);
+    ctx.strokeStyle = 'rgba(46,230,168,.65)';
+    ctx.strokeRect(dX, dY, boxW, boxH);
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.fillText('PLAINTEXT (decrypted)', dX + 14, dY + 18);
+    if(phase >= 0.85){
+      ctx.fillStyle = '#fff';
+      ctx.font = '800 12px JetBrains Mono, monospace';
+      ctx.fillText('"Hello, world"', dX + 14, dY + 42);
+      ctx.fillStyle = 'rgba(136,255,216,.6)';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.fillText('with the right key', dX + 14, dY + 58);
+    } else {
+      ctx.fillStyle = 'rgba(136,255,216,.35)';
+      ctx.font = '800 11px JetBrains Mono, monospace';
+      ctx.fillText('· · · · · · · ·', dX + 14, dY + 42);
+    }
+
+    // Arrows (with key icon)
+    function arrow(x1,y1,x2,y2,color){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      const ang = Math.atan2(y2-y1, x2-x1);
+      ctx.beginPath();
+      ctx.moveTo(x2,y2);
+      ctx.lineTo(x2 - 9*Math.cos(ang-0.4), y2 - 9*Math.sin(ang-0.4));
+      ctx.moveTo(x2,y2);
+      ctx.lineTo(x2 - 9*Math.cos(ang+0.4), y2 - 9*Math.sin(ang+0.4));
+      ctx.stroke();
+    }
+
+    // Encrypt arrow (p→c)
+    arrow(pX + boxW + 4, pY + boxH/2, cX - 6, cY + 20, 'rgba(160,107,255,.8)');
+    // key label near encrypt arrow
+    ctx.fillStyle = 'rgba(160,107,255,.9)';
+    ctx.font = '800 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🔑 key', pX + boxW + 10, pY + boxH/2 - 14);
+
+    // Decrypt arrow (c→d)
+    arrow(cX + boxW/2, cY + boxH + 6, dX + 20, dY - 6, 'rgba(46,230,168,.8)');
+    ctx.fillStyle = 'rgba(46,230,168,.9)';
+    ctx.font = '800 10px JetBrains Mono, monospace';
+    ctx.fillText('🔑 same key', cX + boxW/2 + 12, cY + boxH + 22);
+
+    // bottom text
+    ctx.fillStyle = 'rgba(132,148,180,.7)';
+    ctx.font = '700 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('symmetric = same key · asymmetric = two keys', W/2, H - 20);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 3 : house key door cycle ---------- */
+reg('housekey', function(){
+  const d1 = document.getElementById('doorFrame1');
+  const d2 = document.getElementById('doorFrame2');
+  if(!d1 || !d2) return { stop(){} };
+  let state = 0;
+  function tick(){
+    state = (state + 1) % 4;
+    const classes = ['locked','unlocked','unlocked','locked'];
+    const icons = ['🔒','🔓','🔓','🔒'];
+    [d1,d2].forEach(d => {
+      d.classList.remove('locked','unlocked');
+      d.classList.add(classes[state]);
+      const lk = d.querySelector('.door-lock');
+      if(lk) lk.textContent = icons[state];
+    });
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 4 : mailbox letter drop ---------- */
+reg('mailbox', function(){
+  const letter = document.getElementById('letterDrop');
+  if(!letter) return { stop(){} };
+  let t = 0;
+  function frame(){
+    t++;
+    const cycle = 300;
+    const phase = (t % cycle) / cycle;
+    // animate from y=20 to y=140 (in SVG coords)
+    const y = 20 + Math.min(1, phase * 2) * 120;
+    const opacity = phase < 0.6 ? 1 : Math.max(0, 1 - (phase - 0.6) * 2.5);
+    letter.setAttribute('transform', `translate(0, ${y - 20})`);
+    letter.setAttribute('opacity', opacity);
+    // reset
+    if(phase > 0.95){
+      letter.setAttribute('transform', 'translate(0, 0)');
+      letter.setAttribute('opacity', 1);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  let raf = requestAnimationFrame(frame);
+  return { stop(){ cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 6 : cipher math (no script needed, static SVG) ---------- */
+
+/* ---------- Slide 12 : hybrid flow (static) ---------- */
+
+/* ---------- Slide 13 : AES demo terminal ---------- */
+reg('aesdemo', function(){
+  const body = document.getElementById('aesBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'# Symmetric roundtrip · same key both directions' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">KEY=$(openssl rand -hex 32)</span>' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo "Hello, world" | openssl enc -aes-256-cbc -K $KEY -iv 0 | xxd</span>' },
+    { cls:'term-line dim', text:'00000000: a7f3 2e91 b455 c812 446a 9de0 8b11 7c03' },
+    { cls:'term-line dim', text:'00000010: 5d88 2f0e' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ ciphertext: 16 bytes of opaque hex' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo -n "a7f32e91b455c812446a9de08b117c035d882f0e" | xxd -r -p | openssl dec -aes-256-cbc -K $KEY -iv 0</span>' },
+    { cls:'term-line ok', text:'Hello, world' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ ONE key · both encrypt and decrypt' },
+    { cls:'term-line warn', text:'→ roundtrip worked · symmetric confirmed' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-cmd"># — what if the key is wrong? —</span>' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">WRONG_KEY=$(openssl rand -hex 32); openssl dec -aes-256-cbc -K $WRONG_KEY -iv 0</span>' },
+    { cls:'term-line err', text:'bad decrypt' },
+    { cls:'term-line err', text:'→ wrong key → garbage · cannot recover plaintext' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ symmetric = shared secret is the ONLY thing protecting data' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">echo "Hello, world" | openssl enc -aes-256-cbc</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 14 : RSA demo terminal ---------- */
+reg('rsademo', function(){
+  const body = document.getElementById('rsaBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'# Asymmetric roundtrip · two different keys' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">openssl genrsa -out private.pem 2048</span>' },
+    { cls:'term-line ok', text:'Generating RSA private key, 2048 bit long modulus' },
+    { cls:'term-line ok', text:'...+++ ...+++' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">openssl rsa -in private.pem -pubout -out public.pem</span>' },
+    { cls:'term-line ok', text:'writing RSA key' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ now we have TWO keys: public.pem, private.pem' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo "Secret message" > msg.txt</span>' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">openssl rsautl -encrypt -pubin -inkey public.pem -in msg.txt -out encrypted.bin</span>' },
+    { cls:'term-line warn', text:'→ encrypted with PUBLIC key' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">openssl rsautl -decrypt -inkey private.pem -in encrypted.bin</span>' },
+    { cls:'term-line ok', text:'Secret message' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line err', text:'# Now try decrypting with the PUBLIC key:' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">openssl rsautl -decrypt -inkey public.pem -in encrypted.bin</span>' },
+    { cls:'term-line err', text:'error: unsupported encryption' },
+    { cls:'term-line err', text:'→ public key CANNOT decrypt · only private can' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ asymmetric = 2 keys · public encrypts · private decrypts' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">openssl genrsa -out private.pem 2048</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5500);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 15 : TLS handshake trace ---------- */
+reg('tlsdemo', function(){
+  const body = document.getElementById('tlsBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'<span class="term-prompt">*</span> Trying 93.184.216.34:443...' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> Connected to example.com' },
+    { cls:'term-line warn', text:'<span class="term-prompt">*</span> TLS handshake begins (asymmetric phase)' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> TLS 1.3 (OUT), TLS header, ClientHello' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> cipher: TLS_AES_256_GCM_SHA384' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line text:', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> TLS 1.3 (IN), ServerHello' },
+    { cls:'term-line text:', text:'<span class="term-prompt">*</span> cipher accepted: TLS_AES_256_GCM_SHA384' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> Server certificate: CN=*.example.com (signed by CA)' },
+    { cls:'term-line', text:'<span class="term-prompt">*</span> Verifying certificate... OK' },
+    { cls:'term-line warn', text:'<span class="term-prompt">*</span> Key exchange: ECDHE (X25519)' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'<span class="term-prompt">*</span> ────── SWITCH TO SYMMETRIC ──────' },
+    { cls:'term-line ok', text:'<span class="term-prompt">*</span> AES-256-GCM session key established' },
+    { cls:'term-line ok', text:'<span class="term-prompt">*</span> Both sides now use symmetric' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">></span> GET / HTTP/2' },
+    { cls:'term-line', text:'<span class="term-prompt">></span> Host: example.com' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt"><</span> HTTP/2 200' },
+    { cls:'term-line', text:'<span class="term-prompt"><</span> content-type: text/html' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ asymmetric bootstrapped the key · symmetric encrypted every byte after' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">curl -v https://example.com</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5500);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 340);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 22 : handshake activity prompt cycle ---------- */
+reg('handshakeact', function(){
+  const prompt = document.getElementById('handshakePrompt');
+  if(!prompt) return { stop(){} };
+
+  const prompts = [
+    'Step 1: Client Hello — which type?',
+    'Step 2: Server Hello + Certificate — which type?',
+    'Step 3: Key Exchange — which type?',
+    'Step 4: First payload — which type?',
+    'Where does the switch happen?',
+    'Why that exact moment?',
+    'What if we switched earlier?',
+    'What if we never switched?',
+  ];
+
+  let idx = 0;
+  function tick(){
+    prompt.innerHTML = `<span class="ap-q">${prompts[idx % prompts.length]}</span>`;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2000);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 23 : mindmap cycle ---------- */
+reg('mindmap', function(){
+  const nodes = document.querySelectorAll('#mindmapVis .mm-node');
+  if(!nodes.length) return { stop(){} };
+  const cycle = [1, 2, 3, 4, 5, 6, 7, 8];
+  let i = 0;
+  function tick(){
+    nodes.forEach(n => n.classList.remove('active'));
+    if(nodes[cycle[i % cycle.length]]) nodes[cycle[i % cycle.length]].classList.add('active');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1600);
+  return { stop(){ clearInterval(timer); nodes.forEach(n => n.classList.remove('active')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
