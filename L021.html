@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L21 — Uniform Device Drivers &amp; The Linux /dev File Abstraction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#driverCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Wall outlet analogy */
+.outlet-scene{padding:14px 0;display:grid;place-items:center;position:relative;}
+.outlet-wrap{position:relative;width:280px;height:240px;display:flex;flex-direction:column;align-items:center;gap:14px;}
+.wall-plate{width:180px;height:140px;border-radius:14px;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.18);display:grid;place-items:center;position:relative;}
+.socket{width:60px;height:60px;border-radius:50%;background:rgba(0,0,0,.40);border:2px solid rgba(255,182,72,.55);display:flex;align-items:center;justify-content:center;gap:4px;}
+.socket-hole{width:6px;height:14px;border-radius:3px;background:rgba(255,182,72,.55);}
+.plug-device{position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);padding:10px 14px;border-radius:10px;border:1.5px solid;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.04em;animation:plugIn 3s ease-in-out infinite;opacity:0;}
+.plug-device.device1{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.10);color:#88ffd8;}
+@keyframes plugIn{
+  0%,20%{transform:translate(-50%, 40px);opacity:0;}
+  30%,75%{transform:translate(-50%, 0);opacity:1;}
+  85%,100%{transform:translate(-50%, 40px);opacity:0;}
+}
+
+/* Polymorphism pattern */
+.poly-vis{padding:14px 0;}
+.poly-class{padding:14px;border-radius:12px;border:1.5px solid;margin-bottom:10px;}
+.poly-class.base{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.poly-class.override{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.04);}
+.poly-class .pc-name{font-family:var(--mono);font-size:11.5px;font-weight:900;letter-spacing:.04em;margin-bottom:6px;}
+.poly-class.base .pc-name{color:#b9d0ff;}
+.poly-class.override .pc-name{color:#88ffd8;}
+.poly-class .pc-vfunc{font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2);padding-left:12px;}
+.poly-class .pc-vfunc strong{color:#ffd18a;}
+
+/* Device categories */
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:8px 0;}
+.cat-card{padding:18px 14px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);text-align:center;}
+.cat-card.block{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.cat-card.char{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.cat-card.net{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.cat-card .cc-icon{font-size:36px;display:block;margin-bottom:10px;}
+.cat-card .cc-name{font-family:var(--mono);font-size:13px;font-weight:900;letter-spacing:.06em;margin-bottom:6px;}
+.cat-card.block .cc-name{color:#b9d0ff;}
+.cat-card.char .cc-name{color:#88ffd8;}
+.cat-card.net .cc-name{color:#ffd18a;}
+.cat-card .cc-desc{font-size:11px;line-height:1.5;color:var(--muted);}
+
+/* Device deep-dive panels */
+.dd-panel{padding:18px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.dd-panel.block{border-color:rgba(91,141,255,.55);}
+.dd-panel.char{border-color:rgba(46,230,168,.55);}
+.dd-panel.net{border-color:rgba(255,182,72,.55);}
+.dd-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.dd-icon{font-size:30px;}
+.dd-title{font-family:var(--mono);font-size:15px;font-weight:900;letter-spacing:.04em;}
+.dd-panel.block .dd-title{color:#b9d0ff;}
+.dd-panel.char .dd-title{color:#88ffd8;}
+.dd-panel.net .dd-title{color:#ffd18a;}
+.dd-subtitle{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-top:2px;}
+.dd-row{display:grid;grid-template-columns:90px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;}
+.dd-row:last-child{border-bottom:none;}
+.dd-row .dd-key{color:var(--muted);font-family:var(--mono);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;}
+.dd-row .dd-val{color:var(--ink-2);font-family:var(--mono);font-size:11px;line-height:1.5;}
+
+/* /dev filesystem layout */
+.dev-explorer{padding:12px;border-radius:12px;background:rgba(0,0,0,.30);border:1px solid var(--stroke);font-family:var(--mono);font-size:11.5px;line-height:1.85;}
+.dev-row{display:grid;grid-template-columns:36px 100px 80px 1fr;gap:10px;padding:5px 8px;border-radius:5px;transition:.3s;}
+.dev-row:hover{background:rgba(255,255,255,.03);}
+.dev-row.head{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.10);padding-bottom:8px;margin-bottom:4px;}
+.dev-perm{color:var(--muted);}
+.dev-perm.block{color:#b9d0ff;}
+.dev-perm.char{color:#88ffd8;}
+.dev-name{color:var(--ink);font-weight:700;}
+.dev-major-minor{color:#ffd18a;font-size:10.5px;}
+.dev-desc{color:var(--muted);font-size:10.5px;}
+
+/* major/minor lookup */
+.mm-lookup{padding:14px 0;}
+.mm-diagram{display:flex;flex-direction:column;gap:10px;}
+.mm-node{padding:12px 14px;border-radius:10px;border:1.5px solid;text-align:center;font-family:var(--mono);font-size:11.5px;font-weight:800;letter-spacing:.04em;}
+.mm-node.dev-path{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.10);color:#b9d0ff;}
+.mm-node.major-minor{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.10);color:#ffd18a;}
+.mm-node.driver-table{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.10);color:#88ffd8;}
+.mm-node.driver-function{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.10);color:#c9a7ff;}
+.mm-node.hardware{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.10);color:#ff9fb1;}
+.mm-arrow{text-align:center;color:var(--muted);font-size:16px;line-height:1;margin:4px 0;}
+.mm-label{font-size:9.5px;color:var(--muted);font-family:var(--mono);font-weight:700;text-align:center;margin-top:-2px;}
+
+/* file_operations struct visual */
+.fops-vis{padding:8px 0;}
+.fops-row{display:grid;grid-template-columns:120px 30px 1fr;gap:12px;align-items:center;padding:10px 14px;border-radius:8px;border:1px solid;margin-bottom:5px;font-family:var(--mono);font-size:11.5px;transition:.3s;background:rgba(0,0,0,.20);}
+.fops-row.opened{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.fops-row .fr-name{font-weight:900;color:#b9d0ff;}
+.fops-row.opened .fr-name{color:#88ffd8;}
+.fops-row .fr-arrow{text-align:center;color:var(--muted);font-weight:900;}
+.fops-row.opened .fr-arrow{color:#88ffd8;}
+.fops-row .fr-target{color:var(--ink-2);}
+
+/* The routing path */
+.route-vis{padding:14px 0;}
+.route-step{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-radius:10px;border:1.5px solid;background:rgba(0,0,0,.20);margin-bottom:8px;font-family:var(--mono);font-size:11.5px;transition:.4s;}
+.route-step.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.route-step.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.route-step .rs-num{font-size:14px;font-weight:900;color:var(--muted);min-width:20px;}
+.route-step.active .rs-num{color:#ffd18a;}
+.route-step.done .rs-num{color:#88ffd8;}
+.route-step .rs-body{color:var(--ink-2);line-height:1.5;}
+.route-step .rs-body strong{color:#fff;}
+.route-step .rs-tag{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;padding:3px 8px;border-radius:5px;}
+.route-step .rs-tag.user{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.route-step .rs-tag.kernel{background:rgba(46,230,168,.20);color:#88ffd8;}
+.route-step .rs-tag.hw{background:rgba(255,77,109,.20);color:#ff9fb1;}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.blue{color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(24px,3.2vw,44px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13.5px,.98vw,15.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-scene{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.act-roles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.act-role{padding:12px 10px;border-radius:8px;border:1px solid;text-align:center;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;transition:.4s;}
+.act-role.block{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.act-role.char{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.act-role.net{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.act-role.active{animation:rolePulse 1.2s ease-in-out infinite;}
+@keyframes rolePulse{0%,100%{opacity:.7}50%{opacity:1;box-shadow:0 0 20px -4px currentColor;}}
+.act-role .ar-icon{font-size:22px;display:block;margin-bottom:4px;}
+.act-role .ar-name{font-weight:900;margin-bottom:2px;}
+.act-role .ar-desc{font-size:9px;opacity:.8;line-height:1.3;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.cat-grid,.act-roles{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .dev-row{grid-template-columns:30px 80px 60px 1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .dev-row{grid-template-columns:1fr;font-size:10px;}
+  .dev-row .dev-desc{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L21 Device Drivers</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L21 · Overview" data-anim="drivercanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L21 · Uniform Device Drivers &amp; /dev</span>
+    <div class="split">
+      <div class="stack">
+        <h1>To the OS, <span class="grad-blue">every device is just a file</span></h1>
+        <p class="lead">Classify hardware into Block, Character, or Network device categories, and trace how a user-space file command routes to a hardware controller via virtual filesystem file operations.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L21</span>
+          <p>L20 showed the three ways the CPU talks to hardware. But the kernel doesn't want to know <em>which</em> device it's talking to — a keyboard and an SSD are wildly different. How does one <code style="font-family:var(--mono);color:#b9d0ff">read()</code> call handle both?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the canvas on the right. Ask: <em>"When you type <code style="font-family:var(--mono);color:#c9a7ff">cat /dev/sda</code> and <code style="font-family:var(--mono);color:#c9a7ff">cat /dev/tty</code>, both are just files — but one is an SSD and one is a keyboard. What's going on?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · /dev nodes → VFS → drivers → hardware</div>
+        <canvas id="driverCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Hardware Heterogeneity</span>
+    <h2 style="margin-bottom:16px;">Every manufacturer builds a <span class="grad-crimson">completely different device</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The reality</span>
+          <p>Every peripheral manufacturer builds hardware with completely different electrical and protocol characteristics. A keyboard from Logitech, a keyboard from Razer, a keyboard from a white-label OEM — <strong>three different register layouts, three different protocols, three different quirks</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The scaling problem</span>
+          <p>The OS kernel cannot contain unique, bespoke code for <strong>10,000 different models</strong> of keyboards or network cards. That would make the kernel unmaintainable, giant, and impossible to update.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution</span>
+          <p>Build a <strong>single, unified device abstraction layer</strong> that presents every device through the same interface. The OS then needs to know only <em>one</em> API — open, read, write, close — regardless of what hardware sits underneath.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design pattern:</b> hide hardware variety behind a uniform interface. This is the same idea as the file abstraction in L17 — the app doesn't care if the file is on ext4, NFS, or tmpfs. Here, the app doesn't care if the "file" is an SSD, a keyboard, or a network card.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The heterogeneity problem</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="70" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">10,000 DIFFERENT DEVICES</text>
+          <g transform="translate(30, 48)">
+            <rect x="0" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="20" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">kbd1</text>
+            <rect x="46" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="66" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">kbd2</text>
+            <rect x="92" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="112" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">ssd1</text>
+            <rect x="138" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="158" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">ssd2</text>
+            <rect x="184" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="204" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">nic1</text>
+            <rect x="230" y="0" width="40" height="26" rx="4" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="250" y="17" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">nic2</text>
+          </g>
+
+          <line x1="170" y1="84" x2="170" y2="110" stroke="rgba(255,182,72,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="110" width="312" height="56" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="130" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">DRIVER LAYER</text>
+          <text x="170" y="150" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">one module per hardware family</text>
+
+          <line x1="170" y1="166" x2="170" y2="192" stroke="rgba(91,141,255,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="192" width="312" height="46" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="212" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">UNIFIED VFS INTERFACE</text>
+          <text x="170" y="228" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">open · read · write · close</text>
+
+          <line x1="170" y1="238" x2="170" y2="260" stroke="rgba(46,230,168,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="260" width="312" height="32" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="280" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">APPLICATION · same API every time</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Wall Outlet">
+  <div class="slide-inner">
+    <span class="badge violet">🔌 Analogy 1 · The Universal Wall Power Outlet Adapter</span>
+    <h2 style="margin-bottom:16px;">The outlet doesn't care <span class="grad-violet">what you plug in</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Imagine an electricity grid. The wall outlet doesn't know or care whether you plug in a <strong>luxury toaster</strong>, a <strong>floor lamp</strong>, or a <strong>complex gaming laptop</strong>. It presents a simple, standardized two-prong interface that delivers voltage uniformly.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The adapter</span>
+          <p>A <strong>Device Driver is that exact adapter plug</strong>. To the operating system, every device looks like a standard file container that can handle basic operations: <code style="font-family:var(--mono);color:#ffd18a">open()</code>, <code style="font-family:var(--mono);color:#ffd18a">read()</code>, and <code style="font-family:var(--mono);color:#ffd18a">write()</code>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The translation</span>
+          <p>The driver sits between the kernel and the custom hardware, translating <strong>standard, generic file commands</strong> from the OS into the unique, bizarre language of that specific hardware manufacturer's circuit board.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design win:</b> the app writer only needs to know the file API. The kernel only needs to know the VFS. Only the driver author — one per hardware family — needs to know the electrical specifics.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The universal socket</div>
+        <div class="outlet-scene">
+          <div class="outlet-wrap">
+            <div class="wall-plate">
+              <div class="socket">
+                <div class="socket-hole"></div>
+                <div class="socket-hole"></div>
+              </div>
+            </div>
+            <div class="plug-device device1">🔌 plugging in...</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">The socket presents one interface. The device behind it can be anything.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Two Layers">
+  <div class="slide-inner">
+    <span class="badge amber">🔌 Analogy 1 · Two Layers of Standardization</span>
+    <h2 style="margin-bottom:16px;">The outlet standard, <span class="grad-amber">and the appliance's plug</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Layer 1 · The wall outlet</span>
+          <p>The outlet is <strong>the kernel's VFS interface</strong>. It defines the shape of the plug (open, read, write, close) and the voltage (the syscall contract). Every device must speak this protocol to be plugged in.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Layer 2 · The appliance</span>
+          <p>The device is the <strong>appliance on the other side</strong>. It has an internal power supply, a heating element, a screen — things the outlet doesn't know or care about. That's the actual hardware.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The adapter — the driver</span>
+          <p>Between them sits the driver — the <strong>adapter plug</strong>. It knows the wall outlet's shape (the file_operations API) and the appliance's internal needs (register writes). It translates between them.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> on modern Linux, the "adapter" lives inside the kernel as a loadable kernel module (.ko file). Loading a driver is literally plugging in a new adapter without rebuilding the wall outlet.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Two layers + the adapter</div>
+        <svg viewBox="0 0 340 280" style="width:100%;height:auto">
+          <rect x="14" y="14" width="100" height="252" rx="10" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="64" y="36" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="800">WALL OUTLET</text>
+          <text x="64" y="52" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">the VFS</text>
+
+          <g transform="translate(36, 70)">
+            <rect x="0" y="0" width="56" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="28" y="15" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">open</text>
+            <rect x="0" y="28" width="56" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="28" y="43" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">read</text>
+            <rect x="0" y="56" width="56" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="28" y="71" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">write</text>
+            <rect x="0" y="84" width="56" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="28" y="99" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">close</text>
+          </g>
+
+          <line x1="114" y1="140" x2="146" y2="140" stroke="rgba(255,182,72,.75)" stroke-width="1.8" class="svg-flow"/>
+
+          <rect x="146" y="100" width="80" height="80" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.75)" stroke-width="1.6"/>
+          <text x="186" y="126" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">DRIVER</text>
+          <text x="186" y="142" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">.ko module</text>
+          <text x="186" y="156" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">translator</text>
+          <text x="186" y="170" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.4)" font-family="JetBrains Mono">↕</text>
+
+          <line x1="226" y1="140" x2="258" y2="140" stroke="rgba(46,230,168,.75)" stroke-width="1.8" class="svg-flow"/>
+
+          <rect x="258" y="14" width="68" height="252" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="292" y="36" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">APPLIANCE</text>
+          <text x="292" y="52" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">the hardware</text>
+
+          <g transform="translate(272, 70)">
+            <rect x="0" y="0" width="40" height="22" rx="3" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="20" y="15" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono">reg A</text>
+            <rect x="0" y="28" width="40" height="22" rx="3" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="20" y="43" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono">reg B</text>
+            <rect x="0" y="56" width="40" height="22" rx="3" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="20" y="71" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono">reg C</text>
+            <rect x="0" y="84" width="40" height="22" rx="3" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="20" y="99" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono">reg D</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Polymorphism">
+  <div class="slide-inner">
+    <span class="badge">🔗 Analogy 2 · The OOP Interface Polymorphism Pattern</span>
+    <h2 style="margin-bottom:16px;">Every driver <span class="grad-blue">overrides the same virtual table</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The structural match</div>
+        <div class="poly-vis">
+          <div class="poly-class base">
+            <div class="pc-name">abstract class Driver {</div>
+            <div class="pc-vfunc">
+              virtual <strong>open</strong>(path, flags);<br>
+              virtual <strong>read</strong>(buf, count);<br>
+              virtual <strong>write</strong>(buf, count);<br>
+              virtual <strong>close</strong>(fd);
+            </div>
+          </div>
+          <div class="poly-class override">
+            <div class="pc-name">class KeyboardDriver extends Driver {</div>
+            <div class="pc-vfunc">
+              override <strong>read</strong>(buf, count) {<br>
+              &nbsp;&nbsp;copy_scancodes_from_register(buf);<br>
+              &nbsp;&nbsp;return count;<br>
+              }
+            </div>
+          </div>
+          <div class="poly-class override">
+            <div class="pc-name">class DiskDriver extends Driver {</div>
+            <div class="pc-vfunc">
+              override <strong>read</strong>(buf, count) {<br>
+              &nbsp;&nbsp;issue_SATA_read_to_DMA(buf);<br>
+              &nbsp;&nbsp;return count;<br>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>A uniform device driver operates identically to an <strong>abstract base class or interface framework</strong> (e.g., implementing an interface <code style="font-family:var(--mono);color:#b9d0ff">OutStream</code> with a virtual function <code style="font-family:var(--mono);color:#b9d0ff">virtual void write()</code>), where completely different hardware components <strong>override the base pointer array to run unique hardware assembly loops</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The parallel</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>abstract class Driver</strong> → struct file_operations<br>
+            <strong>virtual method write()</strong> → function pointer .write<br>
+            <strong>subclass override</strong> → driver-specific .write implementation<br>
+            <strong>dispatch via vtable</strong> → dispatch via file_operations table
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why polymorphism matters</span>
+          <p>The VFS doesn't need to know which driver it's talking to. It just looks up the function pointer in the file_operations table and calls it. <strong>Every device runs its own code through the same call site.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The C equivalent:</b> C has no classes — but it has function pointers. The kernel uses <code style="font-family:var(--mono);color:#c9a7ff">struct file_operations</code> as a manual vtable. Each driver fills it in with its own functions.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L21 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">unified interface</span> for all hardware</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L17 (File Abstractions)</h4>
+            <p>Extends the virtual file system architecture to <strong>represent physical hardware components as raw files</strong> sitting inside the <code style="font-family:var(--mono);color:#b9d0ff">/dev</code> folder directory node. The file abstraction we learned in L17 is reused for hardware.</p>
+          </div>
+          <div class="cohesion-card relies">
+            <h4>Relies On · L20 (I/O Communication)</h4>
+            <p>The driver's internal implementation uses the <strong>polling, interrupt, and DMA strategies</strong> from L20 to actually move bytes to and from hardware.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 7 (Security &amp; Protection)</h4>
+            <p>By transforming hardware devices into standard file system nodes, the kernel can enforce access security simply by <strong>wrapping standard file permission bits (chmod) around physical components</strong>. Root-only access to /dev/mem, user-only access to /dev/tty, etc.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Everything above</h4>
+            <p>Every single I/O path in the system — files, network, input, display — goes through a device driver. The entire abstraction stack from Modules 5–7 depends on this layer being uniform.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Module 6 arc:</b> L20 (how CPU talks to hardware) → L21 (how the kernel organizes hardware access). Together they complete the "everything is a file" story — even hardware.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L17 · Files</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">paths · FDs</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">L20 · I/O</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">poll · int · DMA</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L21 · DRIVERS + /dev</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">unified interface</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 7</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">chmod on /dev</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">Lab 6</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">custom char driver</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(255,182,72,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(160,107,255,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Three categories">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — The Three Device Categories</span>
+    <h2 style="margin-bottom:16px;">Every hardware device fits <span class="grad-emerald">one of three boxes</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The abstraction</span>
+          <p>To keep the operating system scalable, hardware details must be masked behind a unified abstraction. The kernel divides the physical hardware universe into <strong>three distinct architectural categories</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why three, not one?</span>
+          <p>Because the three categories have genuinely different I/O semantics. Block devices have random access; character devices don't. Network devices don't fit the file model at all (no seek, no read/write to a specific offset). Trying to shoehorn them all into one category would be worse than three.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The classification test</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Can you seek?</strong> → block device<br>
+            <strong>Is it a byte stream?</strong> → character device<br>
+            <strong>Is it a packet stream?</strong> → network device
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three categories</div>
+        <div class="cat-grid">
+          <div class="cat-card block">
+            <span class="cc-icon">💾</span>
+            <div class="cc-name">BLOCK</div>
+            <div class="cc-desc">HDD · SSD · USB drive</div>
+          </div>
+          <div class="cat-card char">
+            <span class="cc-icon">⌨️</span>
+            <div class="cc-name">CHARACTER</div>
+            <div class="cc-desc">Keyboard · mouse · serial</div>
+          </div>
+          <div class="cat-card net">
+            <span class="cc-icon">🌐</span>
+            <div class="cc-name">NETWORK</div>
+            <div class="cc-desc">Wi-Fi · Ethernet · Bluetooth</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2)">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:6px">IN /dev</div>
+          b = block · c = character · n = (not a node, network uses sockets)
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Block devices">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Category 1 — Block Devices</span>
+    <h2 style="margin-bottom:16px;">Fixed-size, addressable <span class="grad-blue">sectors</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Block device · HDD · SSD</div>
+        <div class="dd-panel block">
+          <div class="dd-header">
+            <span class="dd-icon">💾</span>
+            <div>
+              <div class="dd-title">BLOCK DEVICE</div>
+              <div class="dd-subtitle">HDD · SSD · USB · RAID</div>
+            </div>
+          </div>
+          <div class="dd-row"><span class="dd-key">Storage</span><span class="dd-val">fixed-size, addressable block sectors</span></div>
+          <div class="dd-row"><span class="dd-key">Access</span><span class="dd-val">random access · seek supported</span></div>
+          <div class="dd-row"><span class="dd-key">Caching</span><span class="dd-val">heavy — kernel buffers pages</span></div>
+          <div class="dd-row"><span class="dd-key">File ops</span><span class="dd-val">read · write · seek · ioctl</span></div>
+          <div class="dd-row"><span class="dd-key">Example</span><span class="dd-val">/dev/sda · /dev/nvme0n1</span></div>
+          <div class="dd-row"><span class="dd-key">Kernel API</span><span class="dd-val">block_device_operations</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The defining property</span>
+          <p>Block devices store data in <strong>fixed-size, addressable blocks</strong> (typically 512 or 4096 bytes). You can jump to any block by its number — the device supports random access.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The kernel optimization</span>
+          <p>Because block devices are uniformly addressable, the kernel can build heavy <strong>caching layers</strong> on top: the page cache, the buffer cache, and the block layer's I/O scheduler. This wouldn't work for byte streams or packets.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Examples</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            /dev/sda — SATA disk<br>
+            /dev/nvme0n1 — NVMe SSD<br>
+            /dev/vda — virtual disk (VM)<br>
+            /dev/loop0 — loop device (file-backed)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Character devices">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Category 2 — Character Devices</span>
+    <h2 style="margin-bottom:16px;">Byte streams. <span class="grad-emerald">No seeking.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The defining property</span>
+          <p>Character devices deliver data as a <strong>non-addressable, continuous stream of sequential characters or bytes</strong>. There are no blocks, no sector numbers, and you can't seek backwards or forwards to an arbitrary position.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why no seek?</span>
+          <p>A keyboard produces bytes as you type them — there's no "position 500 in the keyboard's byte stream" because the stream is generated in real time. Same for a mouse, a serial port, or an audio device.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Examples</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            /dev/tty — your terminal<br>
+            /dev/ttyS0 — serial port<br>
+            /dev/input/mice — mouse<br>
+            /dev/null — discards everything<br>
+            /dev/urandom — random bytes
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Character device · keyboard · serial</div>
+        <div class="dd-panel char">
+          <div class="dd-header">
+            <span class="dd-icon">⌨️</span>
+            <div>
+              <div class="dd-title">CHARACTER DEVICE</div>
+              <div class="dd-subtitle">Keyboard · mouse · serial · terminals</div>
+            </div>
+          </div>
+          <div class="dd-row"><span class="dd-key">Storage</span><span class="dd-val">continuous byte stream</span></div>
+          <div class="dd-row"><span class="dd-key">Access</span><span class="dd-val">sequential — no seek</span></div>
+          <div class="dd-row"><span class="dd-key">Caching</span><span class="dd-val">minimal — often direct</span></div>
+          <div class="dd-row"><span class="dd-key">File ops</span><span class="dd-val">read · write · ioctl</span></div>
+          <div class="dd-row"><span class="dd-key">Example</span><span class="dd-val">/dev/tty · /dev/input/event*</span></div>
+          <div class="dd-row"><span class="dd-key">Kernel API</span><span class="dd-val">file_operations</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Network devices">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Category 3 — Network Devices</span>
+    <h2 style="margin-bottom:16px;">Packets. <span class="grad-amber">Not files at all.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Network device · Wi-Fi · Ethernet</div>
+        <div class="dd-panel net">
+          <div class="dd-header">
+            <span class="dd-icon">🌐</span>
+            <div>
+              <div class="dd-title">NETWORK DEVICE</div>
+              <div class="dd-subtitle">Wi-Fi · Ethernet · Bluetooth</div>
+            </div>
+          </div>
+          <div class="dd-row"><span class="dd-key">Storage</span><span class="dd-val">packet chunks</span></div>
+          <div class="dd-row"><span class="dd-key">Access</span><span class="dd-val">bidirectional packets</span></div>
+          <div class="dd-row"><span class="dd-key">Caching</span><span class="dd-val">sk_buff queues</span></div>
+          <div class="dd-row"><span class="dd-key">File ops</span><span class="dd-val">NONE — bypasses /dev</span></div>
+          <div class="dd-row"><span class="dd-key">Example</span><span class="dd-val">eth0 · wlan0 · lo (interfaces)</span></div>
+          <div class="dd-row"><span class="dd-key">Kernel API</span><span class="dd-val">net_device_ops</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The defining property</span>
+          <p>Network devices stream data inside <strong>packet chunks</strong>, bypassing standard file operations entirely. They're accessed through a dedicated <strong>socket network subsystem</strong> — not through the file system's read/write interface.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why not files?</span>
+          <p>A network interface doesn't have a fixed address space — you can't seek into "the network." Packets arrive from many sources, each with its own destination, headers, and framing. File semantics would be wrong.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The socket API</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            socket(AF_INET, SOCK_STREAM, 0) — TCP<br>
+            socket(AF_INET, SOCK_DGRAM, 0) — UDP<br>
+            bind · connect · send · recv
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exception that proves the rule:</b> Linux does expose network interfaces as <code style="font-family:var(--mono);color:#c9a7ff">/sys/class/net/eth0/</code> for configuration, but that's a <em>sysfs</em> interface, not the device I/O path. Actual packet I/O goes through sockets.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="The /dev filesystem" data-anim="devexplore">
+  <div class="slide-inner">
+    <span class="badge violet">📖 The /dev Filesystem — Device Nodes</span>
+    <h2 style="margin-bottom:16px;">Hardware exposed as <span class="grad-violet">files in a directory</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What /dev is</span>
+          <p>In Unix-like systems, all three device categories are exposed to user space inside the <code style="font-family:var(--mono);color:#c9a7ff">/dev</code> device filesystem layout. Each hardware peripheral appears as a <strong>special file</strong> — a "device node" — inside this directory.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What a device node contains</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Permissions</strong> — same chmod bits as regular files<br>
+            <strong>Type flag</strong> — <code style="font-family:var(--mono);color:#b9d0ff">b</code> for block, <code style="font-family:var(--mono);color:#b9d0ff">c</code> for character<br>
+            <strong>Major number</strong> — which driver owns it<br>
+            <strong>Minor number</strong> — which device within that driver
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The devtmpfs</span>
+          <p>Modern Linux uses <strong>devtmpfs</strong> — a virtual filesystem mounted at <code style="font-family:var(--mono);color:#88ffd8">/dev</code> that the kernel populates automatically as hardware is detected. You don't create device nodes by hand; the kernel does it.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> if you've ever run <code style="font-family:var(--mono);color:#c9a7ff">ls -l /dev</code> and seen <code style="font-family:var(--mono);color:#c9a7ff">crw-rw-rw-</code> and <code style="font-family:var(--mono);color:#c9a7ff">brw-rw----</code> — that leading <code style="font-family:var(--mono);color:#c9a7ff">c</code> or <code style="font-family:var(--mono);color:#c9a7ff">b</code> is the device type flag.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Sample /dev contents</div>
+        <div class="dev-explorer" id="devExplorer">
+          <div class="dev-row head">
+            <span></span>
+            <span>NAME</span>
+            <span>MAJOR/MINOR</span>
+            <span>DESCRIPTION</span>
+          </div>
+          <div class="dev-row" data-type="char">
+            <span class="dev-perm char">crw-rw-rw-</span>
+            <span class="dev-name">/dev/null</span>
+            <span class="dev-major-minor">1, 3</span>
+            <span class="dev-desc">character · discards input</span>
+          </div>
+          <div class="dev-row" data-type="char">
+            <span class="dev-perm char">crw-rw-rw-</span>
+            <span class="dev-name">/dev/zero</span>
+            <span class="dev-major-minor">1, 5</span>
+            <span class="dev-desc">character · infinite zero bytes</span>
+          </div>
+          <div class="dev-row" data-type="char">
+            <span class="dev-perm char">crw-rw-rw-</span>
+            <span class="dev-name">/dev/tty</span>
+            <span class="dev-major-minor">5, 0</span>
+            <span class="dev-desc">character · current terminal</span>
+          </div>
+          <div class="dev-row" data-type="block">
+            <span class="dev-perm block">brw-rw----</span>
+            <span class="dev-name">/dev/sda</span>
+            <span class="dev-major-minor">8, 0</span>
+            <span class="dev-desc">block · first SATA disk</span>
+          </div>
+          <div class="dev-row" data-type="block">
+            <span class="dev-perm block">brw-rw----</span>
+            <span class="dev-name">/dev/nvme0n1</span>
+            <span class="dev-major-minor">259, 0</span>
+            <span class="dev-desc">block · first NVMe SSD</span>
+          </div>
+          <div class="dev-row" data-type="char">
+            <span class="dev-perm char">crw-rw-rw-</span>
+            <span class="dev-name">/dev/urandom</span>
+            <span class="dev-major-minor">1, 9</span>
+            <span class="dev-desc">character · random bytes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Major and minor">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Major and Minor Numbers</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">two integers</span> that identify the driver</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Major/minor decomposition</div>
+        <div class="mm-lookup">
+          <div class="mm-diagram">
+            <div class="mm-node dev-path">/dev/ttyS0</div>
+            <div class="mm-arrow">▼</div>
+            <div class="mm-label">read the device node's stats</div>
+            <div class="mm-node major-minor">major: 4 · minor: 64</div>
+            <div class="mm-arrow">▼</div>
+            <div class="mm-label">index the driver registry</div>
+            <div class="mm-node driver-table">driver_table[major] = serial_driver</div>
+            <div class="mm-arrow">▼</div>
+            <div class="mm-label">index the driver's device list</div>
+            <div class="mm-node driver-function">serial_driver.minor_device[64] = ttyS0</div>
+            <div class="mm-arrow">▼</div>
+            <div class="mm-node hardware">physical serial port hardware</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Major number</span>
+          <p>The <strong>major number</strong> identifies which device driver owns this device. Major number 8 is the SATA driver, major 4 is the serial driver, major 1 is the memory device driver. The kernel maintains a table of major-number → driver mappings.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Minor number</span>
+          <p>The <strong>minor number</strong> distinguishes individual devices within the same driver. The SATA driver might have major 8 with minors 0, 1, 16, 17 — representing /dev/sda, /dev/sdb, /dev/sda1, /dev/sda2.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The mknod legacy</span>
+          <p>Historically, admins created device nodes by hand with <code style="font-family:var(--mono);color:#88ffd8">mknod</code>. Modern Linux auto-creates them via devtmpfs as the kernel detects hardware. You almost never run mknod by hand anymore.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The two numbers in ls -l:</b> when you see <code style="font-family:var(--mono);color:#c9a7ff">crw-rw-rw- 1 root root <strong style="color:#ffd18a">1, 3</strong></code>, the "1, 3" is major=1, minor=3. That's /dev/null.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="file_operations" data-anim="fops">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 The file_operations Struct</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">function pointer table</span> every driver fills in</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · struct file_operations for a typical driver</div>
+        <div class="fops-vis" id="fopsVis">
+          <div class="fops-row" data-op="open">
+            <div class="fr-name">.open</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">my_open()</div>
+          </div>
+          <div class="fops-row" data-op="release">
+            <div class="fr-name">.release</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">my_release()</div>
+          </div>
+          <div class="fops-row" data-op="read">
+            <div class="fr-name">.read</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">my_read()</div>
+          </div>
+          <div class="fops-row" data-op="write">
+            <div class="fr-name">.write</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">my_write()</div>
+          </div>
+          <div class="fops-row" data-op="seek">
+            <div class="fr-name">.llseek</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">NULL (not seekable)</div>
+          </div>
+          <div class="fops-row" data-op="ioctl">
+            <div class="fr-name">.unlocked_ioctl</div>
+            <div class="fr-arrow">→</div>
+            <div class="fr-target">my_ioctl()</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What it is</span>
+          <p>The <strong>File Operations Struct</strong> (<code style="font-family:var(--mono);color:#88ffd8">file_operations</code>) is a definitive kernel data registry containing function pointers that route standard system calls (open, read, write, close) directly to their matching hardware driver backend functions.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p>When a user calls <code style="font-family:var(--mono);color:#b9d0ff">read(fd, buf, n)</code> on a device node, the VFS looks up that node's <code style="font-family:var(--mono);color:#b9d0ff">file_operations</code> table and <strong>indirectly calls the .read function pointer</strong>. The pointer points to the driver's custom implementation — which knows how to talk to the actual hardware.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The optimization</span>
+          <p>Every syscall on that device goes through the same table lookup. That's why the kernel doesn't need to know about the device — it just needs the table's address. Polymorphism in C, one dispatch per call.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> NULL entries in file_operations mean that operation isn't supported. If .read is NULL and the user calls read(), the kernel returns -EINVAL. This is how the driver declares "I don't do this."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Routing path" data-anim="route">
+  <div class="slide-inner">
+    <span class="badge">📖 The Complete Routing Path</span>
+    <h2 style="margin-bottom:16px;">From <span class="grad-blue">write()</span> to <span class="grad-blue">hardware</span> — one full walkthrough</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The example</span>
+          <p>User code calls <code style="font-family:var(--mono);color:#b9d0ff">write(fd, "Hello", 5)</code> on a file descriptor that points to <code style="font-family:var(--mono);color:#b9d0ff">/dev/ttyS0</code>. Here's every step between the syscall and the physical serial port.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The steps</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> user → <code style="font-family:var(--mono);color:#ffd18a">write()</code> syscall (L03)<br>
+            <strong>2.</strong> kernel → VFS lookup by fd<br>
+            <strong>3.</strong> VFS → get inode → get device node<br>
+            <strong>4.</strong> VFS → read major/minor from the node<br>
+            <strong>5.</strong> VFS → look up driver by major number<br>
+            <strong>6.</strong> VFS → call driver's file_operations.write<br>
+            <strong>7.</strong> driver → write to hardware registers
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The payoff</span>
+          <p>The user program <strong>never knows</strong> it's talking to a serial port. The VFS <strong>never knows</strong> what hardware is behind the driver. Only the driver knows the specific hardware — and the same program works on any machine with any serial chip.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The full routing path</div>
+        <div class="route-vis" id="routeVis">
+          <div class="route-step" data-idx="0">
+            <div class="rs-num">1</div>
+            <div class="rs-body"><strong>write(fd, buf, n)</strong> — user process issues a syscall</div>
+            <div class="rs-tag user">USER</div>
+          </div>
+          <div class="route-step" data-idx="1">
+            <div class="rs-num">2</div>
+            <div class="rs-body"><strong>VFS lookup</strong> — fd → struct file → inode</div>
+            <div class="rs-tag kernel">KERNEL</div>
+          </div>
+          <div class="route-step" data-idx="2">
+            <div class="rs-num">3</div>
+            <div class="rs-body"><strong>inode → device node</strong> — read major/minor</div>
+            <div class="rs-tag kernel">KERNEL</div>
+          </div>
+          <div class="route-step" data-idx="3">
+            <div class="rs-num">4</div>
+            <div class="rs-body"><strong>major → driver</strong> — driver_table[major]</div>
+            <div class="rs-tag kernel">KERNEL</div>
+          </div>
+          <div class="route-step" data-idx="4">
+            <div class="rs-num">5</div>
+            <div class="rs-body"><strong>.write pointer</strong> — indirect call to driver function</div>
+            <div class="rs-tag kernel">KERNEL</div>
+          </div>
+          <div class="route-step" data-idx="5">
+            <div class="rs-num">6</div>
+            <div class="rs-body"><strong>driver code</strong> — writes bytes to hardware registers</div>
+            <div class="rs-tag hw">HARDWARE</div>
+          </div>
+          <div class="route-step" data-idx="6">
+            <div class="rs-num">7</div>
+            <div class="rs-body"><strong>serial port sends</strong> — data physically leaves the machine</div>
+            <div class="rs-tag hw">HARDWARE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live Demo · ls /dev" data-anim="lsdev">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Exploring /dev</span>
+    <h2 style="margin-bottom:16px;">See the <span class="grad-emerald">b</span> and <span class="grad-emerald">c</span> flags for yourself</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · ls -l /dev (abridged)</div>
+        <div class="terminal" id="lsdevTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ls -l /dev</span>
+          </div>
+          <div class="term-body" id="lsdevBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">ls -l /dev | head -20</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What to look for</span>
+          <p>The <strong>first character</strong> of each permissions string tells you the device type:</p>
+          <p style="line-height:1.9;margin-top:6px;font-size:13px">
+            <code style="font-family:var(--mono);color:#b9d0ff">b</code> — block device (HDD, SSD)<br>
+            <code style="font-family:var(--mono);color:#88ffd8">c</code> — character device (kbd, serial)<br>
+            <code style="font-family:var(--mono);color:#ffd18a">l</code> — symlink (device aliases)<br>
+            <code style="font-family:var(--mono);color:#c9a7ff">d</code> — directory (subdirs like /dev/input)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The two numbers</span>
+          <p>After the group name and size, you'll see <strong>major, minor</strong>. Those are the driver ID and device ID. For <code style="font-family:var(--mono);color:#ffd18a">/dev/sda</code> it's typically <code style="font-family:var(--mono);color:#ffd18a">8, 0</code>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The permission check</span>
+          <p>Notice the permissions: <code style="font-family:var(--mono);color:#b9d0ff">crw-rw-rw-</code> for /dev/null (world accessible), <code style="font-family:var(--mono);color:#b9d0ff">brw-rw----</code> for /dev/sda (root-only). The <strong>same chmod that protects files protects hardware</strong> — that's the Module 7 hook.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Code · driver struct" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="badge blue">💻 Code — A Minimal Character Driver</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">file_operations</span> table</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head blue"><span>my_driver.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;linux/fs.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;linux/module.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// Custom driver function that runs when a user writes to our device</span></span><span class="code-line"><span class="c-kw">static</span> <span class="c-type">ssize_t</span> <span class="c-name">custom_driver_write</span>(<span class="c-type">struct</span> <span class="c-type">file</span> *<span class="c-var">file</span>,</span><span class="code-line">                                          <span class="c-kw">const</span> <span class="c-type">char</span> __user *<span class="c-var">buf</span>,</span><span class="code-line">                                          <span class="c-type">size_t</span> <span class="c-var">count</span>,</span><span class="code-line">                                          <span class="c-type">loff_t</span> *<span class="c-var">ppos</span>) {</span><span class="code-line">    <span class="c-name">printk</span>(<span class="c-str">"Driver captured write request!\n"</span>);</span><span class="code-line">    <span class="c-com">// [Custom low-level inline assembly to blink the LED goes here]</span></span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">count</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-com">// The Master File Operations registry table</span></span><span class="code-line"><span class="c-com">// Maps standard syscalls to our custom functions</span></span><span class="code-line"><span class="c-kw">static</span> <span class="c-type">struct</span> <span class="c-type">file_operations</span> <span class="c-var">my_dev_fops</span> = {</span><span class="code-line">    .<span class="c-var">owner</span> = <span class="c-var">THIS_MODULE</span>,</span><span class="code-line">    .<span class="c-var">write</span> = <span class="c-name">custom_driver_write</span>,  <span class="c-com">// ← the key mapping</span></span><span class="code-line">};</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The key line</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">.write = custom_driver_write</code> — this is the entire contract. Any user write to this device node will invoke this exact function.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The __user annotation</span>
+          <p>The <code style="font-family:var(--mono);color:#88ffd8">__user</code> macro on <code style="font-family:var(--mono);color:#88ffd8">buf</code> tells sparse (Linux's static checker) that this pointer comes from user space. Direct dereference is a bug — the driver must use <code style="font-family:var(--mono);color:#88ffd8">copy_from_user()</code>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The missing pieces</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            In a real driver you'd also need:<br>
+            · <code style="font-family:var(--mono);color:#ffd18a">register_chrdev()</code> to claim a major number<br>
+            · <code style="font-family:var(--mono);color:#ffd18a">class_create()</code> to make the /dev node appear<br>
+            · <code style="font-family:var(--mono);color:#ffd18a">module_init/exit</code> for load/unload
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Code · write handler" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">💻 Code — Inside the Write Handler</span>
+    <h2 style="margin-bottom:16px;">What the driver <span class="grad-emerald">actually does with the bytes</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head emerald"><span>write_handler.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">static</span> <span class="c-type">ssize_t</span> <span class="c-name">custom_driver_write</span>(<span class="c-type">struct</span> <span class="c-type">file</span> *<span class="c-var">file</span>,</span><span class="code-line">                                          <span class="c-kw">const</span> <span class="c-type">char</span> __user *<span class="c-var">user_buf</span>,</span><span class="code-line">                                          <span class="c-type">size_t</span> <span class="c-var">count</span>,</span><span class="code-line">                                          <span class="c-type">loff_t</span> *<span class="c-var">ppos</span>) {</span><span class="code-line">    <span class="c-type">char</span> <span class="c-var">kernel_buf</span>[<span class="c-num">256</span>];</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 1. Validate the count</span></span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">count</span> &gt; <span class="c-kw">sizeof</span>(<span class="c-var">kernel_buf</span>))</span><span class="code-line">        <span class="c-kw">return</span> -<span class="c-var">EINVAL</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 2. Copy from user space (mandatory!)</span></span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-name">copy_from_user</span>(<span class="c-var">kernel_buf</span>, <span class="c-var">user_buf</span>, <span class="c-var">count</span>))</span><span class="code-line">        <span class="c-kw">return</span> -<span class="c-var">EFAULT</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 3. Now talk to the actual hardware</span></span><span class="code-line">    <span class="c-name">write_to_hardware_register</span>(<span class="c-var">kernel_buf</span>, <span class="c-var">count</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">count</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The mandatory copy</span>
+          <p><code style="font-family:var(--mono);color:#88ffd8">copy_from_user()</code> is not optional. The driver runs in kernel space; the user buffer is in user space. Direct dereference would either crash (page fault) or — worse — read arbitrary kernel memory through a crafted pointer.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The security reason</span>
+          <p>Without copy_from_user, a malicious user could pass a pointer into kernel memory and the driver would happily write it. <code style="font-family:var(--mono);color:#ff9fb1">copy_from_user</code> checks that the source address is actually in the user's address space.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The return contract</span>
+          <p>On success, return <code style="font-family:var(--mono);color:#b9d0ff">count</code> (bytes written). On failure, return a <strong>negative error code</strong> like <code style="font-family:var(--mono);color:#b9d0ff">-EINVAL</code> or <code style="font-family:var(--mono);color:#b9d0ff">-EFAULT</code>. Never return 0 for "success" — that confuses the VFS into thinking the write was short.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The layering:</b> the driver sees only raw bytes and kernel-space buffers. It has no idea that the user called <code style="font-family:var(--mono);color:#c9a7ff">printf</code> or <code style="font-family:var(--mono);color:#c9a7ff">write</code> or <code style="font-family:var(--mono);color:#c9a7ff">cat</code>. Everything above it is opaque.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Live Demo · echo to /dev/tty" data-anim="echotty">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — Writing Raw Data to /dev/tty</span>
+    <h2 style="margin-bottom:16px;">Bypass all layers. <span class="grad-amber">Talk to hardware directly.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The echo command bypasses normal output</div>
+        <div class="terminal" id="echoTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — echo to /dev/tty</span>
+          </div>
+          <div class="term-body" id="echoBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">echo "Hello hardware" > /dev/tty</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What this does</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">echo "Hello" > /dev/tty</code> opens the device node for the current terminal, writes the bytes to it, and closes. The bytes go <strong>directly to the terminal hardware</strong> — no shell involved, no line-buffered stdout, no libc.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The layering exposed</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            Normally: <code style="font-family:var(--mono);color:#b9d0ff">printf</code> → libc → write() → VFS → driver<br>
+            Here: echo → write(/dev/tty) → VFS → driver<br>
+            <strong>The libc layer is skipped</strong> — echo calls write directly.
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The proof</span>
+          <p>Redirect to a file instead and watch the difference. Writing to /dev/tty forces output to the terminal even when stdout is redirected. The device node is the <strong>only</strong> path to that specific hardware.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> this is why <code style="font-family:var(--mono);color:#c9a7ff">sudo sh -c 'echo ... > /dev/sda'</code> is dangerous — it bypasses the filesystem entirely and writes raw bytes to the physical disk. You don't need a filesystem to corrupt a disk this way.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Block device internals">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">📖 Block Device Internals</span>
+    <h2 style="margin-bottom:16px;">Why block devices get <span class="grad-blue">their own subsystem</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The block layer</span>
+          <p>Block devices are important enough to warrant their own subsystem. The <strong>block layer</strong> sits between the filesystem and the driver, providing:</p>
+          <p style="line-height:1.9;margin-top:6px;font-size:13px">
+            <strong>Page cache</strong> — recently-read blocks<br>
+            <strong>Buffer cache</strong> — merged write buffers<br>
+            <strong>I/O scheduler</strong> — merge + reorder requests (L16's SCAN)<br>
+            <strong>Request queues</strong> — batch operations<br>
+            <strong>Plugging</strong> — temporary request merge windows
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The two-layer design</span>
+          <p>Filesystems don't talk to block devices directly. They submit bio (block I/O) requests to the block layer, which schedules and merges them, then hands batches to the driver. This is why two sequential 4 KB writes might become one 8 KB write at the driver level.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The result</span>
+          <p>The block layer transforms random I/O from the filesystem into sequential I/O for the hardware — recovering most of the performance L16 described as lost to seeks. That's the entire reason the block subsystem exists.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The block device stack</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="38" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="36" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">APPLICATION · read() / write()</text>
+
+          <line x1="170" y1="52" x2="170" y2="64" stroke="rgba(160,107,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="64" width="312" height="38" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="86" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">VFS + FILESYSTEM (ext4)</text>
+
+          <line x1="170" y1="102" x2="170" y2="114" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="114" width="312" height="52" rx="8" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="132" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">BLOCK LAYER</text>
+          <text x="170" y="148" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">page cache · scheduler · bio merge</text>
+          <text x="170" y="160" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">← L16's SCAN lives here</text>
+
+          <line x1="170" y1="166" x2="170" y2="178" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="178" width="312" height="38" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="200" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">BLOCK DRIVER · block_device_operations</text>
+
+          <line x1="170" y1="216" x2="170" y2="228" stroke="rgba(255,182,72,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="228" width="312" height="38" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="250" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="700">PHYSICAL HARDWARE · HDD / SSD</text>
+
+          <text x="170" y="288" text-anchor="middle" font-size="8.5" fill="rgba(132,148,180,.65)" font-family="JetBrains Mono">block layer converts random → sequential</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Network device internals">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Network Device Internals</span>
+    <h2 style="margin-bottom:16px;">Why network devices <span class="grad-amber">don't use the file API</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The socket layer</span>
+          <p>Network interfaces are accessed through the <strong>socket subsystem</strong>, not files. A socket is a kernel object that represents a network connection (TCP, UDP, raw) — with its own buffering, its own lifecycle, and its own API (bind, connect, listen, send, recv).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The sk_buff</span>
+          <p>The kernel's internal representation of a packet is a <code style="font-family:var(--mono);color:#b9d0ff">struct sk_buff</code> — a complex structure with headroom for headers, tailroom for padding, and a pointer to the actual data. Every network driver reads and writes sk_buffs.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The net_device_ops</span>
+          <p>Just like char/block devices have file_operations, network devices have <code style="font-family:var(--mono);color:#88ffd8">net_device_ops</code> — a struct of function pointers like <code style="font-family:var(--mono);color:#88ffd8">ndo_start_xmit</code> (send a packet). Same polymorphism pattern.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The consistency:</b> all three device categories use the same design pattern — a struct of function pointers for polymorphic dispatch. The difference is which struct: file_operations for block/char, net_device_ops for network.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The network stack</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="34" rx="7" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="170" y="35" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="700">APPLICATION · socket(AF_INET, ...)</text>
+
+          <line x1="170" y1="48" x2="170" y2="60" stroke="rgba(160,107,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="60" width="312" height="34" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="170" y="81" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">SOCKET LAYER · TCP / UDP</text>
+
+          <line x1="170" y1="94" x2="170" y2="106" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="106" width="312" height="34" rx="7" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="170" y="127" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">IP LAYER · routing · fragmentation</text>
+
+          <line x1="170" y1="140" x2="170" y2="152" stroke="rgba(255,182,72,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="152" width="312" height="34" rx="7" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+          <text x="170" y="173" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">NETWORK DRIVER · net_device_ops</text>
+
+          <line x1="170" y1="186" x2="170" y2="198" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="198" width="312" height="34" rx="7" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="170" y="219" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">NIC HARDWARE · DMA + interrupts</text>
+
+          <text x="170" y="248" text-anchor="middle" font-size="8.5" fill="rgba(132,148,180,.6)" font-family="JetBrains Mono">no /dev nodes · no read/write</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Real World">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — The /dev Landscape</span>
+    <h2 style="margin-bottom:16px;">What you'll actually find on a <span class="grad-emerald">modern Linux box</span></h2>
+    <div class="example-grid">
+      <div class="example-card">
+        <span class="ec-icon">💾</span>
+        <div class="ec-name" style="color:#b9d0ff">Block devices</div>
+        <div class="ec-profile">
+          /dev/sda · /dev/sdb · /dev/nvme0n1<br>
+          /dev/vda (VMs) · /dev/loop0 (files)<br>
+          brw-rw---- · root-only
+        </div>
+        <div class="ec-win" style="background:rgba(91,141,255,.15);color:#b9d0ff">Raw disk access</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">⌨️</span>
+        <div class="ec-name" style="color:#88ffd8">Character devices</div>
+        <div class="ec-profile">
+          /dev/tty · /dev/ttyS0 · /dev/input/*<br>
+          /dev/null · /dev/zero · /dev/urandom<br>
+          crw-rw-rw- (some) · crw-rw---- (some)
+        </div>
+        <div class="ec-win" style="background:rgba(46,230,168,.15);color:#88ffd8">Byte streams</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">🌐</span>
+        <div class="ec-name" style="color:#ffd18a">Network (sockets)</div>
+        <div class="ec-profile">
+          Not in /dev — accessed via sockets<br>
+          eth0 · wlan0 · lo (interface names)<br>
+          Configuration via /sys/class/net/
+        </div>
+        <div class="ec-win" style="background:rgba(255,182,72,.15);color:#ffd18a">Packet streams</div>
+      </div>
+    </div>
+    <div class="panel violet" style="margin-top:20px;padding:18px">
+      <span class="panel-label">The scale</span>
+      <p>A typical desktop Linux system has <strong>hundreds of device nodes</strong> in /dev, covering block storage, character devices (terminals, input, audio, video), pseudo-devices (/dev/null, /dev/zero, /dev/random), loopback devices, and more. Almost all are auto-created at boot by devtmpfs.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Try this at home:</b> run <code style="font-family:var(--mono);color:#c9a7ff">ls -l /dev | grep '^b'</code> to see all block devices, then <code style="font-family:var(--mono);color:#c9a7ff">ls -l /dev | grep '^c'</code> for character devices. The two-letter difference in the type flag captures a fundamental architectural distinction.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Driver &amp; Block Device</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Device Driver</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A specialized kernel software module that bridges the gap between a generic operating system file operation interface and the custom registers of a specific hardware peripheral.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The adapter plug between the VFS API and the specific hardware chip. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>Typically a loadable kernel module (<code style="font-family:var(--mono);color:#b9d0ff">.ko</code> file) in <code style="font-family:var(--mono);color:#b9d0ff">/lib/modules/</code>, loaded by the kernel on demand.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Block Device</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A class of hardware components that read and write data in fixed-size, addressable block sectors, natively supporting random access data seeks.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A device whose data is chunked into numbered blocks you can jump to directly. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p>HDDs, SSDs, USB drives, NVMe drives, network block devices (iSCSI)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏷️ System Lexicon — Character Device &amp; file_operations</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Character Device</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A class of hardware components that deliver data as a non-addressable, continuous stream of sequential characters or bytes.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A device whose data flows in one end and out the other — no seeking. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p>Keyboards, mice, serial ports, terminals, /dev/null, /dev/zero, audio devices</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">file_operations</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The definitive kernel data registry containing function pointers that route standard system calls (open, read, write, close) directly to their matching hardware driver backend functions.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The driver's "what to do when X happens" table. The kernel's dispatch mechanism. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Location</span>
+          <p>Each driver fills in a static instance of this struct. The VFS reads it during device open to know where to route subsequent operations.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about device drivers</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Network devices also live in /dev"</div>
+        <div class="pc-desc">No. Block and character devices appear as nodes in <code style="font-family:var(--mono);color:#ff9fb1">/dev</code>. Network devices do not — they're accessed through sockets. If you look for <code style="font-family:var(--mono);color:#ff9fb1">/dev/eth0</code> you won't find it. Network interfaces are exposed via <code style="font-family:var(--mono);color:#ff9fb1">/sys/class/net/</code> for <em>configuration</em>, but the actual data path is sockets.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"The driver runs for every byte"</div>
+        <div class="pc-desc">Not necessarily. The kernel buffers aggressively — the page cache, socket buffers, and TTY line discipline all sit between the app and the driver. A <code style="font-family:var(--mono);color:#ff9fb1">read(fd, buf, 1000)</code> that hits the page cache never invokes the driver. The driver only runs when the kernel actually needs to talk to hardware.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"The driver trusts user pointers"</div>
+        <div class="pc-desc">It must not. Any pointer passed from user space (<code style="font-family:var(--mono);color:#ff9fb1">__user</code>-annotated) must go through <code style="font-family:var(--mono);color:#ff9fb1">copy_from_user</code> / <code style="font-family:var(--mono);color:#ff9fb1">copy_to_user</code>. Directly dereferencing a user pointer is a privilege escalation vulnerability — a malicious user could pass a kernel address and the driver would happily read or write it in Ring 0. This is one of the most common kernel vulnerabilities.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Activity" data-anim="actdev">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The /dev Terminal Exploration Hunt</span>
+    <h2 style="margin-bottom:16px;">Find the <span class="grad-violet">b</span>. Find the <span class="grad-violet">c</span>. Classify them.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Open a live terminal interface via projector. Direct students to run <code style="font-family:var(--mono);color:#c9a7ff">ls -l /dev</code> and look at the <strong>very first character</strong> of each permissions string.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The hunt</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Find <code style="font-family:var(--mono);color:#b9d0ff">b</code> nodes — block devices<br>
+            <strong>2.</strong> Find <code style="font-family:var(--mono);color:#88ffd8">c</code> nodes — character devices<br>
+            <strong>3.</strong> Note the major/minor numbers<br>
+            <strong>4.</strong> Have students guess what each one is for
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The examples</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px;font-family:var(--mono)">
+            <code style="color:#b9d0ff">brw-rw---- /dev/sda</code> → system SSD<br>
+            <code style="color:#88ffd8">crw-rw-rw- /dev/tty</code> → keyboard terminal<br>
+            <code style="color:#88ffd8">crw-rw-rw- /dev/null</code> → discards everything<br>
+            <code style="color:#88ffd8">crw-rw-rw- /dev/urandom</code> → random bytes
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The demo</span>
+          <p>Have students run <code style="font-family:var(--mono);color:#88ffd8">echo "Hello" > /dev/tty</code>. Watch it echo directly to the terminal — bypassing the shell, bypassing libc, going straight to the TTY driver via write().</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> ask <em>"Why does /dev/null need to exist?"</em> Answer: it's a sink — a valid file descriptor that discards everything written to it. Redirect <code style="font-family:var(--mono);color:#c9a7ff">command 2&gt;/dev/null</code> and the errors vanish. That's the driver's only job, and it's the entire device's purpose.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three roles, three device types</div>
+        <div class="act-scene">
+          <div class="act-roles">
+            <div class="act-role block" data-role="0">
+              <span class="ar-icon">💾</span>
+              <div class="ar-name">BLOCK</div>
+              <div class="ar-desc">b-prefix · seekable</div>
+            </div>
+            <div class="act-role char" data-role="1">
+              <span class="ar-icon">⌨️</span>
+              <div class="ar-name">CHARACTER</div>
+              <div class="ar-desc">c-prefix · byte stream</div>
+            </div>
+            <div class="act-role net" data-role="2">
+              <span class="ar-icon">🌐</span>
+              <div class="ar-name">NETWORK</div>
+              <div class="ar-desc">not in /dev · sockets</div>
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2)" id="actDevStatus">
+            <strong style="color:#b9d0ff">Block devices</strong> — seekable, fixed-size blocks
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L21 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>The kernel abstracts all hardware into <strong>three categories</strong>: block devices (HDD/SSD, seekable blocks), character devices (keyboard/serial, byte streams), and network devices (packets, sockets). Each gets a dedicated subsystem.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>Device drivers</strong> bridge the gap between the VFS file API and specific hardware. Each device appears as a node in <code style="font-family:var(--mono);color:#88ffd8">/dev</code> for block/char, or as a network interface for net.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Major/minor numbers</strong> identify the driver and device instance. The <code style="font-family:var(--mono);color:#88ffd8">file_operations</code> struct is the driver's polymorphic vtable — function pointers the VFS dispatches through.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>This architecture is why <strong>"everything is a file"</strong> works: the same <code style="font-family:var(--mono);color:#88ffd8">open/read/write</code> API that handles regular files also handles hardware — because the driver hides the hardware behind that API.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L22 — Access Control (Module 7)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We just saw that devices are files. That means file permissions apply to hardware access. L22 opens Module 7 with the <strong>Access Control Matrix</strong>, ACLs, capabilities, and protection domains — showing how the kernel decides who's allowed to open <code style="font-family:var(--mono);color:#b9d0ff">/dev/sda</code> for raw writes.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L22: Access Control &nbsp;|&nbsp; [L22.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad21" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad21)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad21)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : driver canvas ---------- */
+reg('drivercanvas', function(){
+  const c = document.getElementById('driverCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const nodes = [
+    { name:'/dev/sda', type:'block', color:'#5b8dff', x: W*0.15, y: 90 },
+    { name:'/dev/tty', type:'char',  color:'#2ee6a8', x: W*0.15, y: 180 },
+    { name:'/dev/null', type:'char', color:'#2ee6a8', x: W*0.15, y: 270 },
+    { name:'eth0', type:'net', color:'#ffb648', x: W*0.15, y: 360 }
+  ];
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('/dev NODES → VFS → DRIVERS → HARDWARE', W/2, 16);
+
+    // Draw active node animations
+    const activeNodeIdx = Math.floor(t / 80) % nodes.length;
+    const activeNode = nodes[activeNodeIdx];
+
+    // Draw VFS bar
+    const vfsY = 200;
+    ctx.fillStyle = 'rgba(91,141,255,0.10)';
+    ctx.fillRect(W*0.32, vfsY - 22, W*0.36, 44);
+    ctx.strokeStyle = 'rgba(91,141,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(W*0.32, vfsY - 22, W*0.36, 44);
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('VFS', W*0.5, vfsY - 4);
+    ctx.fillStyle = 'rgba(185,208,255,0.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('open · read · write · close', W*0.5, vfsY + 12);
+
+    // Draw driver box
+    ctx.fillStyle = 'rgba(160,107,255,0.10)';
+    ctx.fillRect(W*0.72, vfsY - 30, W*0.24, 60);
+    ctx.strokeStyle = 'rgba(160,107,255,0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(W*0.72, vfsY - 30, W*0.24, 60);
+    ctx.fillStyle = '#c9a7ff';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.fillText('DRIVERS', W*0.84, vfsY - 8);
+    ctx.fillStyle = 'rgba(201,167,255,0.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('.ko modules', W*0.84, vfsY + 8);
+    ctx.fillText('file_operations', W*0.84, vfsY + 20);
+
+    // Draw hardware box
+    ctx.fillStyle = 'rgba(255,77,109,0.10)';
+    ctx.fillRect(W*0.72, vfsY + 90, W*0.24, 50);
+    ctx.strokeStyle = 'rgba(255,77,109,0.55)';
+    ctx.strokeRect(W*0.72, vfsY + 90, W*0.24, 50);
+    ctx.fillStyle = '#ff9fb1';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.fillText('HARDWARE', W*0.84, vfsY + 110);
+    ctx.fillStyle = 'rgba(255,159,177,0.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('registers · DMA', W*0.84, vfsY + 126);
+
+    // Draw each node
+    nodes.forEach((n, i) => {
+      const isActive = i === activeNodeIdx;
+      const pulse = isActive ? 0.7 + 0.3 * Math.sin(t / 8) : 1;
+
+      // node box
+      const bw = 130, bh = 50;
+      ctx.fillStyle = isActive ? n.color + '30' : n.color + '15';
+      ctx.fillRect(n.x - bw/2, n.y - bh/2, bw, bh);
+      ctx.strokeStyle = n.color;
+      ctx.globalAlpha = pulse;
+      ctx.lineWidth = isActive ? 2.5 : 1.2;
+      ctx.strokeRect(n.x - bw/2, n.y - bh/2, bw, bh);
+      ctx.globalAlpha = 1;
+
+      // type tag
+      ctx.fillStyle = n.color;
+      ctx.font = '800 9px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const typeLabel = n.type === 'block' ? 'b' : (n.type === 'char' ? 'c' : 'net');
+      ctx.fillText(typeLabel.toUpperCase(), n.x - bw/2 + 6, n.y - 14);
+
+      // name
+      ctx.fillStyle = isActive ? '#fff' : n.color;
+      ctx.font = '800 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.name, n.x, n.y + 4);
+
+      // arrow from node to VFS if active
+      if (isActive) {
+        const fromX = n.x + bw/2 + 4;
+        const fromY = n.y;
+        const toX = W*0.32 - 4;
+        const toY = vfsY;
+        ctx.strokeStyle = n.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+        // arrowhead
+        const ang = Math.atan2(toY - fromY, toX - fromX);
+        ctx.beginPath();
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - 8 * Math.cos(ang - 0.4), toY - 8 * Math.sin(ang - 0.4));
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - 8 * Math.cos(ang + 0.4), toY - 8 * Math.sin(ang + 0.4));
+        ctx.stroke();
+
+        // arrow VFS → driver
+        const vfs2DriverX = W*0.32 + W*0.36 + 4;
+        ctx.strokeStyle = 'rgba(160,107,255,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(vfs2DriverX, vfsY);
+        ctx.lineTo(W*0.72 - 4, vfsY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(W*0.72 - 4, vfsY);
+        ctx.lineTo(W*0.72 - 12, vfsY - 4);
+        ctx.moveTo(W*0.72 - 4, vfsY);
+        ctx.lineTo(W*0.72 - 12, vfsY + 4);
+        ctx.stroke();
+
+        // arrow driver → hardware
+        ctx.strokeStyle = 'rgba(255,77,109,0.75)';
+        ctx.beginPath();
+        ctx.moveTo(W*0.84, vfsY + 30);
+        ctx.lineTo(W*0.84, vfsY + 90);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(W*0.84, vfsY + 90);
+        ctx.lineTo(W*0.84 - 5, vfsY + 82);
+        ctx.moveTo(W*0.84, vfsY + 90);
+        ctx.lineTo(W*0.84 + 5, vfsY + 82);
+        ctx.stroke();
+      }
+    });
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 11 : dev explorer hover ---------- */
+reg('devexplore', function(){
+  const rows = document.querySelectorAll('#devExplorer .dev-row');
+  if(!rows.length) return { stop(){} };
+  // Auto-highlight cycling
+  const realRows = Array.from(rows).filter(r => r.dataset.type);
+  if(!realRows.length) return { stop(){} };
+  let idx = 0;
+  const timer = setInterval(() => {
+    realRows.forEach(r => r.style.background = '');
+    realRows[idx % realRows.length].style.background = 'rgba(255,182,72,.08)';
+    idx++;
+  }, 1200);
+  return { stop(){ clearInterval(timer); realRows.forEach(r => r.style.background = ''); } };
+});
+
+/* ---------- Slide 13 : file_operations cycling ---------- */
+reg('fops', function(){
+  const rows = document.querySelectorAll('#fopsVis .fops-row');
+  if(!rows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.classList.remove('opened'));
+    if(rows[idx % rows.length]) rows[idx % rows.length].classList.add('opened');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1000);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.classList.remove('opened')); } };
+});
+
+/* ---------- Slide 14 : routing path ---------- */
+reg('route', function(){
+  const steps = document.querySelectorAll('#routeVis .route-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','done')); } };
+});
+
+/* ---------- Slide 15 : ls -l /dev terminal ---------- */
+reg('lsdev', function(){
+  const body = document.getElementById('lsdevBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'total 0' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root root  <span class="term-major">1,  3</span> Oct 20 14:32 null' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root root  <span class="term-major">1,  5</span> Oct 20 14:32 zero' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root root  <span class="term-major">1,  8</span> Oct 20 14:32 random' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root root  <span class="term-major">1,  9</span> Oct 20 14:32 urandom' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root root  <span class="term-major">5,  0</span> Oct 20 14:32 tty' },
+    { cls:'term-line', text:'<span class="term-b">crw-rw-rw-</span> 1 root tty   <span class="term-major">4,  1</span> Oct 20 14:32 tty1' },
+    { cls:'term-line', text:'<span class="term-b">crw--w----</span> 1 root tty   <span class="term-major">4, 64</span> Oct 20 14:32 ttyS0' },
+    { cls:'term-line warn', text:'--- block devices below ---' },
+    { cls:'term-line', text:'<span class="term-c">brw-rw----</span> 1 root disk  <span class="term-major">8,  0</span> Oct 20 14:32 sda' },
+    { cls:'term-line', text:'<span class="term-c">brw-rw----</span> 1 root disk  <span class="term-major">8,  1</span> Oct 20 14:32 sda1' },
+    { cls:'term-line', text:'<span class="term-c">brw-rw----</span> 1 root disk  <span class="term-major">8, 16</span> Oct 20 14:32 sdb' },
+    { cls:'term-line', text:'<span class="term-c">brw-rw----</span> 1 root disk  <span class="term-major">259, 0</span> Oct 20 14:32 nvme0n1' },
+    { cls:'term-line dim', text:'... (hundreds more entries omitted)' },
+    { cls:'term-line hl', text:'← first char = device type: b=block · c=char · l=link · d=dir' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">ls -l /dev | head -20</span></span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx < lines.length) {
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 350);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 16 : code stepper 1 ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,5,6,7,8,10,11,12,13,14,16,17,18,20,21];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 750);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 17 : code stepper 2 ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,5,7,8,9,10,12,13,14,16,17,19,20,21];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 18 : echo demo ---------- */
+reg('echotty', function(){
+  const body = document.getElementById('echoBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo "Hello hardware" > /dev/tty</span>' },
+    { cls:'term-line hl', text:'Hello hardware' },
+    { cls:'term-line dim', text:'— output appeared directly on the terminal —' },
+    { cls:'term-line', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo "This goes to a file" > out.txt</span>' },
+    { cls:'term-line dim', text:'— no terminal output, wrote to disk instead —' },
+    { cls:'term-line', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">echo "Forced to terminal" > /dev/tty</span>' },
+    { cls:'term-line hl', text:'Forced to terminal' },
+    { cls:'term-line dim', text:'— forced to the terminal even though stdout was redirected —' },
+    { cls:'term-line ok', text:'✓ /dev/tty bypassed shell redirection entirely' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">echo "Hello hardware" > /dev/tty</span></span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx < lines.length) {
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 3500);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 500);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 25 : activity ---------- */
+reg('actdev', function(){
+  const roles = document.querySelectorAll('.act-role');
+  const status = document.getElementById('actDevStatus');
+  if(!roles.length || !status) return { stop(){} };
+
+  const phases = [
+    { active: 0, color: '#b9d0ff', text: '<strong style="color:#b9d0ff">Block devices</strong> — seekable, fixed-size blocks · b-prefix in /dev' },
+    { active: 1, color: '#88ffd8', text: '<strong style="color:#88ffd8">Character devices</strong> — byte streams, no seek · c-prefix in /dev' },
+    { active: 2, color: '#ffd18a', text: '<strong style="color:#ffd18a">Network devices</strong> — packets · NOT in /dev · accessed via sockets' }
+  ];
+
+  let idx = 0;
+  function tick(){
+    roles.forEach(r => r.classList.remove('active'));
+    const p = phases[idx % phases.length];
+    if(roles[p.active]) roles[p.active].classList.add('active');
+    status.innerHTML = p.text;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2200);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s) => {
+    if (s.querySelector('#devExplorer') && !s.dataset.anim) s.dataset.anim = 'devexplore';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
