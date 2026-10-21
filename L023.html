@@ -1,0 +1,2045 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L23 — Authentication: Factors, Hashes &amp; Biometrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(91,141,255,.08),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--emerald),var(--blue),var(--violet));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(46,230,168,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(46,230,168,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--emerald);background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.34);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.blue{color:#b9d0ff;background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--emerald);background:rgba(46,230,168,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#88ffd8;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(46,230,168,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Factor cards */
+.factor-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:8px 0;}
+.factor-card{padding:18px 14px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);text-align:center;transition:.4s;position:relative;}
+.factor-card.know{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.factor-card.have{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.factor-card.are{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.factor-card.active{animation:factorPulse 1.6s ease-in-out infinite;}
+@keyframes factorPulse{0%,100%{box-shadow:0 0 0 0 currentColor}50%{box-shadow:0 0 22px -4px currentColor;opacity:1;}}
+.factor-card .fc-icon{font-size:32px;display:block;margin-bottom:10px;}
+.factor-card .fc-name{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.06em;margin-bottom:6px;}
+.factor-card.know .fc-name{color:#b9d0ff;}
+.factor-card.have .fc-name{color:#ffd18a;}
+.factor-card.are .fc-name{color:#88ffd8;}
+.factor-card .fc-desc{font-size:10.5px;line-height:1.5;color:var(--muted);}
+.factor-card .fc-example{margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:9.5px;color:var(--ink-2);letter-spacing:.03em;}
+
+/* Password/key/fingerprint comparison */
+.three-vector{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:8px 0;}
+.tvec-card{padding:18px 14px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.tvec-card.know{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.05);}
+.tvec-card.have{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.05);}
+.tvec-card.are{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.05);}
+.tvec-card .tv-icon{font-size:36px;margin-bottom:10px;display:block;}
+.tvec-card .tv-title{font-size:12px;font-weight:900;letter-spacing:.04em;margin-bottom:8px;}
+.tvec-card.know .tv-title{color:#b9d0ff;}
+.tvec-card.have .tv-title{color:#ffd18a;}
+.tvec-card.are .tv-title{color:#88ffd8;}
+.tvec-card .tv-body{font-size:11.5px;line-height:1.6;color:var(--ink-2);}
+.tvec-card .tv-body strong{color:var(--ink);}
+.tvec-card .tv-eval{margin-top:10px;font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:.05em;line-height:1.7;}
+
+/* SHA vs biometric */
+.two-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.cmp-card{padding:16px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.cmp-card.sha{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.cmp-card.bio{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.cmp-title{font-family:var(--mono);font-size:11.5px;font-weight:900;letter-spacing:.06em;margin-bottom:10px;}
+.cmp-card.sha .cmp-title{color:#c9a7ff;}
+.cmp-card.bio .cmp-title{color:#88ffd8;}
+.cmp-flow{font-family:var(--mono);font-size:10.5px;line-height:1.9;color:var(--ink-2);}
+.cmp-flow strong{color:#fff;}
+.cmp-flow .arrow{color:#ffd18a;font-weight:900;}
+
+/* Password flow */
+.pass-flow{display:flex;flex-direction:column;gap:8px;padding:6px 0;}
+.pass-step{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:11px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11.5px;}
+.pass-step .ps-num{font-size:11px;font-weight:900;color:var(--muted);min-width:22px;text-align:center;padding:3px 7px;border-radius:5px;background:rgba(255,255,255,.05);}
+.pass-step .ps-body{color:var(--ink-2);line-height:1.5;}
+.pass-step .ps-body strong{color:#fff;}
+.pass-step.hi{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.pass-step.hi .ps-num{background:rgba(46,230,168,.15);color:#88ffd8;}
+
+/* Salt visual */
+.salt-vis{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:14px 0;}
+.salt-box{padding:14px;border-radius:12px;border:1.5px solid;background:rgba(0,0,0,.20);text-align:center;}
+.salt-box.plain{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.05);}
+.salt-box.salted{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.05);}
+.salt-box .sb-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:8px;}
+.salt-box .sb-value{font-family:var(--mono);font-size:12px;color:#fff;font-weight:800;letter-spacing:.04em;padding:8px;background:rgba(0,0,0,.35);border-radius:6px;word-break:break-all;line-height:1.6;}
+.salt-box .sb-hash{font-family:var(--mono);font-size:10px;color:#88ffd8;margin-top:8px;word-break:break-all;line-height:1.6;}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+.term-vio{color:#c9a7ff;font-weight:700;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head.crimson{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Lexicon */
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(46,230,168,.34);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(22px,2.8vw,38px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#88ffd8;font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13.5px,.98vw,15.5px);line-height:1.6;}
+.bracket{color:#88ffd8;font-style:italic;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(255,77,109,.4);background:rgba(255,77,109,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--crimson);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(46,230,168,.45);background:rgba(46,230,168,.10);color:#88ffd8;font-weight:700;}
+.mm-node.active{border-color:rgba(46,230,168,.85);background:rgba(46,230,168,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(46,230,168,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(46,230,168,.8)}50%{box-shadow:0 0 40px -2px rgba(46,230,168,1)}}
+.mm-node.leaf{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Takeaway */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(46,230,168,.14);border:1px solid rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(2) .tk-num{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(255,77,109,.5))}50%{filter:drop-shadow(0 0 28px rgba(255,77,109,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.42);background:rgba(255,77,109,.09);color:#ff9fb1;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;}
+.act-prompt{padding:14px 16px;border-radius:12px;border:1.5px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700;text-align:center;transition:.4s;min-height:54px;display:grid;place-items:center;}
+.act-prompt .ap-q{color:#fff;}
+
+/* Real-world cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.example-card{padding:18px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.example-card .ec-icon{font-size:32px;margin-bottom:10px;display:block;}
+.example-card .ec-name{font-size:13px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-2);margin-bottom:12px;}
+.example-card .ec-win{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:6px;}
+
+/* MFA combination visual */
+.mfa-vis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:10px 0;position:relative;}
+.mfa-vis::after{content:'+  +';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:28px;color:rgba(255,255,255,.2);font-weight:900;pointer-events:none;letter-spacing:24px;margin-left:-12px;}
+.mfa-slot{padding:16px;border-radius:12px;border:1.5px solid;text-align:center;background:rgba(0,0,0,.20);transition:.4s;}
+.mfa-slot.know{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.05);}
+.mfa-slot.have{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.05);}
+.mfa-slot.are{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.05);}
+.mfa-slot.empty{border-style:dashed;opacity:.4;}
+.mfa-slot .ms-icon{font-size:26px;display:block;margin-bottom:8px;}
+.mfa-slot .ms-label{font-size:11px;font-weight:900;letter-spacing:.06em;}
+.mfa-slot.know .ms-label{color:#b9d0ff;}
+.mfa-slot.have .ms-label{color:#ffd18a;}
+.mfa-slot.are .ms-label{color:#88ffd8;}
+.mfa-slot .ms-desc{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.factor-row,.three-vector,.two-compare,.example-grid,.mfa-vis,.salt-vis{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L23 Authentication</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 25</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L23 · Overview" data-anim="authflow">
+  <div class="slide-inner">
+    <span class="badge">🔑 🛡️ L23 · Authentication — Establishing Trust</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Prove <span class="grad-emerald">who you are</span> before proving <span class="grad-emerald">what you can do</span></h1>
+        <p class="lead">Compare password-based and biometric authentication models, and identify an <strong>unalterable systemic vulnerability in each design</strong> — the one thing that, once broken, cannot be fixed.</p>
+        <div class="panel emerald">
+          <span class="panel-label">Where we are · Module 7 continues</span>
+          <p>L22 defined <em>what</em> each subject is allowed to do — the access control policy. But every ACL, capability, and mode bit <strong>assumes we already know who's asking</strong>. L23 answers that assumption.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Prerequisites · L22 (Access Control)</span>
+          <p>Protection domains, ACLs, and capabilities — the objects being protected and the decisions being made. L23 introduces the process of <strong>establishing the identity</strong> those decisions act upon.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Opening hook:</b> "Your bank has the strongest vault in the world. But if someone can convince the guard they're you, the vault is worthless. Authentication is that guard — and it's often the weakest link in the entire security chain."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three factors → verification → verified identity</div>
+        <canvas id="authCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Identity Before Policy</span>
+    <h2 style="margin-bottom:16px;">Access control <span class="grad-crimson">assumes we already know who's asking</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The gap L22 left open</span>
+          <p>Every ACL, capability, and mode bit answers a question of the form: <em>"Can <strong>subject S</strong> perform <strong>action A</strong> on <strong>object O</strong>?"</em> But the entire mechanism silently assumes we already know the subject.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The failure mode</span>
+          <p>If Alice can convince the kernel she is Bob, then every ACL protecting Bob's files becomes irrelevant. A perfect lock with a broken key check is useless. The stronger the lock, the more catastrophic the impersonation.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution</span>
+          <p>Before the kernel can enforce access permissions, it must <strong>establish a verified identity</strong> through <em>Authentication Factors</em> — independent channels of proof that only the real subject can satisfy.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The two separate halves of security:</b> <strong>Authentication</strong> establishes identity (L23). <strong>Authorization</strong> decides what that identity may do (L22). Both must be correct. A failure in either invalidates the whole model.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Authentication precedes authorization</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="20" y="30" width="300" height="70" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="52" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">AUTHENTICATION · L23</text>
+          <text x="170" y="70" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">"Who is S, really?"</text>
+          <text x="170" y="88" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">output: a verified identity</text>
+
+          <line x1="170" y1="100" x2="170" y2="140" stroke="rgba(255,182,72,.7)" stroke-width="2" class="svg-flow"/>
+
+          <rect x="20" y="140" width="300" height="70" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="162" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">AUTHORIZATION · L22</text>
+          <text x="170" y="180" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">"Can S do A on O?"</text>
+          <text x="170" y="198" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">matrix · ACL · capability</text>
+
+          <line x1="170" y1="210" x2="170" y2="240" stroke="rgba(255,77,109,.7)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="20" y="240" width="300" height="34" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="262" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">RESOURCE ACCESS · the protected operation</text>
+
+          <text x="170" y="292" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">authentication is the FIRST step, not the last</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Three factors" data-anim="factors">
+  <div class="slide-inner">
+    <span class="badge emerald">🔐 Analogy 1 · The Secret Password, The Safe Key, and The Fingerprint</span>
+    <h2 style="margin-bottom:16px;">Three ways to prove <span class="grad-emerald">who you are</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The setup</span>
+          <p>Proving who you are down at a secure facility relies on three core human vectors. The security industry calls them <strong>authentication factors</strong> — and the strongest systems combine more than one.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Factor 1 · Knowledge</span>
+          <p><strong>Something you know</strong> — a typed combination password, a memorized PIN, a secret phrase. Only you (ideally) know it. If someone else learns it, your identity is compromised.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Factor 2 · Possession</span>
+          <p><strong>Something you have</strong> — a physical brass key, an access fob token, a smartphone with an authenticator app, a hardware security key like a YubiKey.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Factor 3 · Inherence</span>
+          <p><strong>Something you are</strong> — your physical fingerprint pattern, your iris geometry, your facial structure, your voiceprint. Biologically bound to you.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The three factor categories</div>
+        <div class="factor-row">
+          <div class="factor-card know" data-factor="0">
+            <span class="fc-icon">🔑</span>
+            <div class="fc-name">KNOW</div>
+            <div class="fc-desc">something you know</div>
+            <div class="fc-example">password · PIN</div>
+          </div>
+          <div class="factor-card have" data-factor="1">
+            <span class="fc-icon">📱</span>
+            <div class="fc-name">HAVE</div>
+            <div class="fc-desc">something you have</div>
+            <div class="fc-example">key fob · phone</div>
+          </div>
+          <div class="factor-card are" data-factor="2">
+            <span class="fc-icon">👁️</span>
+            <div class="fc-name">ARE</div>
+            <div class="fc-desc">something you are</div>
+            <div class="fc-example">fingerprint · iris</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">No single factor is perfect. Each has its own failure mode.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Expanded">
+  <div class="slide-inner">
+    <span class="badge amber">🔐 Analogy 1 · The Three Factor Categories Expanded</span>
+    <h2 style="margin-bottom:16px;">Each factor has <span class="grad-amber">its own strengths — and its own attack surface</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The three vectors in detail</div>
+        <div class="three-vector">
+          <div class="tvec-card know">
+            <span class="tv-icon">🧠</span>
+            <div class="tv-title">KNOWLEDGE</div>
+            <div class="tv-body"><strong>Something you know</strong> — a secret only you (ideally) remember.</div>
+            <div class="tv-eval">
+              <span style="color:#88ffd8">+</span> easy to deploy<br>
+              <span style="color:#88ffd8">+</span> revocable (change password)<br>
+              <span style="color:#ff9fb1">−</span> phishable / guessable<br>
+              <span style="color:#ff9fb1">−</span> reused across sites
+            </div>
+          </div>
+          <div class="tvec-card have">
+            <span class="tv-icon">📱</span>
+            <div class="tv-title">POSSESSION</div>
+            <div class="tv-body"><strong>Something you have</strong> — a physical object only you hold.</div>
+            <div class="tv-eval">
+              <span style="color:#88ffd8">+</span> not phishable remotely<br>
+              <span style="color:#88ffd8">+</span> HW-bound (YubiKey)<br>
+              <span style="color:#ff9fb1">−</span> lost / stolen / broken<br>
+              <span style="color:#ff9fb1">−</span> needs backup path
+            </div>
+          </div>
+          <div class="tvec-card are">
+            <span class="tv-icon">👁️</span>
+            <div class="tv-title">INHERENCE</div>
+            <div class="tv-body"><strong>Something you are</strong> — a biological trait unique to you.</div>
+            <div class="tv-eval">
+              <span style="color:#88ffd8">+</span> nothing to memorize<br>
+              <span style="color:#88ffd8">+</span> hard to steal remotely<br>
+              <span style="color:#ff9fb1">−</span> <strong style="color:#ff9fb1">cannot be reset</strong><br>
+              <span style="color:#ff9fb1">−</span> false positives / spoofing
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The key observation</span>
+          <p>Notice that knowledge and possession factors share a critical property: <strong>they can be replaced</strong>. A leaked password can be reset. A stolen key fob can be revoked and reissued. This is not true for biometrics.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The irreversibility problem</span>
+          <p>If your fingerprint database is compromised — if someone manages to steal the template used to verify you — you <strong>cannot issue yourself new fingers</strong>. This is the unalterable systemic vulnerability the lecture asks us to identify.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The reason MFA exists</span>
+          <p>Because each factor fails differently, combining two <em>different categories</em> means an attacker must defeat <strong>both simultaneously</strong>. A phished password (knowledge) is useless without the hardware key (possession).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Cross-factor synergy:</b> the strongest systems combine factors that fail in <em>unrelated ways</em>. Two knowledge factors (password + security question) is not MFA — it's the same category twice.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Technical">
+  <div class="slide-inner">
+    <span class="badge violet">🔗 Analogy 2 · Pure Technical — SHA-256 One-Way Engine vs. Biometric Vector Reader</span>
+    <h2 style="margin-bottom:16px;">Two mechanisms. <span class="grad-violet">Two very different guarantees.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The software side</span>
+          <p>Software credential checks run a string through an <strong>arithmetic compression function</strong> to match a database key. This is a <strong>one-way hash</strong> — the same input always produces the same output, but you cannot go backwards from the output to the input.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The biometric side</span>
+          <p>Biometric scanners translate analog organic geometric structures into <strong>static data signatures</strong>. A fingerprint reader produces a template — a small set of numeric feature points extracted from the ridge pattern. Verification compares templates, not the raw fingerprint.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The fundamental asymmetry</span>
+          <p>A hash is <em>deterministic</em>: same password, same hash (given the same salt). A biometric template is <em>fuzzy</em>: the same finger pressed twice produces slightly different readings, so verification is a <strong>similarity threshold</strong>, not an equality test.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why this matters:</b> a hash can be compared with cryptographic certainty (bit-identical or not). A biometric template must be compared with a statistical tolerance — which means <em>someone else's fingerprint might occasionally match yours</em> if the threshold is loose.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two mechanisms, side by side</div>
+        <div class="two-compare">
+          <div class="cmp-card sha">
+            <div class="cmp-title">SHA-256 · ONE-WAY HASH</div>
+            <div class="cmp-flow">
+              <strong>"password123"</strong><br>
+              <span class="arrow">↓</span><br>
+              <strong>SHA-256()</strong><br>
+              <span class="arrow">↓</span><br>
+              <span style="color:#c9a7ff;word-break:break-all">ef92b7...3e94f</span><br>
+              <span style="color:#88ffd8;font-size:10px">→ 256-bit output</span>
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:var(--muted);line-height:1.6">
+              <strong style="color:#fff">Deterministic</strong> — same input, same output<br>
+              <strong style="color:#fff">Irreversible</strong> — cannot un-hash<br>
+              <strong style="color:#fff">Bit-exact</strong> comparison
+            </div>
+          </div>
+          <div class="cmp-card bio">
+            <div class="cmp-title">FINGERPRINT · TEMPLATE MATCH</div>
+            <div class="cmp-flow">
+              <strong>finger scan #1</strong><br>
+              <span class="arrow">↓</span><br>
+              <strong>template A</strong> (feature points)<br>
+              <span class="arrow">↓</span><br>
+              <strong>finger scan #2</strong><br>
+              <span class="arrow">↓</span><br>
+              <span style="color:#88ffd8;word-break:break-all">similarity → 0.94</span><br>
+              <span style="color:#88ffd8;font-size:10px">→ match if &gt; threshold</span>
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:var(--muted);line-height:1.6">
+              <strong style="color:#fff">Fuzzy</strong> — same finger, slightly different template<br>
+              <strong style="color:#fff">Statistical</strong> — threshold-based match<br>
+              <strong style="color:#fff">Physical</strong> — the "key" is your body
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="System Cohesion">
+  <div class="slide-inner">
+    <span class="badge crimson">🧭 System Cohesion — Where L23 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-crimson">identity layer</span> that everything else depends on</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L22 (Access Control)</h4>
+            <p>Authentication exists to serve access control. Without a policy to enforce, there'd be nothing to authenticate <em>for</em>. L22 defines what identity proves; L23 defines how identity is established.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L24 (Program Exploits)</h4>
+            <p>A <strong>failure to secure stored authentication keys</strong> allows rogue threads to hijack system control streams. Stolen credential hashes, phished passwords, or weak biometric thresholds become the front door to buffer-overflow exploitation.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 5 · L17</h4>
+            <p>Password hashes live in files (<code style="font-family:var(--mono);color:#b9d0ff">/etc/shadow</code>) protected by the file access control we learned in L22. If the file ACL fails, the hashes leak.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L25–L27</h4>
+            <p>Every later mechanism — encrypted connections (L25), firewalls (L26), container sandboxes (L27) — needs verified identity to attach policy to. Authentication is the root of trust.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why L24 follows L23:</b> the source explicitly notes that <em>"a failure to secure stored authentication keys allows rogue threads to hijack system control streams."</em> L24 opens with buffer overflow — and the first thing an attacker who's exploited one wants to do is steal credentials. Authentication failures and exploit attacks are deeply intertwined.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L22 · Access Ctrl</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">what is allowed</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L17 · Files</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">where hashes live</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L23 · AUTHENTICATION</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">factors · hashes · biometrics</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">L24 · Exploits</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">steal credentials</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L25–L27</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">trust the identity</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Three factors">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown · The Three Authentication Factors</span>
+    <h2 style="margin-bottom:16px;">Every credential belongs to <span class="grad-emerald">exactly one category</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The formal taxonomy</span>
+          <p>Before the kernel can enforce access permissions, it must establish a verified identity through <strong>Authentication Factors</strong>. Every mechanism in the field falls into one of three categories:</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Knowledge · something you know</span>
+          <p>A typed combination password, a memorized PIN, a secret question's answer. The proof is <em>information held in your head</em>. If someone learns it, they can impersonate you.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Possession · something you have</span>
+          <p>A physical brass key, an access fob token, a smartphone with an authenticator app, a YubiKey. The proof is <em>a physical object in your possession</em>. If it's stolen, they can impersonate you (until you revoke it).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Inherence · something you are</span>
+          <p>Your physical fingerprint pattern, your iris geometry, your facial structure, your voiceprint. The proof is <em>a biological trait</em>. If it's compromised, it cannot be reset.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three categories</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="14" width="300" height="32" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">AUTHENTICATION FACTORS</text>
+
+          <g transform="translate(20, 60)">
+            <rect x="0" y="0" width="90" height="80" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+            <text x="45" y="24" text-anchor="middle" font-size="18">🧠</text>
+            <text x="45" y="46" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">KNOWLEDGE</text>
+            <text x="45" y="62" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">password</text>
+            <text x="45" y="74" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">PIN · phrase</text>
+          </g>
+
+          <g transform="translate(125, 60)">
+            <rect x="0" y="0" width="90" height="80" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+            <text x="45" y="24" text-anchor="middle" font-size="18">📱</text>
+            <text x="45" y="46" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">POSSESSION</text>
+            <text x="45" y="62" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">key fob</text>
+            <text x="45" y="74" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">YubiKey</text>
+          </g>
+
+          <g transform="translate(230, 60)">
+            <rect x="0" y="0" width="90" height="80" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+            <text x="45" y="24" text-anchor="middle" font-size="18">👁️</text>
+            <text x="45" y="46" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">INHERENCE</text>
+            <text x="45" y="62" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">fingerprint</text>
+            <text x="45" y="74" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">iris · face</text>
+          </g>
+
+          <rect x="20" y="170" width="300" height="60" rx="9" fill="rgba(160,107,255,.08)" stroke="rgba(160,107,255,.45)" stroke-width="1.3" stroke-dasharray="5 4"/>
+          <text x="170" y="192" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">MULTI-FACTOR AUTHENTICATION (MFA)</text>
+          <text x="170" y="208" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">= two or more DISTINCT categories</text>
+          <text x="170" y="222" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">password + key = MFA · password + password ≠ MFA</text>
+
+          <text x="170" y="270" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.6)" font-family="JetBrains Mono">each factor fails in a different way</text>
+          <text x="170" y="290" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.6)" font-family="JetBrains Mono">combining → exponential attacker cost</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Password & salt">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown · Password Model + Salted Hash</span>
+    <h2 style="margin-bottom:16px;">Never store the password. <span class="grad-blue">Store a salted hash.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The rule</span>
+          <p>Passwords represent "something you know." To prevent local storage theft, modern kernels <strong>never save plaintext characters</strong>. Instead, they run inputs through a <strong>one-way mathematical function</strong> appended with a <strong>random string (Salted Hash)</strong>.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">What a hash gives you</span>
+          <p>A cryptographic hash is a <strong>one-way function</strong>: easy to compute in the forward direction, infeasible to reverse. From the hash, an attacker cannot recover the original password in any practical time. The system never needs to know your password — only whether the hash of what you typed matches the stored hash.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why salt matters</span>
+          <p>If two users both have password <code style="font-family:var(--mono);color:#88ffd8">hunter2</code>, they'd produce the <em>same hash</em>. An attacker could pre-compute a giant table (a rainbow table) mapping every common password to its hash, then instantly reverse any leaked hash.</p>
+          <p style="margin-top:8px">Adding a random <strong>salt</strong> — unique per user — makes every hash different, even for identical passwords. Rainbow tables become useless.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exact definition:</b> a <strong>salted hash</strong> appends a random sequence of characters to a user password <em>before</em> passing it through a cryptographic one-way hashing function, specifically to neutralize dictionary and rainbow-table lookup attacks.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Password → salt → hash → store</div>
+        <div class="salt-vis">
+          <div class="salt-box plain">
+            <div class="sb-label">PLAINTEXT</div>
+            <div class="sb-value">hunter2</div>
+            <div class="sb-hash">→ never stored anywhere</div>
+          </div>
+          <div style="text-align:center;font-size:22px;color:#ffd18a;font-weight:900">+</div>
+          <div class="salt-box salted">
+            <div class="sb-label">RANDOM SALT</div>
+            <div class="sb-value">x7k2p9q</div>
+            <div class="sb-hash">→ unique per user, stored with the hash</div>
+          </div>
+        </div>
+        <div style="padding:14px 0;text-align:center">
+          <svg viewBox="0 0 340 60" style="width:100%;max-width:340px;height:auto">
+            <line x1="170" y1="0" x2="170" y2="30" stroke="rgba(46,230,168,.75)" stroke-width="2" class="svg-flow"/>
+            <polygon points="170,30 164,22 176,22" fill="rgba(46,230,168,.85)"/>
+            <text x="170" y="50" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">SHA-512(password + salt)</text>
+          </svg>
+        </div>
+        <div class="salt-box salted" style="margin-top:8px">
+          <div class="sb-label">STORED HASH</div>
+          <div class="sb-value" style="font-size:10.5px">$6$x7k2p9q$Yh3...</div>
+          <div class="sb-hash">→ everything an attacker gets if the DB leaks</div>
+        </div>
+        <p style="font-size:11px;margin-top:12px;color:var(--muted);line-height:1.55;text-align:center">Every account gets its own unique salt. Rainbow tables can't be reused.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Live demo · /etc/shadow" data-anim="shadow">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Where Linux Stores Password Hashes</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">$algorithm$salt$hash</span> format</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · /etc/shadow on a real system</div>
+        <div class="terminal" id="shadowTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — sudo cat /etc/shadow</span>
+          </div>
+          <div class="term-body" id="shadowBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">sudo cat /etc/shadow | head -5</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What /etc/shadow is</span>
+          <p>A root-only file containing each user's <strong>password hash</strong>, never the password itself. Mode bits are typically <code style="font-family:var(--mono);color:#88ffd8">640 root:shadow</code> — the ACL from L22 protects the file, so only root (or the shadow group) can read it.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The format</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            <strong>$6</strong> — algorithm (SHA-512 crypt)<br>
+            <strong>$salt</strong> — the per-user random salt<br>
+            <strong>$hash</strong> — SHA-512(salt + password)<br>
+            <strong>:fields</strong> — aging, expiry, etc.
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What it tells you</span>
+          <p>A leading <code style="font-family:var(--mono);color:#ffd18a">*</code> or <code style="font-family:var(--mono);color:#ffd18a">!</code> means "no password / locked account" — used for service accounts that should never log in interactively.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design lesson:</b> <code style="font-family:var(--mono);color:#88ffd8">/etc/passwd</code> used to hold the hash — but that was readable by everyone. Shadow moved the hash to a root-only file. Same pattern as L22: tighten the ACL on the sensitive resource.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Salt deep dive">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Core Breakdown · Why Salt Defeats Rainbow Tables</span>
+    <h2 style="margin-bottom:16px;">Same password. <span class="grad-violet">Different hash. Every time.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">Without salt</span>
+          <p>If Alice and Bob both have password <code style="font-family:var(--mono);color:#c9a7ff">password123</code>, they produce the <strong>same hash</strong>. An attacker who pre-computes a rainbow table — mapping millions of common passwords to their hashes — can reverse <em>both accounts at once</em> from a single lookup.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">With salt</span>
+          <p>Each user gets their own random salt, prepended to the password before hashing. Now the same password yields <strong>two completely different hashes</strong>. The rainbow table an attacker pre-computed no longer works — they'd have to precompute one table <em>per salt</em>, which is economically impossible.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why salts are safe to store</span>
+          <p>The salt is stored in plaintext alongside the hash. That's fine — its job isn't secrecy. Its job is <strong>uniqueness</strong>: ensuring every user's hash computation uses a different input, even for identical passwords.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Think of it like this:</b> a hash is like a padlock whose key is the password. Salt is like putting a unique stamp on each lock so that even identical keys open differently-numbered locks. An attacker's skeleton key works on one lock, not all of them.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Same password. Two salts. Two hashes.</div>
+        <div style="padding:8px 0">
+          <div style="padding:14px;border-radius:10px;border:1.4px solid rgba(91,141,255,.55);background:rgba(91,141,255,.05);margin-bottom:10px">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#b9d0ff;margin-bottom:8px">Alice</div>
+            <div style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2)">
+              password = <span style="color:#fff">"password123"</span><br>
+              salt&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:#ffd18a">"x7k2p9q"</span><br>
+              SHA-256 → <span style="color:#c9a7ff;word-break:break-all">4b8a...7e2c</span>
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:10px;border:1.4px solid rgba(46,230,168,.55);background:rgba(46,230,168,.05);margin-bottom:10px">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#88ffd8;margin-bottom:8px">Bob</div>
+            <div style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2)">
+              password = <span style="color:#fff">"password123"</span><br>
+              salt&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:#ffd18a">"h9m3r5z"</span><br>
+              SHA-256 → <span style="color:#88ffd8;word-break:break-all">e7c1...19a4</span>
+            </div>
+          </div>
+          <div style="padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,.18);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-align:center;line-height:1.7">
+            <strong style="color:#fff">Same password</strong><br>
+            <strong style="color:#ff9fb1">Different hash every time</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Biometrics">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown · Biometric Authentication</span>
+    <h2 style="margin-bottom:16px;">"Something you are" — <span class="grad-amber">and the reset paradox</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The model</span>
+          <p>Biometrics represent <strong>"something you are"</strong> — a biological trait unique to you. Fingerprint ridge patterns, iris geometry, facial structure, voiceprints, gait, even heartbeat patterns. The scanner reads the trait, extracts a template, and compares it to a stored one.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The verification mechanism</span>
+          <p>Unlike a password hash (deterministic), biometric verification is <strong>probabilistic</strong>. Two scans of the same finger never produce bit-identical templates — small variations in pressure, angle, moisture, and sensor noise make every reading unique. The system uses a <strong>similarity threshold</strong>: if the match score exceeds a configured value, access is granted.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The unalterable vulnerability</span>
+          <p>While passwords can be leaked, they can easily be altered or reset. <strong>Biometric traits can never be "reset"</strong> if compromised — this permanently changes the baseline risk calculations of a secure system topology.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The key insight:</b> a leaked password can be changed in 30 seconds. A leaked fingerprint cannot be changed — ever. If someone copies your biometric template, they carry a permanent key that you can never revoke. This is the <em>unalterable systemic vulnerability</em>.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The reset paradox</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">WHAT HAPPENS WHEN IT LEAKS?</text>
+
+          <rect x="14" y="40" width="150" height="70" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="89" y="60" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">PASSWORD LEAKS</text>
+          <text x="89" y="76" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">attacker knows your password</text>
+          <text x="89" y="92" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">"hunter2"</text>
+
+          <rect x="176" y="40" width="150" height="70" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="251" y="60" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">BIOMETRIC LEAKS</text>
+          <text x="251" y="76" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">attacker has your template</text>
+          <text x="251" y="92" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">forever</text>
+
+          <line x1="89" y1="110" x2="89" y2="160" stroke="rgba(46,230,168,.75)" stroke-width="1.8" class="svg-flow"/>
+          <polygon points="89,160 83,152 95,152" fill="rgba(46,230,168,.85)"/>
+
+          <line x1="251" y1="110" x2="251" y2="160" stroke="rgba(255,77,109,.75)" stroke-width="1.8" stroke-dasharray="5 4"/>
+
+          <rect x="14" y="160" width="150" height="60" rx="9" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+          <text x="89" y="180" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">CHANGE PASSWORD</text>
+          <text x="89" y="196" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">30 seconds · problem solved</text>
+          <text x="89" y="210" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">✓ fully recoverable</text>
+
+          <rect x="176" y="160" width="150" height="60" rx="9" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.6"/>
+          <text x="251" y="180" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">CHANGE FINGERPRINT?</text>
+          <text x="251" y="196" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">physically impossible</text>
+          <text x="251" y="210" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">✕ permanent exposure</text>
+
+          <rect x="14" y="238" width="312" height="48" rx="9" fill="rgba(160,107,255,.08)" stroke="rgba(160,107,255,.55)" stroke-width="1.3" stroke-dasharray="5 4"/>
+          <text x="170" y="258" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">→ THE UNALTERABLE SYSTEMIC VULNERABILITY</text>
+          <text x="170" y="276" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">baseline risk permanently changes</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="The unalterable comparison">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 The Unalterable Vulnerability · Password vs. Biometrics</span>
+    <h2 style="margin-bottom:16px;">Both designs have <span class="grad-crimson">one unalterable flaw</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">The two failure modes side by side</div>
+        <div class="two-compare" style="grid-template-columns:1fr;gap:14px">
+          <div class="cmp-card" style="border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.05)">
+            <div class="cmp-title" style="color:#b9d0ff">PASSWORD · THE UNALTERABLE FLAW</div>
+            <div style="font-size:12px;line-height:1.7;color:var(--ink-2);margin-top:6px">
+              <strong style="color:#fff">Phishability.</strong> No matter how strong the password is, the user can always be tricked into typing it into the wrong window — a fake bank login page, a malicious proxy, a lookalike app. Once phished, the attacker has the password in cleartext.<br><br>
+              <strong style="color:#88ffd8">What can be done:</strong> rotate the password (attacker loses access), use MFA (phishing one factor isn't enough), and educate the user.<br>
+              <strong style="color:#ff9fb1">What cannot be done:</strong> prevent every phish. The flaw is inherent to the knowledge channel — users must "know" the secret, and knowledge can be extracted.
+            </div>
+          </div>
+          <div class="cmp-card" style="border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.05)">
+            <div class="cmp-title" style="color:#ff9fb1">BIOMETRIC · THE UNALTERABLE FLAW</div>
+            <div style="font-size:12px;line-height:1.7;color:var(--ink-2);margin-top:6px">
+              <strong style="color:#fff">Irreversibility.</strong> If the biometric template database is breached — or if a sensor is spoofed and the attacker captures a high-quality image of your face — the trait is compromised <em>forever</em>. There is no password reset for your own body.<br><br>
+              <strong style="color:#88ffd8">What can be done:</strong> store <em>derived</em> templates (cancelable biometrics), use liveness detection, keep the biometric entirely on-device (e.g. TPM).<br>
+              <strong style="color:#ff9fb1">What cannot be done:</strong> reset the underlying trait. Once your fingerprint is "out," it's out.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Why this is called "unalterable"</span>
+          <p>Every authentication factor fails. That's not the problem. The problem is what happens <em>after</em> the failure. Knowledge and possession factors can be swapped for fresh ones; inherence cannot. This is a permanent asymmetry.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The mitigation pattern</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>For passwords:</strong> MFA + password manager + phishing-resistant hardware keys<br>
+            <strong>For biometrics:</strong> on-device templates + cancelable biometrics + liveness detection + treat biometrics as a <em>convenience</em>, not the sole factor
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The honest conclusion</span>
+          <p>Neither model is "more secure." They fail differently. The strongest systems use <strong>biometrics as a possession-equivalent on a trusted device</strong> (e.g. Windows Hello, Touch ID, Android BiometricPrompt), not as the sole authenticator.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exam answer:</b> "Password's unalterable flaw is phishability — mitigated by rotation and MFA. Biometric's unalterable flaw is irreversibility — mitigated by on-device storage and cancelable templates, and by <em>never</em> using biometrics as the sole factor."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Live demo · Plaintext failure" data-anim="plaintext">
+  <div class="slide-inner">
+    <span class="badge crimson">🧪 Live Demo — What Happens When Passwords Aren't Hashed</span>
+    <h2 style="margin-bottom:16px;">A database leak. <span class="grad-crimson">Every password. Instantly.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Simulated plaintext database leak</div>
+        <div class="terminal" id="plainTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — database breach simulation</span>
+          </div>
+          <div class="term-body" id="plainBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">sqlite3 leaked.db "SELECT * FROM users"</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The vulnerability</span>
+          <p>When a user authenticates with a plaintext password, a local database breach exposes the target vector to <strong>dictionary attacks</strong> if left unhashed. Every stored password is readable in cleartext — and users reuse passwords, so a leak here becomes a leak everywhere.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why dictionary attacks work</span>
+          <p>Because humans choose weak, common, or predictable passwords. An attacker with a plaintext database doesn't need to "crack" anything — the passwords are right there. They can immediately try those same credentials on email, social media, banking, and cloud accounts.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix (recap from slide 08)</span>
+          <p>Never store plaintext. Use a <strong>slow, memory-hard hash</strong> (bcrypt, scrypt, Argon2) with a per-user salt. Even if the database leaks, an attacker faces an economically infeasible computational task per account.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The practical example from the source:</b> "When a user authenticates using a plaintext password string, a local database breach exposes the target vector to dictionary attacks if left unhashed." That's exactly what we're showing — the wrong way.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Live demo · Windows Hello" data-anim="helloTty">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Windows Hello: Hardware-Locked Biometric Auth</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">right way</span> to use biometrics</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Windows Hello sign-in flow</div>
+        <div class="terminal" id="helloTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">windows@hello — sign-in flow</span>
+          </div>
+          <div class="term-body" id="helloBody">
+            <span class="term-line"><span class="term-prompt">👋</span> <span class="term-cmd">Windows Hello · face recognition</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What Windows Hello does</span>
+          <p>Windows Hello converts local fingerprint or facial scans into a <strong>localized hardware-locked cryptographic signature key</strong>. The biometric template <em>never leaves the device</em> — it's stored in the TPM (Trusted Platform Module) chip and cannot be extracted, even by an attacker with root on the OS.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The signature — not the biometric</span>
+          <p>The OS doesn't verify your fingerprint directly. Instead, the TPM uses your biometric match to unlock a <strong>cryptographic private key</strong>. The OS authenticates by verifying a signature from that key. Stolen biometric templates from a server can't be replayed because there is no server-side template — it's all local.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why this is the correct design</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1. Template stays local</strong> — never sent to a server<br>
+            <strong>2. TPM is tamper-resistant</strong> — HW never exposes the key<br>
+            <strong>3. Non-replayable</strong> — signatures can't be replayed<br>
+            <strong>4. Fallback exists</strong> — PIN / password still works if HW fails
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design pattern:</b> this is called <em>hardware-backed biometric authentication</em>. The biometric is a convenience layer for unlocking a private key — not the authentication proof itself. The proof is always the signature. The unalterable vulnerability is contained.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="MFA">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Multi-Factor Authentication — Combining Categories</span>
+    <h2 style="margin-bottom:16px;">Two <span class="grad-violet">different</span> categories. Not two of the same.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The definition</span>
+          <p><strong>Multi-Factor Authentication (MFA)</strong> requires a user to validate two or more <strong>distinct</strong> authentication categories before granting entry access. "Distinct" is the key word — the categories must be different.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What counts as MFA</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>✓ password + phone code</strong> (know + have)<br>
+            <strong>✓ password + YubiKey</strong> (know + have)<br>
+            <strong>✓ password + fingerprint</strong> (know + are)<br>
+            <strong>✓ smart card + PIN</strong> (have + know)
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What does <em>not</em> count as MFA</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>✕ password + security question</strong> (know + know)<br>
+            <strong>✕ password + PIN</strong> (know + know)<br>
+            <strong>✕ two fingerprints</strong> (are + are)<br>
+            <strong>✕ SMS code + email code</strong> (have + have)
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why distinctness matters:</b> if both factors are the same category, defeating one attack defeats both. Two knowledge factors both fall to phishing. Two possession factors both fall to a stolen bag. Only <em>different</em> categories require the attacker to defeat two unrelated attack surfaces simultaneously.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">MFA = two or more distinct categories</div>
+        <div class="mfa-vis">
+          <div class="mfa-slot know">
+            <span class="ms-icon">🔑</span>
+            <div class="ms-label">KNOW</div>
+            <div class="ms-desc">password</div>
+          </div>
+          <div class="mfa-slot have">
+            <span class="ms-icon">📱</span>
+            <div class="ms-label">HAVE</div>
+            <div class="ms-desc">phone / YubiKey</div>
+          </div>
+          <div class="mfa-slot empty">
+            <span class="ms-icon">—</span>
+            <div class="ms-label">ARE</div>
+            <div class="ms-desc">not required</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.05);font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2);text-align:center">
+          <strong style="color:#88ffd8">2 categories touched = MFA ✓</strong><br>
+          attacker must defeat <em>both</em><br>
+          phished password alone → useless
+        </div>
+        <div style="margin-top:10px;padding:14px;border-radius:10px;border:1px solid rgba(255,77,109,.4);background:rgba(255,77,109,.05);font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2);text-align:center">
+          <strong style="color:#ff9fb1">1 category repeated = NOT MFA ✕</strong><br>
+          password + security question<br>
+          both defeated by same attack
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Authentication Factor</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Authentication Factor</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 01 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An explicit operational category used to verify a user's digital identity boundaries: Knowledge, Possession, or Inherence.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The category of "proof" a login asks for — a memory, an object, or a body part. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The three categories</span>
+          <p><strong>Knowledge</strong> — password, PIN<br>
+          <strong>Possession</strong> — key fob, phone<br>
+          <strong>Inherence</strong> — fingerprint, iris, face</p>
+        </div>
+      </div>
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Salted Hash</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 02 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Appending a random sequence of characters to a user password before passing it through a cryptographic one-way hashing function to neutralize dictionary lookup attacks.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Password + random noise → hashed. Same password, different hash every time. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why it works</span>
+          <p>The salt is stored in plaintext. Its job isn't secrecy — it's <strong>uniqueness</strong>. Rainbow tables can't be reused across different salts.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Multi-Factor Authentication</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Multi-Factor<br>Authentication (MFA)</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 03 of 03</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Requiring a user to validate two or more <em>distinct</em> authentication categories before granting entry access.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Prove you're you in two different ways — not the same way twice. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Common example</span>
+          <p>Bank login: password (know) + SMS code (have). Both must be correct. Attacker who phishes the password still can't get in.</p>
+        </div>
+      </div>
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">One-Way Hash</div>
+        <div class="lex-sub" style="color:#ff9fb1">Bonus Term · The Cryptography</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A mathematical function that maps input to a fixed-size output that is computationally infeasible to reverse.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Easy to compute, impossible to reverse. The foundation of all password storage. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Common algorithms</span>
+          <p>MD5 (broken) · SHA-256 · bcrypt · scrypt · Argon2 (current best for passwords)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about authentication</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Hashing is the same as encryption"</div>
+        <div class="pc-desc">They're opposites. <strong>Encryption is reversible</strong> — with the right key, you get your input back. <strong>Hashing is one-way</strong> — no key, no reverse, ever. If someone says "we encrypt passwords," they're either using the wrong word or storing something reversible — and that's a critical vulnerability. Passwords should be <em>hashed</em>, not encrypted.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Biometrics are more secure than passwords"</div>
+        <div class="pc-desc">They're not "more secure" — they're <em>differently</em> secure. Biometrics can't be phished remotely (good), but they can never be reset (bad). Passwords can be phished (bad), but can be reset (good). Real systems treat biometrics as a <strong>convenience layer for unlocking a hardware key</strong> — not as the sole authentication factor. Windows Hello does this correctly; using fingerprints as a server-side password replacement does not.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"MFA means two passwords"</div>
+        <div class="pc-desc">No — MFA requires <strong>distinct categories</strong>. Password + security question = two knowledge factors = <em>not</em> MFA. Password + PIN = two knowledge factors = <em>not</em> MFA. The point of MFA is that the two proofs fail in unrelated ways. Two knowledge factors both fall to phishing. You need <strong>knowledge + possession</strong> (password + phone), or <strong>knowledge + inherence</strong> (password + fingerprint), or <strong>possession + inherence</strong> (hardware key + fingerprint).</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real world MFA">
+  <div class="slide-inner">
+    <span class="badge blue">🌍 Real World — The MFA Landscape</span>
+    <h2 style="margin-bottom:16px;">Where authentication <span class="grad-blue">actually shows up on your phone</span></h2>
+    <div class="example-grid">
+      <div class="example-card">
+        <span class="ec-icon">🔢</span>
+        <div class="ec-name" style="color:#b9d0ff">TOTP · Time-Based One-Time Password</div>
+        <div class="ec-profile">
+          Google Authenticator · Authy<br>
+          6 digits every 30 seconds<br>
+          shared secret + clock = code
+        </div>
+        <div class="ec-win" style="background:rgba(91,141,255,.15);color:#b9d0ff">Possession factor</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">🔐</span>
+        <div class="ec-name" style="color:#88ffd8">FIDO2 / WebAuthn</div>
+        <div class="ec-profile">
+          YubiKey · Touch ID · Windows Hello<br>
+          public-key challenge-response<br>
+          phishing-resistant by design
+        </div>
+        <div class="ec-win" style="background:rgba(46,230,168,.15);color:#88ffd8">Possession + Inherence</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">📱</span>
+        <div class="ec-name" style="color:#ffd18a">SMS / Email OTP</div>
+        <div class="ec-profile">
+          legacy MFA — still common<br>
+          vulnerable to SIM swap<br>
+          vulnerable to email compromise
+        </div>
+        <div class="ec-win" style="background:rgba(255,182,72,.15);color:#ffd18a">Better than nothing</div>
+      </div>
+    </div>
+    <div class="panel amber" style="margin-top:20px;padding:18px">
+      <span class="panel-label">⚠️ The SMS warning</span>
+      <p>SMS-based OTP is <strong>MFA on paper only</strong>. It's a possession factor — but the possession is your phone number, which can be stolen by SIM-swap attacks or intercepted by hostile carriers. Industry recommendations (NIST SP 800-63B) actively discourage SMS for high-security systems. Prefer hardware tokens (FIDO2) or app-based TOTP where possible.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Try this at home:</b> check your bank's 2FA options. If it offers "SMS only," try to upgrade to TOTP or a hardware key if available. If it doesn't offer any MFA at all, that's a strong indicator the security team hasn't thought about the threat model in this lecture.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Activity" data-anim="bankact">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Classroom Activity · The Banking Login Architecture Challenge</span>
+    <h2 style="margin-bottom:16px;">Design the authentication pipeline <span class="grad-violet">for a high-security bank</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Split the classroom into small groups. Task them with drafting the authentication pipeline flow diagram for a <strong>high-security banking utility</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The requirements</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Which factors will you require?<br>
+            <strong>2.</strong> How will you defend against phishing?<br>
+            <strong>3.</strong> What happens when a factor is lost / leaked?<br>
+            <strong>4.</strong> Which factors are acceptable for high-value transfers vs. read-only access?
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The hard question</span>
+          <p>Have them defend their chosen multi-factor constraints <em>and</em> evaluate how their app will handle the scenario where a user's <strong>biometric baseline signature is leaked</strong>. Since biometrics cannot be reset, what compensating controls exist?</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What a strong answer includes</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            · TOTP or FIDO2 hardware key (phishing-resistant)<br>
+            · Password (rotatable) as the fallback<br>
+            · Biometric used <em>on-device</em> to unlock the hardware key<br>
+            · Template never sent to the server<br>
+            · Step-up authentication for high-value actions<br>
+            · Recovery path that doesn't require biometric data
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The debrief:</b> ask the class <em>"If we can't reset a leaked fingerprint, what's the right architectural answer?"</em> The answer: <strong>never rely on the biometric alone</strong>. It's a convenience layer over a rotatable secret (a hardware private key), not the primary proof of identity.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Rotating discussion prompts</div>
+        <div class="act-scene">
+          <div class="act-prompt" id="bankPrompt">
+            <span class="ap-q">Which factor categories will you require?</span>
+          </div>
+          <div style="padding:14px;border-radius:10px;border:1px solid rgba(160,107,255,.55);background:rgba(160,107,255,.05);font-family:var(--mono);font-size:11.5px;line-height:1.85;color:var(--ink-2);">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#c9a7ff;margin-bottom:8px">PIPELINE SKETCH · what to include</div>
+            <div style="text-align:center;line-height:1.9">
+              user → <span style="color:#b9d0ff">factor 1</span> → <span style="color:#ffd18a">factor 2</span><br>
+              → <span style="color:#88ffd8">server verification</span><br>
+              → <span style="color:#c9a7ff">session token issued</span><br>
+              → <span style="color:#ff9fb1">step-up auth if high-value</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Mindmap" data-anim="mindmap">
+  <div class="slide-inner">
+    <span class="badge emerald">🗺️ Mindmap Branch</span>
+    <h2 style="margin-bottom:16px;">L23 in the <span class="grad-emerald">course tree</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The branch</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2)">
+            CS 301: Operating Systems<br>
+            &nbsp;&nbsp;→ Module 7: Security &amp; Protection<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;→ <strong style="color:#88ffd8">L23: Authentication</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Identity Verification<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Knowledge vs Inherence<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Salted Hashing Mathematics
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The three core concepts</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Authentication Factor</strong> — the category of proof<br>
+            <strong>Salted Hash</strong> — password storage's core primitive<br>
+            <strong>Multi-Factor Authentication</strong> — combining distinct categories
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The unalterable flaw takeaway</span>
+          <p>Both passwords and biometrics have <em>one permanent failure mode</em>: passwords can be phished; biometrics can never be reset. The right response is not to pick one — it's to <strong>layer mitigations</strong> so the permanent flaw doesn't become the permanent breach.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Mindmap branch</div>
+        <div class="mindmap" id="mindmapVis">
+          <div class="mm-row"><span class="mm-prefix">├─ </span><div class="mm-node root">CS 301 · Operating Systems</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node">Module 7 · Security &amp; Protection</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node">L22 · Access Control</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node active">L23 · Authentication</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf">Identity Verification</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf blue">Knowledge vs Inherence</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  └─ </span><div class="mm-node leaf emerald">Salted Hashing Math</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf crimson">L24 · Program Exploits →</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  └─ </span><div class="mm-node leaf amber">L25 · Encryption</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Bridge · The exploit question">
+  <div class="slide-inner">
+    <span class="badge crimson">🌉 The Exploit Question — A Bridge to L24</span>
+    <h2 style="margin-bottom:16px;">Authentication failures <span class="grad-crimson">open the door for exploitation</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The link L23 → L24</span>
+          <p>A <strong>failure to secure stored authentication keys</strong> allows rogue threads to hijack system control streams. If an attacker can extract password hashes, forge session tokens, or replay biometric signatures, they've already bypassed every access check L22 could impose.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The exploit that follows</span>
+          <p>L24 opens with the classic <strong>stack buffer overflow</strong> — a memory-safety bug that lets an attacker overwrite a return address and redirect execution to code they control. <em>Where does the attacker get that code?</em> Often from stolen credentials, embedded shellcode, or a hijacked authenticated session.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The pattern across L22–L24</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>L22</strong> — defines what's allowed (the policy)<br>
+            <strong>L23</strong> — establishes who's asking (the identity)<br>
+            <strong>L24</strong> — exploits where either can break (the attack)
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real-world chain:</b> phishing (L23) → stolen password → remote shell → stack buffer overflow (L24) → privilege escalation → full system compromise. Every layer of the security model exists because the layer below it can fail.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The attack chain from credential to code execution</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="14" width="300" height="42" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="32" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">L23 · PHISH / STEAL CREDENTIALS</text>
+          <text x="170" y="48" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">password · hash · session token</text>
+
+          <line x1="170" y1="56" x2="170" y2="74" stroke="rgba(255,77,109,.75)" stroke-width="1.8" class="svg-flow"/>
+          <polygon points="170,74 164,66 176,66" fill="rgba(255,77,109,.85)"/>
+
+          <rect x="20" y="76" width="300" height="42" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="94" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="800">L22 · BYPASS ACCESS CONTROL</text>
+          <text x="170" y="110" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.65)" font-family="JetBrains Mono">impersonate · escalate · misuse</text>
+
+          <line x1="170" y1="118" x2="170" y2="136" stroke="rgba(255,77,109,.75)" stroke-width="1.8" class="svg-flow"/>
+          <polygon points="170,136 164,128 176,128" fill="rgba(255,77,109,.85)"/>
+
+          <rect x="20" y="138" width="300" height="42" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="156" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">L24 · STACK BUFFER OVERFLOW</text>
+          <text x="170" y="172" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">overwrite return address → control RIP</text>
+
+          <line x1="170" y1="180" x2="170" y2="198" stroke="rgba(255,77,109,.75)" stroke-width="1.8" class="svg-flow"/>
+          <polygon points="170,198 164,190 176,190" fill="rgba(255,77,109,.85)"/>
+
+          <rect x="20" y="200" width="300" height="42" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="218" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="800">ARBITRARY CODE EXECUTION</text>
+          <text x="170" y="234" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">shell · kernel module · privilege escalation</text>
+
+          <rect x="20" y="258" width="300" height="42" rx="8" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="276" text-anchor="middle" font-size="9.5" fill="#fff" font-family="Inter" font-weight="800">FULL SYSTEM COMPROMISE</text>
+          <text x="170" y="292" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">Ring 0 · all bets off</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L23 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>Authentication is the <strong>first step, not the last</strong>. Access control (L22) assumes we already know who's asking. Authentication (L23) establishes that identity via <strong>Authentication Factors</strong>: <em>something you know</em>, <em>something you have</em>, or <em>something you are</em>.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>Passwords must <strong>never be stored in plaintext</strong>. Modern systems run them through a <strong>salted one-way hash</strong> — random per-user salt + cryptographic hash. This neutralizes rainbow tables and makes leaked databases economically infeasible to crack.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>Each factor has an <strong>unalterable flaw</strong>. Passwords are phishable (mitigated by MFA + rotation). Biometrics can never be "reset" if compromised (mitigated by on-device storage + cancelable templates + never using them as the sole factor).</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>MFA means distinct categories</strong>. Password + security question is <em>not</em> MFA — it's two knowledge factors, both phishable. Password + phone, password + hardware key, password + fingerprint <em>are</em> MFA. The whole point is that the two factors fail in unrelated ways.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Summary · Exam focus">
+  <div class="slide-inner">
+    <span class="badge amber">🎯 Exam Focus — What to Remember</span>
+    <h2 style="margin-bottom:18px;">The exact questions this lecture answers</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Question 1</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"What are the three authentication factors, and give an example of each."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Knowledge → password. Possession → YubiKey / phone. Inherence → fingerprint / iris.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Question 2</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"What is a salted hash, and why is it necessary?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">A random string appended to a password before hashing. It prevents rainbow-table attacks by ensuring identical passwords produce different hashes.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Question 3</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Identify the unalterable vulnerability in password-based and biometric authentication models."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Password → phishable (the secret can be extracted). Biometric → irreversible (the trait can never be reset if compromised).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Question 4</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Why isn't password + security question considered MFA?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Both are knowledge factors — the same category. Defeating one attack (e.g. phishing) defeats both. True MFA requires <em>distinct</em> categories that fail in unrelated ways.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four core facts to memorize</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <g transform="translate(20, 20)">
+            <rect x="0" y="0" width="300" height="65" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">THE THREE FACTORS</text>
+            <text x="15" y="40" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">Know · Have · Are — three distinct categories</text>
+            <text x="15" y="56" font-size="9" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">every auth mechanism fits one of them</text>
+          </g>
+
+          <g transform="translate(20, 95)">
+            <rect x="0" y="0" width="300" height="65" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">SALTED HASH</text>
+            <text x="15" y="40" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">password + random salt → hash → stored</text>
+            <text x="15" y="56" font-size="9" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">defeats rainbow tables · unique per user</text>
+          </g>
+
+          <g transform="translate(20, 170)">
+            <rect x="0" y="0" width="300" height="65" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">UNALTERABLE FLAWS</text>
+            <text x="15" y="40" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">password → phishable</text>
+            <text x="15" y="56" font-size="9" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">biometric → irreversibly leaked</text>
+          </g>
+
+          <g transform="translate(20, 245)">
+            <rect x="0" y="0" width="300" height="55" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">MFA = DISTINCT CATEGORIES</text>
+            <text x="15" y="40" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">know+have ✓ · know+know ✕</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Gateway to L24">
+  <div class="slide-inner">
+    <span class="badge violet">➡️ Next Lecture — L24 · Program Exploits</span>
+    <h2 style="margin-bottom:18px;">From <span class="grad-violet">"who is asking"</span> to <span class="grad-violet">"how attackers break in"</span></h2>
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The handoff</span>
+          <p>L23 established how the kernel verifies <em>who</em> is making a request. But what happens when an attacker exploits a memory-safety bug to redirect code execution — bypassing authentication <em>entirely</em> and running their own code inside another process's context?</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">L24 preview</span>
+          <p>Next lecture opens with the classic <strong>stack buffer overflow</strong> — how overflowing a fixed-size buffer on the stack overwrites the return address, redirects execution to attacker-chosen code, and grants control of the entire program. We'll trace the byte-level mechanics, then cover the two main defenses: <strong>ASLR</strong> and <strong>Stack Canaries</strong>.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The throughline</span>
+          <p>L22 (policy) → L23 (identity) → L24 (attack surface). Together these three lectures show why operating systems must be paranoid at every layer — because the attacker only needs <em>one</em> hole, and any single failure invalidates the rest.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L24: Program Exploits &nbsp;|&nbsp; [L24.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad23" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#ff4d6d" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#ff4d6d"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad23)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad23)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : auth flow canvas ---------- */
+reg('authflow', function(){
+  const c = document.getElementById('authCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const factors = [
+    { name: 'KNOW', sub: 'password', color: '#5b8dff', icon: '🔑', y: 130 },
+    { name: 'HAVE', sub: 'key / phone', color: '#ffb648', icon: '📱', y: 240 },
+    { name: 'ARE',  sub: 'fingerprint', color: '#2ee6a8', icon: '👁️', y: 350 }
+  ];
+  const verifyX = 280, verifyY = 240;
+  const identityX = 470, identityY = 240;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('AUTHENTICATION · THREE FACTORS → VERIFIED IDENTITY', W/2, 16);
+
+    const activeIdx = Math.floor(t / 90) % 3;
+
+    // draw factors on left
+    factors.forEach((f, i) => {
+      const isActive = i === activeIdx;
+      const bx = 20, by = f.y - 40, bw = 160, bh = 55;
+      const pulse = isActive ? 0.65 + 0.35 * Math.sin(t / 8) : 1;
+
+      ctx.fillStyle = isActive ? f.color + '35' : f.color + '12';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = isActive ? 2.5 : 1.2;
+      ctx.globalAlpha = pulse;
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.globalAlpha = 1;
+
+      // icon
+      ctx.font = '20px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(f.icon, bx + 12, by + bh/2);
+
+      // text
+      ctx.fillStyle = isActive ? '#fff' : f.color;
+      ctx.font = '800 12px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(f.name, bx + 48, by + 20);
+      ctx.fillStyle = isActive ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.45)';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.fillText(f.sub, bx + 48, by + 38);
+
+      // arrow to verify if active
+      if(isActive){
+        const fromX = bx + bw + 4;
+        const fromY = f.y;
+        const toX = verifyX - 60;
+        const toY = verifyY;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+        const ang = Math.atan2(toY - fromY, toX - fromX);
+        ctx.beginPath();
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - 8 * Math.cos(ang - 0.4), toY - 8 * Math.sin(ang - 0.4));
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - 8 * Math.cos(ang + 0.4), toY - 8 * Math.sin(ang + 0.4));
+        ctx.stroke();
+      }
+    });
+
+    // verification box
+    ctx.fillStyle = 'rgba(160,107,255,.10)';
+    ctx.fillRect(verifyX - 55, verifyY - 30, 110, 60);
+    ctx.strokeStyle = 'rgba(160,107,255,.75)';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(verifyX - 55, verifyY - 30, 110, 60);
+    ctx.fillStyle = '#c9a7ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('VERIFY', verifyX, verifyY - 8);
+    ctx.fillStyle = 'rgba(201,167,255,.65)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('factor check', verifyX, verifyY + 8);
+    ctx.fillText('hash / template', verifyX, verifyY + 22);
+
+    // arrow verify → identity
+    ctx.strokeStyle = 'rgba(46,230,168,.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(verifyX + 55, verifyY);
+    ctx.lineTo(identityX - 55, identityY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(identityX - 55, identityY);
+    ctx.lineTo(identityX - 63, identityY - 4);
+    ctx.moveTo(identityX - 55, identityY);
+    ctx.lineTo(identityX - 63, identityY + 4);
+    ctx.stroke();
+
+    // identity box
+    ctx.fillStyle = 'rgba(46,230,168,.14)';
+    ctx.fillRect(identityX - 55, identityY - 40, 120, 80);
+    ctx.strokeStyle = 'rgba(46,230,168,.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(identityX - 55, identityY - 40, 120, 80);
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.fillText('VERIFIED', identityX + 5, identityY - 18);
+    ctx.fillText('IDENTITY', identityX + 5, identityY + 0);
+    ctx.fillStyle = 'rgba(136,255,216,.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('→ L22 checks', identityX + 5, identityY + 22);
+
+    // footer
+    ctx.fillStyle = 'rgba(132,148,180,.65)';
+    ctx.font = '700 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('verified identity feeds L22 access control', 30, 430);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 3 : factor cycle ---------- */
+reg('factors', function(){
+  const cards = document.querySelectorAll('.factor-card');
+  if(!cards.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    cards.forEach(c => c.classList.remove('active'));
+    if(cards[idx % cards.length]) cards[idx % cards.length].classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1500);
+  return { stop(){ clearInterval(timer); cards.forEach(c => c.classList.remove('active')); } };
+});
+
+/* ---------- Slide 9 : /etc/shadow terminal ---------- */
+reg('shadow', function(){
+  const body = document.getElementById('shadowBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'root:<span class="term-c">$6$saltsalt$hG3k...q2wE</span>:19000:0:99999:7:::' },
+    { cls:'term-line', text:'daemon:<span class="term-major">*</span>:18000:0:99999:7:::' },
+    { cls:'term-line', text:'alice:<span class="term-c">$6$x7k2p9q$Yh3...</span>:19001:0:99999:7:::' },
+    { cls:'term-line', text:'bob:<span class="term-c">$6$h9m3r5z$e7c...</span>:19002:0:99999:7:::' },
+    { cls:'term-line', text:'www-data:<span class="term-major">!</span>:18500:0:99999:7:::' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ each line is colon-separated: user:hash:aging:expiry:...' },
+    { cls:'term-line warn', text:'→ hash field format: $algorithm$salt$hash' },
+    { cls:'term-line', text:'   <span class="term-vio">$6</span>       = <span class="term-vio">SHA-512 crypt</span>' },
+    { cls:'term-line', text:'   <span class="term-major">salt</span>    = <span class="term-major">random per-user salt</span>' },
+    { cls:'term-line', text:'   <span class="term-c">hash</span>    = <span class="term-c">SHA-512(salt + password)</span>' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'→ <span class="term-major">*</span> or <span class="term-major">!</span> = locked account (no password login)' },
+    { cls:'term-line ok', text:'✓ everything an attacker needs is here — but the hash is one-way' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">sudo cat /etc/shadow | head -5</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4500);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 400);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 13 : plaintext failure terminal ---------- */
+reg('plaintext', function(){
+  const body = document.getElementById('plainBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'# ── plaintext storage · THE WRONG WAY ──' },
+    { cls:'term-line', text:'alice|hunter2|alice@example.com' },
+    { cls:'term-line', text:'bob|password123|bob@example.com' },
+    { cls:'term-line', text:'charlie|qwerty|charlie@example.com' },
+    { cls:'term-line', text:'dave|iloveyou|dave@example.com' },
+    { cls:'term-line', text:'eve|letmein|eve@example.com' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line err', text:'⚠ DATABASE BREACH: 5,000,000 user records leaked' },
+    { cls:'term-line err', text:'⚠ every password is immediately readable in cleartext' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ attacker now has alice/bob/charlie passwords' },
+    { cls:'term-line warn', text:'→ tries them on email · banking · social · cloud' },
+    { cls:'term-line warn', text:'→ ~65% password reuse → wide account takeover' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line err', text:'✕ plaintext storage is a catastrophic security failure' },
+    { cls:'term-line ok', text:'✓ the fix: salted hashes (never reversible)' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">sqlite3 leaked.db "SELECT * FROM users"</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 14 : Windows Hello terminal ---------- */
+reg('helloTty', function(){
+  const body = document.getElementById('helloBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'# ── Windows Hello · face sign-in ──' },
+    { cls:'term-line', text:'[CAMERA]  scanning face...' },
+    { cls:'term-line', text:'[LIVENESS] ✓ real face detected (not a photo)' },
+    { cls:'term-line', text:'[MATCH]   ✓ template matches enrolled user' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ biometric match UNLOCKS the TPM-stored private key' },
+    { cls:'term-line', text:'[TPM]     🔓 private key unlocked (HW-bound)' },
+    { cls:'term-line', text:'[SIGN]    sign challenge with private key' },
+    { cls:'term-line', text:'[VERIFY]  signature verified against public key' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ authenticated · session token issued' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'🔒 biometric template NEVER left the device' },
+    { cls:'term-line warn', text:'🔒 private key NEVER leaves the TPM chip' },
+    { cls:'term-line warn', text:'🔒 signature is non-replayable' },
+    { cls:'term-line ok', text:'✓ unalterable vulnerability contained' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">👋</span> <span class="term-cmd">Windows Hello · face recognition</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 420);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 20 : banking activity cycle ---------- */
+reg('bankact', function(){
+  const prompt = document.getElementById('bankPrompt');
+  if(!prompt) return { stop(){} };
+
+  const prompts = [
+    'Which factor categories will you require?',
+    'How will you defend against phishing?',
+    'What happens when a factor is lost or leaked?',
+    'Which factors for high-value transfers?',
+    'What if the biometric template leaks?',
+    'Do you have a recovery path?',
+  ];
+
+  let idx = 0;
+  function tick(){
+    prompt.innerHTML = `<span class="ap-q">${prompts[idx % prompts.length]}</span>`;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2400);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 21 : mindmap cycle ---------- */
+reg('mindmap', function(){
+  const nodes = document.querySelectorAll('#mindmapVis .mm-node');
+  if(!nodes.length) return { stop(){} };
+  const cycle = [1, 2, 3, 4, 5, 6, 7];
+  let i = 0;
+  function tick(){
+    nodes.forEach(n => n.classList.remove('active'));
+    if(nodes[cycle[i % cycle.length]]) nodes[cycle[i % cycle.length]].classList.add('active');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1600);
+  return { stop(){ clearInterval(timer); nodes.forEach(n => n.classList.remove('active')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
