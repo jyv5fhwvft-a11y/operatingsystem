@@ -1,0 +1,2442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L28 — Grand Course Retrospective: One Click Through Seven Subsystems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.18),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.15),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.10),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--violet),var(--emerald),var(--blue));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(255,182,72,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(255,182,72,.20);border-color:rgba(255,182,72,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,182,72,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#ffd18a;background:rgba(255,182,72,.10);border:1px solid rgba(255,182,72,.34);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.blue{color:#b9d0ff;background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--amber);background:rgba(255,182,72,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#ffd18a;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(255,182,72,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Symphony scene */
+.symphony-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:8px 0;}
+.symphony-card{padding:14px 10px;border-radius:12px;border:1.4px solid;background:rgba(0,0,0,.20);text-align:center;transition:.4s;position:relative;}
+.symphony-card.active{box-shadow:0 0 24px -4px currentColor;transform:scale(1.03);}
+.symphony-card .sym-icon{font-size:24px;display:block;margin-bottom:6px;}
+.symphony-card .sym-name{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.05em;line-height:1.3;}
+.symphony-card .sym-mod{font-size:8px;color:var(--muted);margin-top:2px;}
+.symphony-card.m1{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);color:#b9d0ff;}
+.symphony-card.m2{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);color:#ffd18a;}
+.symphony-card.m3{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);color:#88ffd8;}
+.symphony-card.m4{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);color:#c9a7ff;}
+.symphony-card.m5{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.06);color:#ff9fb1;}
+.symphony-card.m6{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);color:#ffd18a;}
+.symphony-card.m7{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);color:#88ffd8;}
+.symphony-card.m0{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.04);color:#eaf0fc;}
+
+/* Trace route */
+.trace-vis{padding:6px 0;}
+.trace-step{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-radius:9px;border:1.5px solid;background:rgba(0,0,0,.20);margin-bottom:6px;font-family:var(--mono);font-size:10.5px;transition:.4s;}
+.trace-step.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.trace-step.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.trace-step .ts-num{font-size:12px;font-weight:900;color:var(--muted);min-width:18px;}
+.trace-step.active .ts-num{color:#ffd18a;}
+.trace-step.done .ts-num{color:#88ffd8;}
+.trace-step .ts-body{color:var(--ink-2);line-height:1.5;}
+.trace-step .ts-body strong{color:#fff;}
+.trace-step .ts-tag{font-size:9px;letter-spacing:.10em;text-transform:uppercase;font-weight:900;padding:3px 7px;border-radius:5px;white-space:nowrap;}
+.trace-step .ts-tag.m1{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.trace-step .ts-tag.m2{background:rgba(255,182,72,.20);color:#ffd18a;}
+.trace-step .ts-tag.m3{background:rgba(46,230,168,.20);color:#88ffd8;}
+.trace-step .ts-tag.m5{background:rgba(255,77,109,.20);color:#ff9fb1;}
+.trace-step .ts-tag.m6{background:rgba(255,182,72,.20);color:#ffd18a;}
+.trace-step .ts-tag.m7{background:rgba(46,230,168,.20);color:#88ffd8;}
+
+/* Ring crossovers */
+.ring-vis{padding:6px 0;}
+.ring-row{display:grid;grid-template-columns:auto 1fr auto 1fr auto;gap:8px;align-items:center;padding:8px 0;font-family:var(--mono);font-size:10.5px;}
+.ring-node{padding:8px 12px;border-radius:8px;border:1.4px solid;text-align:center;font-weight:800;}
+.ring-node.r3{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.ring-node.r0{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.08);color:#ffd18a;}
+.ring-node.trap{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.ring-arrow{text-align:center;color:var(--muted);font-size:14px;}
+.ring-arrow.active{color:#ffd18a;animation:ringPulse 1.2s ease-in-out infinite;}
+@keyframes ringPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* Module table */
+.mod-table{width:100%;border-collapse:separate;border-spacing:5px;font-family:var(--mono);font-size:10.5px;}
+.mod-table th{font-size:9.5px;letter-spacing:.10em;text-transform:uppercase;font-weight:900;color:var(--muted);padding:6px 4px;text-align:left;}
+.mod-table td{padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:var(--ink-2);line-height:1.5;}
+.mod-table td.mnum{font-weight:900;color:#fff;}
+.mod-table td.m1{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.05);}
+.mod-table td.m2{border-color:rgba(255,182,72,.4);background:rgba(255,182,72,.05);}
+.mod-table td.m3{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.05);}
+.mod-table td.m4{border-color:rgba(160,107,255,.4);background:rgba(160,107,255,.05);}
+.mod-table td.m5{border-color:rgba(255,77,109,.4);background:rgba(255,77,109,.05);}
+.mod-table td.m6{border-color:rgba(255,182,72,.4);background:rgba(255,182,72,.05);}
+.mod-table td.m7{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.05);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10px,.84vw,12px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+.term-vio{color:#c9a7ff;font-weight:700;}
+
+/* Lexicon */
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.lex-card{border-radius:22px;padding:clamp(20px,2.6vw,34px);border:1px solid;background:linear-gradient(150deg,rgba(255,182,72,.08),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-card.am{border-color:rgba(255,182,72,.4);}
+.lex-card.em{border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(20px,2.6vw,34px);font-weight:900;letter-spacing:-.04em;line-height:1.05;margin-bottom:8px;}
+.lex-card.am .lex-term{background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-card.em .lex-term{background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;margin-bottom:18px;}
+.lex-card.am .lex-sub{color:#ffd18a;}
+.lex-card.em .lex-sub{color:#88ffd8;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:12px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13px,.94vw,14.5px);line-height:1.6;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(255,182,72,.45);background:rgba(255,182,72,.10);color:#ffd18a;font-weight:700;}
+.mm-node.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(255,182,72,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(255,182,72,.8)}50%{box-shadow:0 0 40px -2px rgba(255,182,72,1)}}
+.mm-node.leaf{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Takeaway */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(255,182,72,.14);border:1px solid rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway:nth-child(2) .tk-num{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(3) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(4) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway / final */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(255,182,72,.5))}50%{filter:drop-shadow(0 0 28px rgba(255,182,72,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Activity */
+.act-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;}
+.act-prompt{padding:14px 16px;border-radius:12px;border:1.5px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700;text-align:center;transition:.4s;min-height:54px;display:grid;place-items:center;}
+.act-prompt .ap-q{color:#fff;}
+
+/* Full pipeline visual */
+.pipeline-vis{padding:8px 0;position:relative;}
+.pipeline-track{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:6px 0;border-radius:12px;background:rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.10);}
+.pipeline-cell{text-align:center;padding:10px 4px;border-radius:6px;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;transition:.4s;position:relative;}
+.pipeline-cell.active{background:rgba(255,182,72,.25);color:#fff;box-shadow:0 0 20px -4px rgba(255,182,72,.85);}
+.pipeline-cell .pc-icon{font-size:16px;display:block;margin-bottom:4px;}
+.pipeline-cell .pc-name{font-size:8px;line-height:1.2;}
+.pipeline-cell .pc-mod{font-size:7px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
+.pipeline-cell.m1{color:#b9d0ff;}
+.pipeline-cell.m2{color:#ffd18a;}
+.pipeline-cell.m3{color:#88ffd8;}
+.pipeline-cell.m4{color:#c9a7ff;}
+.pipeline-cell.m5{color:#ff9fb1;}
+.pipeline-cell.m6{color:#ffd18a;}
+.pipeline-cell.m7{color:#88ffd8;}
+
+/* Real world cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.example-card{padding:18px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.example-card .ec-icon{font-size:32px;margin-bottom:10px;display:block;}
+.example-card .ec-name{font-size:13px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-2);margin-bottom:12px;}
+.example-card .ec-win{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:6px;}
+
+/* Closing slide */
+.closing-wrap{padding:30px 0;text-align:center;}
+.closing-title{font-size:clamp(30px,4vw,64px);font-weight:900;letter-spacing:-.04em;line-height:1.05;background:linear-gradient(100deg,#ffd18a,#ffb648 40%,#c9a7ff 70%,#88ffd8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px;}
+.closing-sub{font-size:clamp(15px,1.2vw,19px);color:var(--ink-2);line-height:1.6;max-width:720px;margin:0 auto 24px;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.example-grid,.symphony-grid{grid-template-columns:1fr 1fr;}
+  .slide{padding:76px 26px 96px;}
+  .pipeline-track{grid-template-columns:repeat(4,1fr);}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .symphony-grid{grid-template-columns:1fr 1fr;}
+  .pipeline-track{grid-template-columns:repeat(3,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L28 Grand Retrospective</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L28 · Overview" data-anim="symphonycanvas">
+  <div class="slide-inner">
+    <span class="badge">🎼 🏆 L28 · Grand Course Retrospective — One Click Through Seven Subsystems</span>
+    <div class="split">
+      <div class="stack">
+        <h1>The whole machine. <span class="grad-amber">One gesture.</span></h1>
+        <p class="lead">Trace a single user transaction chronologically through all <strong>seven kernel manager subsystems</strong> in sequence — and map every active privilege-ring crossover along the way.</p>
+        <div class="panel amber">
+          <span class="panel-label">Where we are · the final lecture</span>
+          <p>Twenty-seven lectures ago, we asked: <em>how does a computer run a program?</em> L28 answers it, in one continuous trace: double-clicking a file icon, watching the click travel through drivers, the scheduler, memory, the file system, and back out to the screen.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Prerequisites · every prior lecture</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Module 1</strong> — OS structure, dual-mode, syscalls<br>
+            <strong>Module 2</strong> — process, fork, scheduling, threads<br>
+            <strong>Module 3</strong> — memory, paging, VM<br>
+            <strong>Module 4</strong> — synchronization, deadlock<br>
+            <strong>Module 5</strong> — file system, inode, journaling<br>
+            <strong>Module 6</strong> — I/O, drivers, `/dev`<br>
+            <strong>Module 7</strong> — access control, auth, exploits, encryption, firewalls, isolation
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Opening hook:</b> "Twenty-eight lectures ago, I told you about a city with fifty people who all believe they own the entire infrastructure. Today, I'm going to show you the moment one of them flips a light switch — and how every city utility responds at the exact same instant."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The seven subsystems firing in sequence</div>
+        <canvas id="symphonyCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — The Clockwork Illusion</span>
+    <h2 style="margin-bottom:16px;">One gesture. <span class="grad-crimson">Seven subsystems.</span> Zero visible seams.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the user experiences</span>
+          <p>They double-click a file icon. The file opens. That's it. From their perspective, the computer did <em>one thing</em>. No latency, no decision point, no visible complexity.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What actually happens</span>
+          <p>Behind that one gesture, <strong>every module in this course fires in sequence</strong>. A hardware interrupt is delivered. A driver reads the input. The scheduler picks a thread. The memory manager faults in pages. The file system parses a path. The security layer checks permissions. The screen driver receives pixels.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution — a synchronized clockwork</span>
+          <p>The operating system is a <strong>synchronized clockwork engine</strong>. The scheduler's cogs, the memory's weights, the file system's springs, the driver's interfaces, the security's guard chains — all mesh into one continuous, ticking movement to maintain that convincing illusion for the human observer.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole point of L28:</b> we've spent 27 lectures learning each subsystem in isolation. Now we put them back together — because in a real OS they never run alone. Every action requires <em>all</em> of them, simultaneously, in perfect coordination.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The illusion and the reality</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">WHAT THE USER SEES</text>
+
+          <rect x="60" y="35" width="220" height="60" rx="12" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.6"/>
+          <text x="170" y="60" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="Inter" font-weight="800">👆 double-click</text>
+          <text x="170" y="80" text-anchor="middle" font-size="10" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">→ file opens</text>
+
+          <line x1="170" y1="95" x2="170" y2="120" stroke="rgba(255,255,255,.20)" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="170" y="116" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.65)" font-family="JetBrains Mono">but under the hood…</text>
+
+          <text x="170" y="140" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">WHAT THE KERNEL RUNS</text>
+
+          <g transform="translate(14, 152)">
+            <rect x="0" y="0" width="46" height="40" rx="4" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="23" y="14" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">M1</text>
+            <text x="23" y="30" text-anchor="middle" font-size="7" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">OS core</text>
+
+            <rect x="50" y="0" width="46" height="40" rx="4" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="73" y="14" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">M2</text>
+            <text x="73" y="30" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">process</text>
+
+            <rect x="100" y="0" width="46" height="40" rx="4" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="123" y="14" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">M3</text>
+            <text x="123" y="30" text-anchor="middle" font-size="7" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">memory</text>
+
+            <rect x="150" y="0" width="46" height="40" rx="4" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1"/>
+            <text x="173" y="14" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="800">M4</text>
+            <text x="173" y="30" text-anchor="middle" font-size="7" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">sync</text>
+
+            <rect x="200" y="0" width="46" height="40" rx="4" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="223" y="14" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">M5</text>
+            <text x="223" y="30" text-anchor="middle" font-size="7" fill="rgba(255,159,177,.65)" font-family="JetBrains Mono">files</text>
+
+            <rect x="250" y="0" width="46" height="40" rx="4" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="273" y="14" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">M6</text>
+            <text x="273" y="30" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">I/O</text>
+          </g>
+
+          <g transform="translate(14, 200)">
+            <rect x="0" y="0" width="280" height="40" rx="4" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="140" y="14" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">M7 · security &amp; protection</text>
+            <text x="140" y="30" text-anchor="middle" font-size="7" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">every step above checked</text>
+          </g>
+
+          <text x="170" y="264" text-anchor="middle" font-size="9.5" fill="rgba(255,182,72,.85)" font-family="JetBrains Mono" font-weight="800">ALL SEVEN FIRE FOR ONE GESTURE</text>
+          <text x="170" y="280" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">in milliseconds · invisibly · reliably</text>
+          <text x="170" y="300" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">that is the illusion the OS maintains</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Symphony" data-anim="symphonycycle">
+  <div class="slide-inner">
+    <span class="badge amber">🎼 Analogy 1 · The Grand City Symphony</span>
+    <h2 style="margin-bottom:16px;">Fifty people who all believe <span class="grad-amber">they own the city</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The callback</span>
+          <p>Return to the very first opening analogy from Lecture 00: <strong>the city with fifty people who all believe they own the entire infrastructure footprint</strong>. Each one flips a light switch, opens a tap, or hires a taxi as if they were the only citizen. None of them is aware of the others.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The reveal</span>
+          <p>This final lecture opens the back panel of the master grandfather clock. You see how the <strong>scheduling cogs, the memory allocation weights, the file system springs, the driver interfaces, and the security access guard chains</strong> all mesh together into one continuous, ticking movement.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The symphony</span>
+          <p>Each subsystem is an <em>instrument</em>. The clockwork is the <em>score</em>. Every user action is a <em>note</em>. The music works because every instrument knows exactly when to play, and every note reaches every instrument — whether the user knows it or not.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The conductor is not a person:</b> it's the interplay of the scheduler, the interrupt handler, and the memory manager. There is no central "orchestrator" — the coordination emerges from well-designed interfaces. That's the elegance of an OS.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The seven instruments</div>
+        <div class="symphony-grid">
+          <div class="symphony-card m1" data-sym="0">
+            <span class="sym-icon">🎻</span>
+            <div class="sym-name">OS STRUCTURE</div>
+            <div class="sym-mod">Module 1</div>
+          </div>
+          <div class="symphony-card m2" data-sym="1">
+            <span class="sym-icon">🥁</span>
+            <div class="sym-name">PROCESS</div>
+            <div class="sym-mod">Module 2</div>
+          </div>
+          <div class="symphony-card m3" data-sym="2">
+            <span class="sym-icon">🎹</span>
+            <div class="sym-name">MEMORY</div>
+            <div class="sym-mod">Module 3</div>
+          </div>
+          <div class="symphony-card m4" data-sym="3">
+            <span class="sym-icon">🎺</span>
+            <div class="sym-name">SYNC</div>
+            <div class="sym-mod">Module 4</div>
+          </div>
+          <div class="symphony-card m5" data-sym="4">
+            <span class="sym-icon">🎷</span>
+            <div class="sym-name">FILES</div>
+            <div class="sym-mod">Module 5</div>
+          </div>
+          <div class="symphony-card m6" data-sym="5">
+            <span class="sym-icon">🎸</span>
+            <div class="sym-name">I/O</div>
+            <div class="sym-mod">Module 6</div>
+          </div>
+          <div class="symphony-card m7" data-sym="6">
+            <span class="sym-icon">🪕</span>
+            <div class="sym-name">SECURITY</div>
+            <div class="sym-mod">Module 7</div>
+          </div>
+          <div class="symphony-card m0" data-sym="7">
+            <span class="sym-icon">🎼</span>
+            <div class="sym-name">SYMPHONY</div>
+            <div class="sym-mod">All together</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Each module is one instrument. The user hears one sound.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Expanded">
+  <div class="slide-inner">
+    <span class="badge amber">🎼 Analogy 1 · The Grandfather Clock, Opened</span>
+    <h2 style="margin-bottom:16px;">Every gear <span class="grad-amber">touches every other gear</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The clockwork — module interconnections</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <!-- center -->
+          <circle cx="170" cy="160" r="34" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.75)" stroke-width="2"/>
+          <text x="170" y="152" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="800">THE</text>
+          <text x="170" y="164" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="800">KERNEL</text>
+          <text x="170" y="176" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">one gesture</text>
+
+          <!-- 7 orbit nodes -->
+          <g transform="translate(20, 24)">
+            <circle cx="30" cy="30" r="26" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="Inter" font-weight="800">M1</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">OS</text>
+          </g>
+          <g transform="translate(130, 14)">
+            <circle cx="30" cy="30" r="26" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="Inter" font-weight="800">M2</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">PROC</text>
+          </g>
+          <g transform="translate(240, 24)">
+            <circle cx="30" cy="30" r="26" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="Inter" font-weight="800">M3</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">MEM</text>
+          </g>
+          <g transform="translate(280, 250)">
+            <circle cx="30" cy="30" r="26" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#c9a7ff" font-family="Inter" font-weight="800">M4</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">SYNC</text>
+          </g>
+          <g transform="translate(130, 260)">
+            <circle cx="30" cy="30" r="26" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="Inter" font-weight="800">M5</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(255,159,177,.65)" font-family="JetBrains Mono">FS</text>
+          </g>
+          <g transform="translate(20, 250)">
+            <circle cx="30" cy="30" r="26" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="Inter" font-weight="800">M6</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.65)" font-family="JetBrains Mono">I/O</text>
+          </g>
+          <g transform="translate(140, 130)">
+            <circle cx="30" cy="30" r="0" fill="none"/>
+          </g>
+          <g transform="translate(285, 130)">
+            <circle cx="30" cy="30" r="26" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.4"/>
+            <text x="30" y="28" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="Inter" font-weight="800">M7</text>
+            <text x="30" y="42" text-anchor="middle" font-size="7" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">SEC</text>
+          </g>
+
+          <!-- Connecting spokes -->
+          <g stroke="rgba(255,255,255,.20)" stroke-width="1" fill="none">
+            <line x1="50" y1="54" x2="170" y2="160"/>
+            <line x1="160" y1="44" x2="170" y2="160"/>
+            <line x1="270" y1="54" x2="170" y2="160"/>
+            <line x1="310" y1="280" x2="170" y2="160"/>
+            <line x1="160" y1="290" x2="170" y2="160"/>
+            <line x1="50" y1="280" x2="170" y2="160"/>
+            <line x1="315" y1="160" x2="170" y2="160"/>
+          </g>
+
+          <text x="170" y="308" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.6)" font-family="JetBrains Mono">every module touches every other — directly or indirectly</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">M1 · OS Structure &amp; Design</span>
+          <p>The stage everything else runs on. Dual mode, syscalls, the boundary between user and kernel. Every subsystem below lives inside the Ring 0 structure defined here.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">M2 · Process Management</span>
+          <p>The instrument that decides <em>who plays when</em>. PCB, fork, scheduling, threads. Every user action requires a process to be picked, run, and paused.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">M3 · Memory Management</span>
+          <p>The stage's geography. Pages, frames, TLB, page faults. Every instruction and every byte of file content must live somewhere in physical RAM.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">M4 · Synchronization</span>
+          <p>The tempo. Locks, mutexes, deadlock avoidance. Ensures no two actors step on each other's notes at the same instant.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">M5 · File &amp; Storage</span>
+          <p>The scores. Files, inodes, journals. Every document read is a file system operation. Every save is a journal commit.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">M6 · I/O Device Management</span>
+          <p>The input/output channels. Drivers, interrupts, DMA. Every hardware event arrives here and is turned into a kernel-visible signal.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">M7 · Security &amp; Protection</span>
+          <p>The gatekeeper. Access control, authentication, encryption, isolation. Every single action above is checked, filtered, and contained.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Technical">
+  <div class="slide-inner">
+    <span class="badge violet">🔬 Analogy 2 · Pure Technical — End-to-End Core Thread Architecture Trace</span>
+    <h2 style="margin-bottom:16px;">Trace a single packet <span class="grad-violet">all the way down and back up</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The formal analogy</span>
+          <p>A full retrospective behaves identically to <strong>tracing an elite network telemetry probe packet</strong> from its entry across a firewall hardware socket, down through driver interfaces, memory block registers, database locks, and output queues.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The point of tracing</span>
+          <p>You cannot understand an operating system subsystem-by-subsystem. You have to trace a <strong>single flow of data</strong> through the machine and watch each subsystem take its turn. This is what <code style="font-family:var(--mono);color:#b9d0ff">strace</code> does at the syscall layer — but the concept extends down to hardware interrupts and up to user-space rendering.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What the trace reveals</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Sequence</strong> — what runs before what<br>
+            <strong>Privilege boundaries</strong> — where Ring 3 crosses into Ring 0<br>
+            <strong>Latency</strong> — where the microseconds actually go<br>
+            <strong>Dependencies</strong> — which subsystem calls which<br>
+            <strong>Failure points</strong> — where things can go wrong
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The illusion of simplicity</span>
+          <p>Users see "the file opened." Engineers see a sequence of maybe 50,000 kernel events, 200 interrupt handlers, a dozen context switches, and thousands of page table manipulations. The trace makes the invisible visible.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The examiner's question:</b> "Describe what happens when you double-click a file." A weak answer describes "the file opens." A strong answer traces it through all seven subsystems — which is exactly what we'll do next.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The trace concept — 4 views of one event</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="52" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">USER VIEW</text>
+          <text x="170" y="52" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">"the file opened"</text>
+
+          <line x1="170" y1="66" x2="170" y2="80" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+
+          <rect x="14" y="82" width="312" height="52" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="102" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">SYSCALL VIEW</text>
+          <text x="170" y="120" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">open() · read() · mmap() · write()</text>
+
+          <line x1="170" y1="134" x2="170" y2="148" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+
+          <rect x="14" y="150" width="312" height="52" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="170" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">KERNEL VIEW</text>
+          <text x="170" y="188" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">VFS · page cache · inode · scheduler · MMU</text>
+
+          <line x1="170" y1="202" x2="170" y2="216" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+
+          <rect x="14" y="218" width="312" height="52" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="238" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">HARDWARE VIEW</text>
+          <text x="170" y="256" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">interrupt · DMA · DRAM access · NIC · GPU</text>
+
+          <text x="170" y="294" text-anchor="middle" font-size="9.5" fill="rgba(255,182,72,.85)" font-family="JetBrains Mono" font-weight="800">ONE EVENT · FOUR LEVELS OF TRUTH</text>
+          <text x="170" y="310" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">the retrospective shows all four together</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="System Cohesion">
+  <div class="slide-inner">
+    <span class="badge emerald">🧭 System Cohesion — The Master Nexus Point</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-emerald">single point</span> where all 27 lectures meet</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Every Prior Lecture (L00–L27)</h4>
+            <p>This lecture has <strong>no new content</strong>. It is pure synthesis — every concept referenced here was introduced in a specific earlier lecture. The value is in seeing them act <em>together</em>.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Everything After the Course</h4>
+            <p>Every future course in systems, security, networking, distributed systems, and cloud computing builds on the foundation laid in this synthesis. This is the vocabulary of the rest of your career.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card relies">
+            <h4>Relies On · The Systems Mindset</h4>
+            <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+              <strong>Abstraction</strong> — hide complexity<br>
+              <strong>Layering</strong> — each layer trusts the one below<br>
+              <strong>Defense in depth</strong> — assume the layer above fails<br>
+              <strong>Tradeoffs</strong> — no free lunches, ever
+            </p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · The Engineering Practice</h4>
+            <p>You now understand what happens between <code style="font-family:var(--mono);color:#88ffd8">printf("hello")</code> and a pixel on screen. That knowledge does not expire — it is the substrate of every system you will build for the rest of your career.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The Master Nexus Point:</b> this lecture synchronizes all prior 27 lectures into a single cohesive ecosystem map. If a previous lecture answers <em>"how does X work"</em>, this one answers <em>"how does X connect to Y, and when do they all run together?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The nexus</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <!-- Prior 27 lectures orbiting -->
+          <g opacity=".7">
+            <circle cx="60" cy="50" r="14" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.5)" stroke-width="1"/>
+            <text x="60" y="54" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">01</text>
+            <circle cx="110" cy="40" r="14" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.5)" stroke-width="1"/>
+            <text x="110" y="44" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">05</text>
+            <circle cx="160" cy="30" r="14" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+            <text x="160" y="34" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono">10</text>
+            <circle cx="210" cy="40" r="14" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.5)" stroke-width="1"/>
+            <text x="210" y="44" text-anchor="middle" font-size="8" fill="#c9a7ff" font-family="JetBrains Mono">13</text>
+            <circle cx="260" cy="50" r="14" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.5)" stroke-width="1"/>
+            <text x="260" y="54" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">16</text>
+
+            <circle cx="40" cy="120" r="14" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.5)" stroke-width="1"/>
+            <text x="40" y="124" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">17</text>
+            <circle cx="300" cy="120" r="14" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.5)" stroke-width="1"/>
+            <text x="300" y="124" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">20</text>
+
+            <circle cx="40" cy="200" r="14" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+            <text x="40" y="204" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono">22</text>
+            <circle cx="300" cy="200" r="14" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.5)" stroke-width="1"/>
+            <text x="300" y="204" text-anchor="middle" font-size="8" fill="#c9a7ff" font-family="JetBrains Mono">24</text>
+
+            <circle cx="60" cy="270" r="14" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.5)" stroke-width="1"/>
+            <text x="60" y="274" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">25</text>
+            <circle cx="110" cy="280" r="14" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.5)" stroke-width="1"/>
+            <text x="110" y="284" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono">26</text>
+            <circle cx="160" cy="290" r="14" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.5)" stroke-width="1"/>
+            <text x="160" y="294" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">27</text>
+            <circle cx="210" cy="280" r="14" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.5)" stroke-width="1"/>
+            <text x="210" y="284" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono">…</text>
+            <circle cx="260" cy="270" r="14" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.5)" stroke-width="1"/>
+            <text x="260" y="274" text-anchor="middle" font-size="8" fill="#c9a7ff" font-family="JetBrains Mono">04</text>
+          </g>
+
+          <!-- Nexus -->
+          <circle cx="170" cy="160" r="46" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.9)" stroke-width="2.5"/>
+          <circle cx="170" cy="160" r="56" fill="none" stroke="rgba(255,182,72,.4)" stroke-width="1" stroke-dasharray="4 4"/>
+
+          <text x="170" y="152" text-anchor="middle" font-size="11" fill="#fff" font-family="Inter" font-weight="900">L28</text>
+          <text x="170" y="166" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">THE NEXUS</text>
+          <text x="170" y="178" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">all lectures meet</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · The 5-step trace overview">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown · The 5-Step End-to-End Trace</span>
+    <h2 style="margin-bottom:16px;">From <span class="grad-blue">click</span> to <span class="grad-blue">rendered pixels</span> — the full pipeline</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The scenario</span>
+          <p>Double-clicking a document icon to open it. The user's gesture triggers one continuous pipeline through all seven kernel subsystems. Each step below is a <em>phase</em> of the pipeline — but they all happen in under 100 milliseconds.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The five phases</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Mouse click → hardware interrupt (M6)<br>
+            <strong>2.</strong> Window shell + credentials check + fork() (M7 + M1 + M2)<br>
+            <strong>3.</strong> Kernel instantiates PCB (M2)<br>
+            <strong>4.</strong> Page fault → MMU page table setup (M3)<br>
+            <strong>5.</strong> File path parse → inode read → storage copy (M5)
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The closing circle</span>
+          <p>Every phase above relies on the modules before it. When step 5 finishes, the data has to travel back up through M3 (mapping into the process's address space), M2 (scheduling the renderer), and M6 (pushing pixels to the display) — closing the loop.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>What to watch for:</b> every step involves a <strong>privilege ring crossover</strong>. Each syscall, each interrupt, each page fault is an opportunity for the CPU to transition from Ring 3 to Ring 0 — and back. That boundary is where security lives and where performance hides.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The complete pipeline — 5 phases</div>
+        <div class="pipeline-vis">
+          <div class="pipeline-track" id="pipelineTrack">
+            <div class="pipeline-cell m6" data-pipe="0">
+              <span class="pc-icon">🖱️</span>
+              <div class="pc-name">CLICK</div>
+              <div class="pc-mod">M6 · interrupt</div>
+            </div>
+            <div class="pipeline-cell m2" data-pipe="1">
+              <span class="pc-icon">🪟</span>
+              <div class="pc-name">SHELL</div>
+              <div class="pc-mod">M1+M2 · fork</div>
+            </div>
+            <div class="pipeline-cell m2" data-pipe="2">
+              <span class="pc-icon">📋</span>
+              <div class="pc-name">PCB</div>
+              <div class="pc-mod">M2 · alloc</div>
+            </div>
+            <div class="pipeline-cell m3" data-pipe="3">
+              <span class="pc-icon">💾</span>
+              <div class="pc-name">FAULT</div>
+              <div class="pc-mod">M3 · MMU</div>
+            </div>
+            <div class="pipeline-cell m5" data-pipe="4">
+              <span class="pc-icon">📄</span>
+              <div class="pc-name">READ</div>
+              <div class="pc-mod">M5 · inode</div>
+            </div>
+            <div class="pipeline-cell m3" data-pipe="5">
+              <span class="pc-icon">🔁</span>
+              <div class="pc-name">MAP</div>
+              <div class="pc-mod">M3 · map</div>
+            </div>
+            <div class="pipeline-cell m6" data-pipe="6">
+              <span class="pc-icon">🖥️</span>
+              <div class="pc-name">RENDER</div>
+              <div class="pc-mod">M6 · pixels</div>
+            </div>
+          </div>
+          <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">7 pipeline cells spanning 5 phases · all seven modules involved</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Step 1 · Interrupt">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Step 1 · The Mouse Click Fires a Hardware Interrupt</span>
+    <h2 style="margin-bottom:16px;">Module 6 · <span class="grad-amber">Interrupts and DMA (L20)</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What happens</span>
+          <p>A user physically presses the mouse button. The mouse controller sends an <strong>interrupt signal</strong> to the CPU. The CPU pauses its current instruction loop, saves its state (registers, program counter), and jumps to the <strong>Interrupt Vector Table</strong> entry for "mouse event."</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The driver wakes up</span>
+          <p>The interrupt handler (in Ring 0) fires the mouse driver's ISR (Interrupt Service Routine). The driver reads the byte stream from the mouse's USB/HID interface — button state, X position, Y position. It packages this into an input event.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The event is delivered</span>
+          <p>The driver writes the event into the input subsystem's queue. Processes waiting on <code style="font-family:var(--mono);color:#88ffd8">/dev/input/event*</code> wake up. The X server (or Wayland compositor) is one of them — it now knows a click happened, at a specific screen coordinate.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Cross-cutting concepts (L20)</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Interrupt</strong> — hardware signals to CPU<br>
+            <strong>IVT</strong> — the dispatch table<br>
+            <strong>ISR</strong> — the handler function<br>
+            <strong>Bottom half</strong> — deferred work in the driver<br>
+            <strong>Device node</strong> — where the event surfaces (L21)
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The interrupt path</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="40" rx="7" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.4"/>
+          <text x="170" y="38" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">🖱️ MOUSE BUTTON PRESSED</text>
+          <text x="170" y="52" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">physical event · user intent</text>
+
+          <line x1="170" y1="60" x2="170" y2="85" stroke="rgba(255,182,72,.7)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,85 165,77 175,77" fill="rgba(255,182,72,.85)"/>
+
+          <rect x="20" y="88" width="300" height="40" rx="7" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.4"/>
+          <text x="170" y="106" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">⚡ INTERRUPT SIGNAL (IRQ)</text>
+          <text x="170" y="120" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">CPU pauses current work</text>
+
+          <line x1="170" y1="128" x2="170" y2="153" stroke="rgba(255,77,109,.7)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,153 165,145 175,145" fill="rgba(255,77,109,.85)"/>
+
+          <rect x="20" y="156" width="300" height="46" rx="7" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.4"/>
+          <text x="170" y="174" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">📋 IVT LOOKUP · ISR INVOKED</text>
+          <text x="170" y="190" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">interrupt vector → mouse_driver_ISR()</text>
+
+          <line x1="170" y1="202" x2="170" y2="227" stroke="rgba(91,141,255,.7)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,227 165,219 175,219" fill="rgba(91,141,255,.85)"/>
+
+          <rect x="20" y="230" width="300" height="46" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.4"/>
+          <text x="170" y="248" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">🖱️ DRIVER READS MOUSE STATE</text>
+          <text x="170" y="264" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">button=1 · x=512 · y=284</text>
+
+          <line x1="170" y1="276" x2="170" y2="296" stroke="rgba(46,230,168,.7)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,296 165,288 175,288" fill="rgba(46,230,168,.85)"/>
+          <text x="170" y="312" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.8)" font-family="JetBrains Mono" font-weight="800">event → /dev/input/event3</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Step 2 · Shell + auth + fork">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Step 2 · Window Shell Checks Credentials &amp; Fires fork()</span>
+    <h2 style="margin-bottom:16px;">Modules 7 + 1 + 2 · <span class="grad-violet">Auth, trap, clone</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The window shell reacts</span>
+          <p>The X server / Wayland compositor reads the mouse event and determines that the click was on a <strong>file icon</strong>. The compositor forwards this to the file manager process — which now knows: "the user wants to open <code style="font-family:var(--mono);color:#c9a7ff">resume.pdf</code>."</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Module 7 · Credential check (L22, L23)</span>
+          <p>Before the file manager opens the file, the kernel performs an access control check: <strong>does this user have read permission on resume.pdf?</strong> The inode's permission bits (or ACL entries) are consulted against the calling thread's protection domain (euid, egid, groups). If the check fails, the operation aborts — the file never opens.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Module 1 · Syscall trap (L03)</span>
+          <p>Assuming access is allowed, the file manager calls <code style="font-family:var(--mono);color:#b9d0ff">fork()</code> to create a child. The user-space <code style="font-family:var(--mono);color:#b9d0ff">fork()</code> library call loads the syscall number into <code style="font-family:var(--mono);color:#b9d0ff">rax</code>, arguments into registers, and executes the <code style="font-family:var(--mono);color:#b9d0ff">syscall</code> instruction — which flips the CPU from Ring 3 into Ring 0.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Module 2 · Process duplication (L06)</span>
+          <p>Inside Ring 0, <code style="font-family:var(--mono);color:#ffd18a">sys_fork()</code> clones the calling process. The child gets a new PID, a copy of the parent's file descriptors, a copy of the parent's address space (initially via copy-on-write, so memory isn't duplicated until modified), and a copy of the parent's environment.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The cleverness:</b> fork() returns twice — once in the parent (with the child's PID) and once in the child (with 0). The child then calls <code style="font-family:var(--mono);color:#c9a7ff">execv()</code> to replace its address space with the PDF viewer executable. That's the classic fork-and-exec pattern.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three subsystems firing together</div>
+        <div class="trace-vis" id="step2Vis">
+          <div class="trace-step" data-idx="0">
+            <div class="ts-num">1</div>
+            <div class="ts-body"><strong>Click hits file icon</strong> — compositor determines target</div>
+            <div class="ts-tag m6">M6</div>
+          </div>
+          <div class="trace-step" data-idx="1">
+            <div class="ts-num">2</div>
+            <div class="ts-body"><strong>Permission check</strong> — inode ACL vs. thread's protection domain</div>
+            <div class="ts-tag m7">M7</div>
+          </div>
+          <div class="trace-step" data-idx="2">
+            <div class="ts-num">3</div>
+            <div class="ts-body"><strong>Permission GRANTED</strong> — user may read resume.pdf</div>
+            <div class="ts-tag m7">M7</div>
+          </div>
+          <div class="trace-step" data-idx="3">
+            <div class="ts-num">4</div>
+            <div class="ts-body"><strong>fork() syscall</strong> — user-space → Ring 0 via <code style="font-family:var(--mono);color:#ffd18a">syscall</code></div>
+            <div class="ts-tag m1">M1</div>
+          </div>
+          <div class="trace-step" data-idx="4">
+            <div class="ts-num">5</div>
+            <div class="ts-body"><strong>sys_fork() clones</strong> — new PID, COW address space, dup'd fds</div>
+            <div class="ts-tag m2">M2</div>
+          </div>
+          <div class="trace-step" data-idx="5">
+            <div class="ts-num">6</div>
+            <div class="ts-body"><strong>execv("/usr/bin/pdf-viewer")</strong> — child's image replaced</div>
+            <div class="ts-tag m2">M2</div>
+          </div>
+          <div class="trace-step" data-idx="6">
+            <div class="ts-num">7</div>
+            <div class="ts-body"><strong>Return to Ring 3</strong> — new program runs in user space</div>
+            <div class="ts-tag m1">M1</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Step 3 · PCB">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Step 3 · Kernel Instantiates the PCB</span>
+    <h2 style="margin-bottom:16px;">Module 2 · <span class="grad-blue">Process Control Block (L05)</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What happens</span>
+          <p>The kernel allocates a fresh <strong>Process Control Block (PCB)</strong> — the <code style="font-family:var(--mono);color:#b9d0ff">task_struct</code> in Linux — for the new child. This is a slab-allocated kernel data structure holding every piece of metadata the OS needs to manage the process.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What the PCB contains</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>PID</strong> — unique process identifier<br>
+            <strong>State</strong> — READY · RUNNING · BLOCKED<br>
+            <strong>Program counter</strong> — next instruction address<br>
+            <strong>Register save area</strong> — full CPU state for context switches<br>
+            <strong>Memory descriptor</strong> — page tables, VMAs<br>
+            <strong>File descriptor table</strong> — open files<br>
+            <strong>Signal handlers</strong> — pending signals<br>
+            <strong>Scheduling info</strong> — priority, cgroup membership
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The scheduler queues it</span>
+          <p>The new PCB is placed in the <strong>READY queue</strong>. The scheduler will eventually pick it (following the MLFQ rules from L07-L08) and hand it the CPU. For now, it waits.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Module 4 hook</span>
+          <p>Every PCB carries synchronization state — mutexes, semaphores, wait queues. When the process later needs to lock a shared resource, it blocks on a semaphore; the PCB's state flips from RUNNING to BLOCKED. All of L14-L15 lives inside this structure.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The PCB — the process's brain in kernel space</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="42" rx="7" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.85)" stroke-width="1.6"/>
+          <text x="170" y="38" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">📋 PROCESS CONTROL BLOCK</text>
+          <text x="170" y="54" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">struct task_struct · kernel slab</text>
+
+          <g transform="translate(20, 74)">
+            <rect x="0" y="0" width="140" height="34" rx="5" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="10" y="14" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">pid</text>
+            <text x="10" y="28" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">= 4823</text>
+
+            <rect x="148" y="0" width="152" height="34" rx="5" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="158" y="14" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">state</text>
+            <text x="158" y="28" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">READY</text>
+
+            <rect x="0" y="42" width="300" height="34" rx="5" fill="rgba(255,77,109,.08)" stroke="rgba(255,77,109,.55)" stroke-width="1"/>
+            <text x="10" y="56" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">program_counter</text>
+            <text x="10" y="70" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">0x0000555555d4c210</text>
+
+            <rect x="0" y="84" width="300" height="34" rx="5" fill="rgba(160,107,255,.08)" stroke="rgba(160,107,255,.55)" stroke-width="1"/>
+            <text x="10" y="98" font-size="8" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="800">registers[16]</text>
+            <text x="10" y="112" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">rax · rbx · rcx · rdx · … saved CPU state</text>
+
+            <rect x="0" y="126" width="300" height="34" rx="5" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="10" y="140" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">mm_struct *mm</text>
+            <text x="10" y="154" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">→ page tables, VMAs, mmap regions</text>
+
+            <rect x="0" y="168" width="300" height="34" rx="5" fill="rgba(255,182,72,.08)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="10" y="182" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">files_struct *files</text>
+            <text x="10" y="196" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">→ open fds · shared file table</text>
+
+            <rect x="0" y="210" width="300" height="34" rx="5" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="10" y="224" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">sched_entity · cgroup</text>
+            <text x="10" y="238" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">→ priority, vruntime, cgroup limits</text>
+          </g>
+
+          <text x="170" y="298" text-anchor="middle" font-size="9" fill="rgba(255,182,72,.85)" font-family="JetBrains Mono" font-weight="800">ready queue → scheduler picks it → CPU</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Step 4 · Page fault">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Step 4 · The Thread Launches — Page Fault Triggers MMU Setup</span>
+    <h2 style="margin-bottom:16px;">Module 3 · <span class="grad-emerald">Virtual Memory &amp; Paging (L11–L13)</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What happens</span>
+          <p>The scheduler finally selects the new process and gives it the CPU. It starts executing the pdf-viewer binary. But the very first instruction fetch <strong>fails</strong> — the page containing that instruction isn't in physical RAM yet. The MMU fires a <strong>page fault exception</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The kernel handler</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> Trap into Ring 0 · page fault handler runs<br>
+            <strong>2.</strong> Look up the faulting address in the process's VMAs<br>
+            <strong>3.</strong> Find a free physical frame<br>
+            <strong>4.</strong> Read the page from disk (via the inode for the binary)<br>
+            <strong>5.</strong> Populate the page table entry (PTE)<br>
+            <strong>6.</strong> Update the TLB cache<br>
+            <strong>7.</strong> Return to Ring 3 · retry the instruction
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Demand paging (L13)</span>
+          <p>This is <strong>demand paging</strong> in action: the page is only loaded when the instruction actually touches it. For the pdf-viewer binary, only a small fraction of the file is ever loaded — most of it stays on disk, never read into RAM unless used. Programs effectively "run bigger than physical RAM."</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The TLB's role (L12)</span>
+          <p>Every page table lookup goes through the <strong>TLB</strong> — an ultra-fast cache of recent translations. A cold start (first access) always misses; after that, translations hit. That's why a warm process uses far less CPU per instruction than a cold one.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The hidden cost:</b> a page fault is <em>catastrophically</em> slow compared to a normal instruction. Even an L2 cache miss costs ~10 ns; a page fault that reads from SSD costs ~10,000 ns. That's a 1,000,000× ratio. Optimizing page faults — avoiding unnecessary ones — is the core of virtual memory tuning.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The page fault pipeline</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="36" rx="6" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="40" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">INSTRUCTION FETCH at 0x5555d4c210</text>
+
+          <line x1="170" y1="56" x2="170" y2="76" stroke="rgba(255,77,109,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,76 165,68 175,68" fill="rgba(255,77,109,.9)"/>
+
+          <rect x="20" y="78" width="300" height="34" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.4"/>
+          <text x="170" y="98" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">⚠ PAGE FAULT · PTE marked absent</text>
+
+          <line x1="170" y1="112" x2="170" y2="132" stroke="rgba(91,141,255,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,132 165,124 175,124" fill="rgba(91,141,255,.9)"/>
+
+          <rect x="20" y="134" width="300" height="36" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="170" y="152" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">TRAP to Ring 0 · page_fault_handler()</text>
+          <text x="170" y="166" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">finds VMA · allocates frame · reads page</text>
+
+          <line x1="170" y1="170" x2="170" y2="190" stroke="rgba(255,182,72,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,190 165,182 175,182" fill="rgba(255,182,72,.9)"/>
+
+          <rect x="20" y="192" width="300" height="34" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.3"/>
+          <text x="170" y="212" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">disk read · page table updated</text>
+
+          <line x1="170" y1="226" x2="170" y2="246" stroke="rgba(46,230,168,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,246 165,238 175,238" fill="rgba(46,230,168,.9)"/>
+
+          <rect x="20" y="248" width="300" height="34" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.85)" stroke-width="1.5"/>
+          <text x="170" y="268" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">✓ TLB updated · retry instruction</text>
+
+          <text x="170" y="302" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.65)" font-family="JetBrains Mono">cold start: hundreds of faults per second</text>
+          <text x="170" y="316" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.45)" font-family="JetBrains Mono">warm: near zero — pages already resident</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Step 5 · File read">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Step 5 · The Thread Requests File Bytes — Inode Parsing</span>
+    <h2 style="margin-bottom:16px;">Module 5 · <span class="grad-crimson">File System &amp; Inode (L17–L19)</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What happens</span>
+          <p>The pdf-viewer binary, now fully launched, calls <code style="font-family:var(--mono);color:#ff9fb1">open("/home/user/resume.pdf")</code>. This is a new syscall — a fresh trip through the VFS. The VFS parses the path, walks the directory tree, and eventually locates the <strong>inode</strong> for resume.pdf.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Path parsing (L17)</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>/</strong> → root inode<br>
+            <strong>/home</strong> → lookup "home" in root's directory data<br>
+            <strong>/home/user</strong> → lookup "user" in home's directory<br>
+            <strong>/home/user/resume.pdf</strong> → final inode lookup<br>
+            Each step is a directory read, usually from the page cache if warm
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The inode (L18)</span>
+          <p>The inode holds the file's metadata: size, permissions, timestamps, and — most importantly — the <strong>block pointer tree</strong> telling the kernel where the actual data sectors live on disk. Direct pointers for the first 48 KB, single indirect for the next 4 MB, double indirect for the rest.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The read + journal (L19)</span>
+          <p>The kernel reads the requested data blocks. If they're not in the page cache, it issues a block read. For write operations, everything is wrapped in <strong>journal transactions</strong> so that a crash mid-write is recoverable — the classic write-ahead logging consistency pattern.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Layers upon layers:</b> open → VFS → inode → block layer → block driver → disk controller → spinning platter or NAND flash. Each layer in L16-L19 appears, one by one, in the read pipeline. And each one is <em>cached aggressively</em> — after the first read, most of these layers collapse to a page cache hit.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The file read pipeline</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="30" rx="6" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.3"/>
+          <text x="170" y="39" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">open("/home/user/resume.pdf")</text>
+
+          <line x1="170" y1="50" x2="170" y2="66" stroke="rgba(255,77,109,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="68" width="300" height="30" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.3"/>
+          <text x="170" y="87" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">VFS path walk · directory lookups</text>
+
+          <line x1="170" y1="98" x2="170" y2="114" stroke="rgba(255,182,72,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="116" width="300" height="30" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="170" y="135" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">inode lookup · metadata + block tree</text>
+
+          <line x1="170" y1="146" x2="170" y2="162" stroke="rgba(91,141,255,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="164" width="300" height="30" rx="6" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.3"/>
+          <text x="170" y="183" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">permission check (M7 hook!)</text>
+
+          <line x1="170" y1="194" x2="170" y2="210" stroke="rgba(46,230,168,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="212" width="300" height="30" rx="6" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.3"/>
+          <text x="170" y="231" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="800">page cache lookup · HIT or MISS</text>
+
+          <line x1="170" y1="242" x2="170" y2="258" stroke="rgba(160,107,255,.7)" stroke-width="1.6" class="svg-flow"/>
+
+          <rect x="20" y="260" width="300" height="30" rx="6" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.85)" stroke-width="1.4"/>
+          <text x="170" y="279" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">block layer → driver → disk DMA</text>
+
+          <text x="170" y="308" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.6)" font-family="JetBrains Mono">cached read: ~1µs · cold read: ~100µs</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="The return path">
+  <div class="slide-inner">
+    <span class="badge amber">📖 The Return Path — Closing the Loop</span>
+    <h2 style="margin-bottom:16px;">From <span class="grad-amber">disk bytes</span> back to <span class="grad-amber">rendered pixels</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What happens after the read</span>
+          <p>The file bytes have been copied into the pdf-viewer's address space (via a second trip through M3 — mapping the page cache into the process's page tables). The viewer parses the PDF, extracts text and images, and calls back into the display subsystem (M6) to render the page.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The M3 return trip</span>
+          <p>The kernel maps the read pages into the viewer's address space using <code style="font-family:var(--mono);color:#b9d0ff">mmap()</code>. Now the process can read the bytes as if they were in its own memory — but they're backed by the page cache, not copied. That's the same mechanism as L18's memory-mapped files.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The M2 rendering</span>
+          <p>The pdf-viewer needs to render text. It calls into a graphics library, which calls into the display server, which submits a render job. The scheduler (M2) picks up the GPU driver's submit thread, which processes the job on the GPU via DMA — and the compositor (M6) reads the framebuffer to display the final pixels.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The M7 audit</span>
+          <p>Throughout the entire pipeline, the kernel's audit subsystem (M7) is logging each security-relevant event. A user opens a confidential PDF from a sensitive directory — that's logged. If the file were in an encrypted container, decryption would happen here too.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The full loop:</b> click → M6 interrupt → M7 auth → M1 trap → M2 clone → M2 PCB → M2 schedule → M3 page fault → M5 file read → M3 map → M2 schedule GPU → M6 pixels. <strong>All seven modules, one continuous flow.</strong></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The full loop</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">THE COMPLETE LOOP</text>
+
+          <g transform="translate(20, 32)">
+            <rect x="0" y="0" width="140" height="26" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <text x="70" y="17" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">① CLICK · M6</text>
+            <rect x="150" y="0" width="150" height="26" rx="5" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+            <text x="225" y="17" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">② AUTH · M7</text>
+
+            <rect x="0" y="34" width="140" height="26" rx="5" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+            <text x="70" y="51" text-anchor="middle" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">③ TRAP · M1</text>
+            <rect x="150" y="34" width="150" height="26" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <text x="225" y="51" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">④ FORK · M2</text>
+
+            <rect x="0" y="68" width="140" height="26" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <text x="70" y="85" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">⑤ PCB · M2</text>
+            <rect x="150" y="68" width="150" height="26" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <text x="225" y="85" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">⑥ SCHEDULE · M2</text>
+
+            <rect x="0" y="102" width="140" height="26" rx="5" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+            <text x="70" y="119" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">⑦ PAGE FAULT · M3</text>
+            <rect x="150" y="102" width="150" height="26" rx="5" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+            <text x="225" y="119" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">⑧ FILE READ · M5</text>
+
+            <rect x="0" y="136" width="140" height="26" rx="5" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+            <text x="70" y="153" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">⑨ MAP · M3</text>
+            <rect x="150" y="136" width="150" height="26" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <text x="225" y="153" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">⑩ GPU SCHED · M2</text>
+
+            <rect x="0" y="170" width="290" height="26" rx="5" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.85)" stroke-width="1.4"/>
+            <text x="145" y="187" text-anchor="middle" font-size="8.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">⑪ RENDER PIXELS · M6</text>
+          </g>
+
+          <text x="170" y="232" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">✓ all seven modules · one gesture</text>
+          <text x="170" y="252" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.65)" font-family="JetBrains Mono">typical total time: ~30–80 milliseconds</text>
+          <text x="170" y="272" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">most of which is the human's perception latency</text>
+
+          <text x="170" y="298" text-anchor="middle" font-size="8.5" fill="rgba(255,182,72,.7)" font-family="JetBrains Mono">the OS does this a thousand times per second</text>
+          <text x="170" y="314" text-anchor="middle" font-size="8" fill="rgba(196,207,230,.4)" font-family="JetBrains Mono">without a single visible seam</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Ring crossovers" data-anim="ringcycle">
+  <div class="slide-inner">
+    <span class="slide-badge crimson">📖 Every Privilege-Ring Crossover in the Trace</span>
+    <h2 style="margin-bottom:16px;">Every step is a <span class="grad-crimson">Ring 3 → Ring 0 → Ring 3</span> dance</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The dual-mode boundary — everywhere</span>
+          <p>Every single step in the trace requires crossing the boundary between user space (Ring 3) and kernel space (Ring 0). Interrupts, syscalls, page faults, signals — each one is a controlled crossing.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The three crossing mechanisms</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Syscall</strong> — user requests a kernel service (open, fork, mmap)<br>
+            <strong>Interrupt</strong> — hardware signals the CPU (mouse click)<br>
+            <strong>Exception</strong> — CPU trap from a runtime event (page fault)
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The cost</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Ring 3 → Ring 0</strong> — ~100 ns (trap overhead)<br>
+            <strong>Kernel work</strong> — varies wildly (10 ns to 10 ms)<br>
+            <strong>Ring 0 → Ring 3</strong> — ~50 ns (return)<br>
+            <strong>Full syscall</strong> — ~1-10 µs typical, more if I/O
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it matters</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Security</strong> — the kernel is the only trusted layer<br>
+            <strong>Performance</strong> — the boundary is where the microseconds leak<br>
+            <strong>Correctness</strong> — the kernel checks everything<br>
+            <strong>Recoverability</strong> — user crashes don't take down the system
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Ring crossovers in the trace</div>
+        <div class="ring-vis" id="ringVis">
+          <div class="ring-row">
+            <div class="ring-node r3">RING 3</div>
+            <div class="ring-arrow" data-ring="0">⇄</div>
+            <div class="ring-node trap">INTERRUPT</div>
+            <div class="ring-arrow" data-ring="1">⇄</div>
+            <div class="ring-node r0">RING 0</div>
+          </div>
+          <div class="ring-row" style="justify-content:center;padding:4px 0;font-size:9px;color:var(--muted)">
+            ← mouse click (M6) →
+          </div>
+          <div class="ring-row">
+            <div class="ring-node r3">RING 3</div>
+            <div class="ring-arrow" data-ring="2">⇄</div>
+            <div class="ring-node trap">SYSCALL</div>
+            <div class="ring-arrow" data-ring="3">⇄</div>
+            <div class="ring-node r0">RING 0</div>
+          </div>
+          <div class="ring-row" style="justify-content:center;padding:4px 0;font-size:9px;color:var(--muted)">
+            ← fork() + open() (M1, M2, M5) →
+          </div>
+          <div class="ring-row">
+            <div class="ring-node r3">RING 3</div>
+            <div class="ring-arrow" data-ring="4">⇄</div>
+            <div class="ring-node trap">PAGE FAULT</div>
+            <div class="ring-arrow" data-ring="5">⇄</div>
+            <div class="ring-node r0">RING 0</div>
+          </div>
+          <div class="ring-row" style="justify-content:center;padding:4px 0;font-size:9px;color:var(--muted)">
+            ← MMU miss (M3) →
+          </div>
+          <div class="ring-row">
+            <div class="ring-node r3">RING 3</div>
+            <div class="ring-arrow" data-ring="6">⇄</div>
+            <div class="ring-node trap">INTERRUPT</div>
+            <div class="ring-arrow" data-ring="7">⇄</div>
+            <div class="ring-node r0">RING 0</div>
+          </div>
+          <div class="ring-row" style="justify-content:center;padding:4px 0;font-size:9px;color:var(--muted)">
+            ← GPU completion (M6) →
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Practical · strace">
+  <div class="slide-inner">
+    <span class="slide-badge amber">📖 Practical Example · The <code style="font-family:var(--mono);color:#ffd18a">strace cat resume.txt</code> Telemetry Case Study</span>
+    <h2 style="margin-bottom:16px;">See the <span class="grad-amber">actual syscalls</span> in the trace</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · strace output — the syscalls that build the process</div>
+        <div class="terminal" id="straceTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — strace cat resume.txt</span>
+          </div>
+          <div class="term-body" id="straceBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -e trace=execve,brk,mmap,openat,read,write,close cat resume.txt 2>&1 | head -30</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What the trace shows</span>
+          <p>Every system call in sequence. The first thing <code style="font-family:var(--mono);color:#ffd18a">cat</code> does — before it even starts — is <code style="font-family:var(--mono);color:#ffd18a">execve</code> creating the new process space (Module 2). Then <code style="font-family:var(--mono);color:#ffd18a">brk</code> for heap growth (Module 3), <code style="font-family:var(--mono);color:#ffd18a">mmap</code> for memory-mapped files, <code style="font-family:var(--mono);color:#ffd18a">openat</code> for the file (Module 5), <code style="font-family:var(--mono);color:#ffd18a">read</code> and <code style="font-family:var(--mono);color:#ffd18a">write</code> for I/O (Modules 5+6).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The source quote</span>
+          <p>"Running a system trace on a digital text print utility exposes the cross-functional pipeline mechanics. The resulting print stream exposes <code style="font-family:var(--mono);color:#b9d0ff">execve</code> creating the process space (Module 2), <code style="font-family:var(--mono);color:#b9d0ff">brk</code> tracking memory..."</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What each syscall belongs to</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>execve</strong> — M2 · replaces process image<br>
+            <strong>brk</strong> — M3 · grows heap<br>
+            <strong>mmap</strong> — M3 · maps file into memory<br>
+            <strong>openat</strong> — M5 · opens file descriptor<br>
+            <strong>read</strong> — M5+M6 · file content read<br>
+            <strong>write</strong> — M6 · stdout output
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Run it yourself:</b> <code style="font-family:var(--mono);color:#c9a7ff">strace -c cat resume.txt</code> gives you a <em>count and duration summary</em> — which syscalls were called how many times, and how much wall-clock time each consumed. Real performance debugging starts here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Live · Full strace walkthrough" data-anim="stracewalk">
+  <div class="slide-inner">
+    <span class="slide-badge emerald">🧪 Live Demo — Following the Full Pipeline in strace</span>
+    <h2 style="margin-bottom:16px;">Every syscall — <span class="grad-emerald">every module</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · full trace walkthrough</div>
+        <div class="terminal" id="walkTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — full trace</span>
+          </div>
+          <div class="term-body" id="walkBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -f -e trace=all cat resume.txt 2>&1 | head -40</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What to look for</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>M1</strong> — every syscall entry/exit is a ring crossing<br>
+            <strong>M2</strong> — execve, exit, clone (if forked)<br>
+            <strong>M3</strong> — brk, mmap, munmap, mprotect<br>
+            <strong>M4</strong> — futex (used for pthread mutexes)<br>
+            <strong>M5</strong> — openat, read, fstat, close<br>
+            <strong>M6</strong> — write, ioctl, read from devices<br>
+            <strong>M7</strong> — the checks happen inside these calls
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The first 10 syscalls of `cat`</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            1. execve("/bin/cat", ...)<br>
+            2. brk(NULL) — get current brk<br>
+            3. mmap(...) — map library<br>
+            4. access("/etc/ld.so.cache", R_OK)<br>
+            5. openat(AT_FDCWD, "/etc/ld.so.cache")<br>
+            6. read(3, ...) — read the cache<br>
+            7. openat("/lib/libc.so.6") — libc<br>
+            8. mmap(...) — map libc<br>
+            9. openat("/home/user/resume.txt")<br>
+            10. read(3, "content...", 4096)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The insight</span>
+          <p>Just opening and printing a text file involves <strong>dozens of system calls</strong> — each one a ring crossover, each one a check by the kernel, each one potentially a page fault or a context switch. The OS is doing an enormous amount of work for every trivial action.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The professional skill:</b> being able to read strace output is a superpower. When a program hangs, strace tells you which syscall is blocking. When it's slow, strace -c tells you which syscall is eating the time. <em>This is what "understanding the OS" looks like in practice.</em></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="The 7 modules at a glance" data-anim="modtable">
+  <div class="slide-inner">
+    <span class="slide-badge blue">📖 The Seven Modules — Complete Retrospective</span>
+    <h2 style="margin-bottom:16px;">All seven modules <span class="grad-blue">mapped to the trace</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The complete retrospective</div>
+        <table class="mod-table">
+          <thead>
+            <tr><th>MOD</th><th>SUBSYSTEM</th><th>KEY CONCEPTS</th><th>IN THE TRACE</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mnum m1">M1</td>
+              <td>OS Structure</td>
+              <td>monolithic · micro · dual-mode · syscall</td>
+              <td>every syscall crossing</td>
+            </tr>
+            <tr>
+              <td class="mnum m2">M2</td>
+              <td>Process</td>
+              <td>PCB · fork · exec · scheduler · threads</td>
+              <td>fork, execve, schedule</td>
+            </tr>
+            <tr>
+              <td class="mnum m3">M3</td>
+              <td>Memory</td>
+              <td>paging · TLB · page fault · demand load</td>
+              <td>every page fault</td>
+            </tr>
+            <tr>
+              <td class="mnum m4">M4</td>
+              <td>Sync</td>
+              <td>mutex · semaphore · deadlock · MLFQ</td>
+              <td>kernel locks · wait queues</td>
+            </tr>
+            <tr>
+              <td class="mnum m5">M5</td>
+              <td>Files</td>
+              <td>inode · journaling · read/write · cache</td>
+              <td>openat, read, inode parse</td>
+            </tr>
+            <tr>
+              <td class="mnum m6">M6</td>
+              <td>I/O</td>
+              <td>interrupt · DMA · driver · /dev</td>
+              <td>mouse click, render, write</td>
+            </tr>
+            <tr>
+              <td class="mnum m7">M7</td>
+              <td>Security</td>
+              <td>access control · auth · crypto · isolation</td>
+              <td>every permission check</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The full picture</span>
+          <p>Every module is <strong>present in every user action</strong>. There is no "single-module" operation. Opening a file, launching a program, rendering a window — every single one traverses all seven.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What you've learned</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Conceptual</strong> — how each subsystem works<br>
+            <strong>Architectural</strong> — how they fit together<br>
+            <strong>Practical</strong> — how to observe them (strace, ps, top, lsns)<br>
+            <strong>Philosophical</strong> — abstraction, layering, defense in depth
+          </p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The exam question</span>
+          <p>"Describe what happens when you open a file." — you can now answer it in 200 words, in 2,000 words, in 20 minutes, or in a 26-slide presentation. The depth scales with the question. The concepts don't change.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Lexicon">
+  <div class="slide-inner">
+    <span class="slide-badge">🏷️ System Lexicon — System Synthesis</span>
+    <div class="two-lex">
+      <div class="lex-card am">
+        <div class="lex-term">System Synthesis</div>
+        <div class="lex-sub">The Capstone Term</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The complete cross-functional tracing of kernel subsystems acting concurrently to execute an individual software application workload thread.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Seeing the whole machine run as one, not as seven separate subsystems. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why it matters</span>
+          <p>Anyone can learn subsystems in isolation. The real skill is understanding <em>how they operate together</em> under load, under attack, under failure — and how to debug the whole when any one part breaks.</p>
+        </div>
+      </div>
+      <div class="lex-card em">
+        <div class="lex-term">The Systems Mindset</div>
+        <div class="lex-sub">Bonus Term</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The engineering discipline of reasoning about complex systems through abstraction, layering, tradeoffs, and defense in depth.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The four pillars</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Abstraction</strong> — hide complexity behind clean interfaces<br>
+            <strong>Layering</strong> — each layer trusts and depends on the one below<br>
+            <strong>Tradeoffs</strong> — no free lunches; every choice has a cost<br>
+            <strong>Defense in depth</strong> — assume each layer will fail
+          </p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it shows</span>
+          <p>Every design decision in this course: monolithic vs microkernel, paging vs segmentation, canary vs ASLR, container vs VM. All are instances of one mindset.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real world · the pipeline is everywhere">
+  <div class="slide-inner">
+    <span class="slide-badge crimson">🌍 Real World — This Pipeline Runs <span class="grad-crimson">Everywhere</span></span>
+    <h2 style="margin-bottom:16px;">The same seven-subsystem pipeline powers every modern system</h2>
+    <div class="example-grid">
+      <div class="example-card">
+        <span class="ec-icon">📱</span>
+        <div class="ec-name" style="color:#b9d0ff">Your phone</div>
+        <div class="ec-profile">
+          Every tap → interrupt → driver<br>
+          → scheduler → page fault → GPU<br>
+          iOS, Android — same pipeline
+        </div>
+        <div class="ec-win" style="background:rgba(91,141,255,.15);color:#b9d0ff">Consumer OS</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">☁️</span>
+        <div class="ec-name" style="color:#88ffd8">Cloud servers</div>
+        <div class="ec-profile">
+          Every HTTPS request → NIC IRQ →<br>
+          socket → scheduler → page cache<br>
+          → encrypt → send — all in µs
+        </div>
+        <div class="ec-win" style="background:rgba(46,230,168,.15);color:#88ffd8">Server workload</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">🚗</span>
+        <div class="ec-name" style="color:#ffd18a">Embedded systems</div>
+        <div class="ec-profile">
+          Every sensor read → interrupt →<br>
+          driver → process → actuator<br>
+          real-time deadlines matter
+        </div>
+        <div class="ec-win" style="background:rgba(255,182,72,.15);color:#ffd18a">Real-time OS</div>
+      </div>
+    </div>
+    <div class="panel amber" style="margin-top:20px;padding:18px">
+      <span class="panel-label">The universality</span>
+      <p>The seven-subsystem architecture isn't specific to Linux or Windows — it's the <strong>fundamental shape of any general-purpose operating system</strong>. The names differ, the code differs, the design philosophies differ. But the pipeline is universal: some form of interrupts, processes, memory management, file abstraction, drivers, and security appears in every OS that has ever existed.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>What you carry forward:</b> you'll write code that runs on this pipeline for the rest of your career. You'll debug performance problems that come from one subsystem starving another. You'll design systems that must respect the constraints each subsystem imposes. <em>The pipeline is the substrate of everything you build.</em></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Activity · Narration relay" data-anim="narrationact">
+  <div class="slide-inner">
+    <span class="slide-badge violet">🎭 Interactive Classroom Activity · The Final Exam End-to-End Narration Relay</span>
+    <h2 style="margin-bottom:16px;">One student per subsystem. <span class="grad-violet">Narrate the story.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Present the class with a complex synthesis scenario: <strong>"A user opens a password-protected spreadsheet file from an external USB flash drive."</strong></p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The activity</span>
+          <p>Call on individual students at random around the room. Each student must narrate exactly what the operating system kernel is doing under the hood for <strong>one specific step</strong>, then pass the baton to the next student to cover the subsequent module subsystem.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The narration sequence</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Student 1</strong> — USB plug detected → interrupt (M6)<br>
+            <strong>Student 2</strong> — filesystem mounted → inode table read (M5)<br>
+            <strong>Student 3</strong> — click on file → access check (M7)<br>
+            <strong>Student 4</strong> — password prompt → decrypt (M7 crypto)<br>
+            <strong>Student 5</strong> — file bytes read → page cache (M5+M3)<br>
+            <strong>Student 6</strong> — spreadsheet app launched → fork+exec (M2)<br>
+            <strong>Student 7</strong> — screen renders → GPU → driver (M6+M2)
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The debrief</span>
+          <p>The relay continues until the story travels smoothly from hardware interrupts up to user-space drawing loops. This doubles as the <strong>ultimate interactive final exam review session</strong> — if a student can narrate the pipeline, they understand the whole course.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The "aha" moment:</b> students realize that every subsystem has to cooperate, and that <em>any one of them failing</em> would break the whole action. That's why OS engineers spend their careers optimizing and hardening each subsystem — because the whole machine is one continuous flow.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The narration sequence</div>
+        <div class="act-scene">
+          <div class="act-prompt" id="narrationPrompt">
+            <span class="ap-q">Student 1: USB plug detected → which module?</span>
+          </div>
+          <div class="pipeline-track" style="grid-template-columns:repeat(4,1fr)">
+            <div class="pipeline-cell m6">
+              <span class="pc-icon">🔌</span>
+              <div class="pc-name">USB IRQ</div>
+              <div class="pc-mod">M6</div>
+            </div>
+            <div class="pipeline-cell m5">
+              <span class="pc-icon">📂</span>
+              <div class="pc-name">MOUNT</div>
+              <div class="pc-mod">M5</div>
+            </div>
+            <div class="pipeline-cell m7">
+              <span class="pc-icon">🔐</span>
+              <div class="pc-name">AUTH</div>
+              <div class="pc-mod">M7</div>
+            </div>
+            <div class="pipeline-cell m7">
+              <span class="pc-icon">🔓</span>
+              <div class="pc-name">DECRYPT</div>
+              <div class="pc-mod">M7</div>
+            </div>
+            <div class="pipeline-cell m5">
+              <span class="pc-icon">📄</span>
+              <div class="pc-name">READ</div>
+              <div class="pc-mod">M5</div>
+            </div>
+            <div class="pipeline-cell m2">
+              <span class="pc-icon">🪟</span>
+              <div class="pc-name">EXEC</div>
+              <div class="pc-mod">M2</div>
+            </div>
+            <div class="pipeline-cell m3">
+              <span class="pc-icon">💾</span>
+              <div class="pc-name">MAP</div>
+              <div class="pc-mod">M3</div>
+            </div>
+            <div class="pipeline-cell m6">
+              <span class="pc-icon">🖥️</span>
+              <div class="pc-name">RENDER</div>
+              <div class="pc-mod">M6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Mindmap" data-anim="mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge amber">🗺️ Mindmap Branch — The Master Synthesis</span>
+    <h2 style="margin-bottom:16px;">L28 — the <span class="grad-amber">top of the course tree</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The branch</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2)">
+            CS 301: Operating Systems<br>
+            &nbsp;&nbsp;→ Module 7: Security &amp; Protection<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;→ <strong style="color:#ffd18a">L28: Course Retrospective</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ System Call End-to-End Walkthroughs<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Core Synthesis Master Map
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The three takeaways</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Everything is connected</strong> — no module runs alone<br>
+            <strong>The pipeline is universal</strong> — every OS, every workload<br>
+            <strong>The mindset is permanent</strong> — abstraction, layering, tradeoffs
+          </p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">What comes after</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Distributed systems</strong> — when one machine isn't enough<br>
+            <strong>Systems security</strong> — deeper exploitation and defense<br>
+            <strong>Performance engineering</strong> — optimizing the whole pipeline<br>
+            <strong>Kernel development</strong> — building the pipeline yourself<br>
+            <strong>Whatever you choose</strong> — the foundation is the same
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The full course tree</div>
+        <div class="mindmap" id="mindmapVis">
+          <div class="mm-row"><span class="mm-prefix">├─ </span><div class="mm-node root">CS 301 · Operating Systems</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf blue">Module 1 · OS Structure</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf amber">Module 2 · Process</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf emerald">Module 3 · Memory</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf violet">Module 4 · Sync</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf crimson">Module 5 · Files</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf amber">Module 6 · I/O</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node leaf emerald">Module 7 · Security</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  └─ </span><div class="mm-node active">L28 · Course Retrospective</div></div>
+          <div class="mm-row"><span class="mm-prefix">│     ├─ </span><div class="mm-node leaf">Syscall End-to-End Walkthrough</div></div>
+          <div class="mm-row"><span class="mm-prefix">│     └─ </span><div class="mm-node leaf amber">Core Synthesis Master Map</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Summary · The 7 modules">
+  <div class="slide-inner">
+    <span class="slide-badge emerald">🏆 Grand Summary — The Seven Modules</span>
+    <h2 style="margin-bottom:18px;">Seven modules. <span class="grad-emerald">One operating system.</span></h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">M1</div>
+        <p><strong>OS Structure &amp; Design</strong> — the boundary layer between silicon and application. Monolithic vs microkernel vs hybrid vs layered vs modular. <em>The shape everything else takes.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">M2</div>
+        <p><strong>Process Management</strong> — how the OS shares the CPU. PCB, fork, exec, context switch, scheduling (FCFS, SJF, Round Robin, MLFQ), threads. <em>The rhythm of execution.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">M3</div>
+        <p><strong>Memory Management</strong> — how the OS shares RAM. Base-and-bound, paging, TLB, demand paging, page faults, virtual memory. <em>The geography of the machine.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">M4</div>
+        <p><strong>Process Synchronization</strong> — how concurrent threads cooperate. Race conditions, mutexes, semaphores, deadlock, Coffman conditions. <em>The tempo that keeps everyone in step.</em></p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Summary · The 7 modules cont.">
+  <div class="slide-inner">
+    <span class="slide-badge amber">🏆 Grand Summary — The Seven Modules (cont.)</span>
+    <h2 style="margin-bottom:18px;">And the final three</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">M5</div>
+        <p><strong>File &amp; Storage Management</strong> — how the OS organizes persistent data. Disk geometry, HDD vs SSD, file abstraction, inode architecture, journaling. <em>The scores that outlive the performance.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">M6</div>
+        <p><strong>I/O Device Management</strong> — how the OS talks to hardware. Polling vs interrupts vs DMA, unified device drivers, `/dev` abstraction, file_operations. <em>The instrument interfaces.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">M7</div>
+        <p><strong>Security &amp; Protection</strong> — how the OS protects itself and users. Access control, authentication, exploits, encryption, firewalls, isolation. <em>The gatekeeper that ensures the whole performance is trustworthy.</em></p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">★</div>
+        <p><strong>And now — L28 — you see them all together.</strong> Not as seven separate subjects, but as one continuously running machine. Every click, every file open, every program launch is the whole symphony playing in unison.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Exam focus">
+  <div class="slide-inner">
+    <span class="slide-badge crimson">🎯 Exam Focus — The Final Synthesis Questions</span>
+    <h2 style="margin-bottom:18px;">The questions this lecture answers</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Question 1</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Trace a single user action (double-clicking a file) through all seven kernel subsystems."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Click → M6 interrupt → M7 auth → M1 syscall → M2 fork/exec → M2 scheduler → M3 page fault → M5 file read → M3 map → M2 GPU schedule → M6 render. All in milliseconds.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Question 2</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Where does the privilege-ring boundary get crossed in the trace?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Every step. Interrupts (M6 events), syscalls (M1 interface), and page faults (M3 events) are the three mechanisms that cross Ring 3 ↔ Ring 0. Every crossing is a controlled, kernel-authorized transition.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Question 3</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"What does <code style="font-family:var(--mono);color:#88ffd8">strace</code> reveal about the pipeline?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Every syscall in sequence — execve (M2), brk (M3), mmap (M3), openat (M5), read (M5+M6), write (M6). Each is a ring crossover and a subsystem handoff. Reading strace output IS reading the pipeline.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Question 4</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Why is the whole-system view more important than any single subsystem?"</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Because no subsystem runs alone. Every optimization in one module affects the others. Every failure in one module cascades. Real engineering requires understanding the interactions, not just the parts.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The synthesis in one image</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">THE OPERATING SYSTEM</text>
+          <text x="170" y="36" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">a synchronized clockwork engine</text>
+
+          <!-- 7 modules as a ring -->
+          <g transform="translate(170, 175)">
+            <!-- background ring -->
+            <circle r="110" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <circle r="75" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+            <circle r="40" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.75)" stroke-width="2"/>
+
+            <!-- center -->
+            <text y="-4" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="800">ONE GESTURE</text>
+            <text y="10" text-anchor="middle" font-size="7" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">all 7 modules</text>
+
+            <!-- 7 nodes at angles -->
+            <g transform="rotate(-90)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">M1</text>
+              </g>
+            </g>
+            <g transform="rotate(-38.57)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">M2</text>
+              </g>
+            </g>
+            <g transform="rotate(12.86)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">M3</text>
+              </g>
+            </g>
+            <g transform="rotate(64.29)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(160,107,255,.15)" stroke="rgba(160,107,255,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="800">M4</text>
+              </g>
+            </g>
+            <g transform="rotate(115.71)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">M5</text>
+              </g>
+            </g>
+            <g transform="rotate(167.14)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">M6</text>
+              </g>
+            </g>
+            <g transform="rotate(218.57)">
+              <g transform="translate(110, 0)">
+                <circle r="16" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.7)" stroke-width="1.4"/>
+                <text y="4" text-anchor="middle" font-size="7.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">M7</text>
+              </g>
+            </g>
+          </g>
+
+          <text x="170" y="306" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">abstraction · layering · defense in depth · tradeoffs</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Closing">
+  <div class="slide-inner">
+    <div class="closing-wrap">
+      <span class="badge">🎓 🏆 The Course Is Complete</span>
+      <h1 class="closing-title">You now know how the machine works.</h1>
+      <p class="closing-sub">Not just the pieces — the whole. Not just the theory — the trace. Not just Linux or Windows — the universal architecture that every general-purpose operating system, from the smallest embedded board to the largest cloud datacenter, has been built on for over half a century.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:32px;text-align:left;max-width:1000px;margin-left:auto;margin-right:auto">
+        <div class="panel amber">
+          <span class="panel-label">What you built</span>
+          <p style="font-size:13px;line-height:1.6;color:var(--ink-2)">A complete mental model of an operating system — every subsystem, every tradeoff, every architectural decision.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What you can do</span>
+          <p style="font-size:13px;line-height:1.6;color:var(--ink-2)">Read `strace`. Debug performance. Reason about security. Design systems that respect the pipeline.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">What's next</span>
+          <p style="font-size:13px;line-height:1.6;color:var(--ink-2)">Distributed systems. Systems security. Performance engineering. Kernel dev. Wherever you go, the foundation travels with you.</p>
+        </div>
+      </div>
+      <p style="font-size:clamp(14px,1.1vw,16px);color:var(--muted);line-height:1.6;margin-top:32px;max-width:800px;margin-left:auto;margin-right:auto;font-style:italic">"An operating system is a lie — a carefully maintained illusion that each program has the machine to itself. The master craftsmen who build and maintain that illusion are systems engineers. You are now one of them."</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Farewell">
+  <div class="slide-inner">
+    <div class="closing-wrap">
+      <span class="badge emerald">👋 Final Word</span>
+      <h1 class="closing-title">CS 301 · Complete.</h1>
+      <p class="closing-sub">28 lectures. 7 modules. 7 labs. One continuous story from silicon to application.</p>
+      <div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:900px;margin-left:auto;margin-right:auto">
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.08);color:#b9d0ff;font-family:var(--mono);font-size:11px;font-weight:800">M1 · OS Structure</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(255,182,72,.4);background:rgba(255,182,72,.08);color:#ffd18a;font-family:var(--mono);font-size:11px;font-weight:800">M2 · Process</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.08);color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800">M3 · Memory</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(160,107,255,.4);background:rgba(160,107,255,.08);color:#c9a7ff;font-family:var(--mono);font-size:11px;font-weight:800">M4 · Sync</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(255,77,109,.4);background:rgba(255,77,109,.08);color:#ff9fb1;font-family:var(--mono);font-size:11px;font-weight:800">M5 · Files</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(255,182,72,.4);background:rgba(255,182,72,.08);color:#ffd18a;font-family:var(--mono);font-size:11px;font-weight:800">M6 · I/O</span>
+        <span style="padding:8px 14px;border-radius:20px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.08);color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800">M7 · Security</span>
+      </div>
+      <div style="margin-top:40px;padding:20px 30px;border-radius:20px;border:1px solid rgba(255,182,72,.35);background:linear-gradient(150deg,rgba(255,182,72,.08),rgba(160,107,255,.05));max-width:720px;margin-left:auto;margin-right:auto">
+        <p style="font-size:clamp(13px,1vw,15px);line-height:1.7;color:var(--ink-2);text-align:center;margin:0">
+          <strong style="color:#ffd18a">The computer will keep surprising you.</strong> New architectures, new attack surfaces, new abstractions. But the fundamental questions — <em>how does the machine run a program? how does it share resources? how does it protect itself?</em> — remain the same. Now you can answer them.
+        </p>
+      </div>
+      <p style="font-size:11px;color:rgba(132,148,180,.5);margin-top:40px;font-family:var(--mono);letter-spacing:.1em">END OF CS 301 · SYSTEMS ARCHITECTURE · MODULE 7 COMPLETE</p>
+    </div>
+  </div>
+</div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : symphony canvas ---------- */
+reg('symphonycanvas', function(){
+  const c = document.getElementById('symphonyCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const modules = [
+    { name:'M1', sub:'OS',      color:'#5b8dff', icon:'🎻' },
+    { name:'M2', sub:'PROC',    color:'#ffb648', icon:'🥁' },
+    { name:'M3', sub:'MEM',     color:'#2ee6a8', icon:'🎹' },
+    { name:'M4', sub:'SYNC',    color:'#a06bff', icon:'🎺' },
+    { name:'M5', sub:'FILES',   color:'#ff4d6d', icon:'🎷' },
+    { name:'M6', sub:'I/O',     color:'#ffb648', icon:'🎸' },
+    { name:'M7', sub:'SEC',     color:'#2ee6a8', icon:'🪕' }
+  ];
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('SEVEN SUBSYSTEMS · ONE GESTURE', W/2, 16);
+
+    // the pipeline flowing
+    const cycle = 700;
+    const phase = (t % cycle) / cycle;
+    const activeIdx = Math.floor(phase * 7) % 7;
+
+    // pipeline line
+    const lineY = 240;
+    const startX = 60, endX = W - 60;
+    const stepX = (endX - startX) / 6;
+
+    // base line
+    ctx.strokeStyle = 'rgba(255,255,255,.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(startX, lineY);
+    ctx.lineTo(endX, lineY);
+    ctx.stroke();
+
+    // flowing dot
+    const dotX = startX + (endX - startX) * phase;
+    ctx.fillStyle = '#ffd18a';
+    ctx.shadowColor = '#ffd18a';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(dotX, lineY, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // module nodes on the line
+    modules.forEach((m, i) => {
+      const x = startX + i * stepX;
+      const isActive = i === activeIdx;
+
+      // node card
+      const bw = 60, bh = 90;
+      ctx.fillStyle = isActive ? m.color + '35' : m.color + '12';
+      ctx.fillRect(x - bw/2, lineY - 130, bw, bh);
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = isActive ? 2.5 : 1.2;
+      ctx.strokeRect(x - bw/2, lineY - 130, bw, bh);
+
+      // icon
+      ctx.font = '22px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(m.icon, x, lineY - 105);
+
+      // name
+      ctx.fillStyle = isActive ? '#fff' : m.color;
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.fillText(m.name, x, lineY - 75);
+      ctx.fillStyle = isActive ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.4)';
+      ctx.font = '700 8px JetBrains Mono, monospace';
+      ctx.fillText(m.sub, x, lineY - 58);
+
+      // dot on line
+      ctx.fillStyle = isActive ? '#fff' : m.color;
+      ctx.beginPath();
+      ctx.arc(x, lineY, isActive ? 9 : 5, 0, Math.PI*2);
+      ctx.fill();
+
+      // pulse ring on active
+      if(isActive){
+        const pr = 12 + Math.sin(t/5) * 4;
+        ctx.strokeStyle = m.color;
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, lineY, pr, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // labels below line
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('▼ USER VIEW', 30, lineY + 25);
+    ctx.textAlign = 'right';
+    ctx.fillText('▼ SAME GESTURE · EVERY MODULE', W - 30, lineY + 25);
+
+    // footer
+    ctx.fillStyle = 'rgba(255,182,72,.85)';
+    ctx.font = '800 11px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('→ the click flows through each subsystem in sequence →', W/2, lineY + 60);
+    ctx.fillStyle = 'rgba(132,148,180,.55)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText('under 100 ms · zero visible seams', W/2, lineY + 80);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 3 : symphony cycle ---------- */
+reg('symphonycycle', function(){
+  const cards = document.querySelectorAll('.symphony-card');
+  if(!cards.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    cards.forEach(c => c.classList.remove('active'));
+    if(cards[idx % cards.length]) cards[idx % cards.length].classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); cards.forEach(c => c.classList.remove('active')); } };
+});
+
+/* ---------- Slide 7 : pipeline cycle ---------- */
+/* (handled within slide 7 itself via CSS, no explicit reg) */
+
+/* ---------- Slide 9 : step2 trace cycle ---------- */
+reg('ringcycle', function(){
+  const arrows = document.querySelectorAll('#ringVis .ring-arrow');
+  if(!arrows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    arrows.forEach(a => a.classList.remove('active'));
+    if(arrows[idx % arrows.length]) arrows[idx % arrows.length].classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 400);
+  return { stop(){ clearInterval(timer); arrows.forEach(a => a.classList.remove('active')); } };
+});
+
+/* ---------- Slide 15 : strace terminal ---------- */
+reg('strace', function(){
+  const body = document.getElementById('straceBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'<span class="term-major">execve</span>("/bin/cat", ["cat", "resume.txt"], 0x...) = 0' },
+    { cls:'term-line dim', text:'<span class="term-major">brk</span>(NULL)                            = 0x55555556a000' },
+    { cls:'term-line dim', text:'<span class="term-major">mmap</span>(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|ANON, -1, 0) = 0x7ffff7fc1...' },
+    { cls:'term-line dim', text:'<span class="term-major">access</span>("/etc/ld.so.preload", R_OK)    = -1 ENOENT (No such file)' },
+    { cls:'term-line dim', text:'<span class="term-major">openat</span>(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3' },
+    { cls:'term-line dim', text:'<span class="term-major">read</span>(3, "\\x0e\\x1b\\x1b\\x01\\x00\\x03\\x04\\x02\\x00...", 4096) = 3359' },
+    { cls:'term-line dim', text:'<span class="term-major">close</span>(3)                               = 0' },
+    { cls:'term-line dim', text:'<span class="term-major">openat</span>(AT_FDCWD, "/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3' },
+    { cls:'term-line dim', text:'<span class="term-major">read</span>(3, "\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00...", 832) = 832' },
+    { cls:'term-line dim', text:'<span class="term-major">mmap</span>(NULL, 2000000, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7ffff7dcf...' },
+    { cls:'term-line dim', text:'<span class="term-major">close</span>(3)                               = 0' },
+    { cls:'term-line warn', text:'--- libc loaded · now the actual cat logic ---' },
+    { cls:'term-line dim', text:'<span class="term-major">openat</span>(AT_FDCWD, "resume.txt", O_RDONLY) = 3' },
+    { cls:'term-line dim', text:'<span class="term-major">read</span>(3, "My Resume\\n\\nEducation: ...", 4096) = 2841' },
+    { cls:'term-line dim', text:'<span class="term-major">write</span>(1, "My Resume\\n\\nEducation: ...", 2841) = 2841' },
+    { cls:'term-line dim', text:'<span class="term-major">read</span>(3, "", 4096)                   = 0 (EOF)' },
+    { cls:'term-line dim', text:'<span class="term-major">close</span>(3)                               = 0' },
+    { cls:'term-line dim', text:'<span class="term-major">exit_group</span>(0)                       = ?' },
+    { cls:'term-line dim', text:'--- process terminated ---' },
+    { cls:'term-line ok', text:'✓ every line = one ring crossing · one subsystem involved' },
+    { cls:'term-line warn', text:'→ execve · brk · mmap = M1+M2+M3' },
+    { cls:'term-line warn', text:'→ openat · read · close = M5' },
+    { cls:'term-line warn', text:'→ write = M6' },
+    { cls:'term-line ok', text:'✓ the entire course visible in one trace' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace cat resume.txt 2>&1 | head -30</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5500);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 16 : full strace walkthrough ---------- */
+reg('stracewalk', function(){
+  const body = document.getElementById('walkBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line warn', text:'# M1 · process creation (via fork+exec) — Module 2' },
+    { cls:'term-line', text:'<span class="term-major">execve</span>("/bin/cat", ["cat", "resume.txt"], 0x7ffd...) = 0' },
+    { cls:'term-line dim', text:'→ brand new address space · the old image is gone' },
+    { cls:'term-line', text:'<span class="term-major">brk</span>(NULL) = 0x55555557a000' },
+    { cls:'term-line dim', text:'→ M3 · asks the kernel where the heap currently is' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'# M3 · address space setup — Module 3' },
+    { cls:'term-line', text:'<span class="term-major">mmap</span>(NULL, 8192, ...) = 0x7ffff7fc1e000' },
+    { cls:'term-line text:', text:'<span class="term-major">mmap</span>(NULL, 2000000, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7ffff7dcf...' },
+    { cls:'term-line dim', text:'→ M3 · page mappings for libraries + memory-mapped files' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'# M5 · file access — Module 5' },
+    { cls:'term-line', text:'<span class="term-major">openat</span>(AT_FDCWD, "resume.txt", O_RDONLY) = 3' },
+    { cls:'term-line dim', text:'→ M5 · VFS resolves path → inode → mode bits checked (M7)' },
+    { cls:'term-line', text:'<span class="term-major">read</span>(3, "My Resume\\n\\n...", 4096) = 2841' },
+    { cls:'term-line dim', text:'→ M5+M6 · file bytes read via page cache / block layer' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'# M6 · output — Module 6' },
+    { cls:'term-line', text:'<span class="term-major">write</span>(1, "My Resume\\n\\n...", 2841) = 2841' },
+    { cls:'term-line dim', text:'→ M6 · bytes pushed to stdout fd (terminal driver)' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'# M7 · audit trail — Module 7' },
+    { cls:'term-line dim', text:'→ every openat was logged · every read was checked against ACL' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ 6 syscalls · 4 modules · under 500 microseconds' },
+    { cls:'term-line ok', text:'✓ this is the whole pipeline — for one trivial file read' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">strace -f cat resume.txt 2>&1 | head -40</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 400);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 17 : mod table highlight ---------- */
+reg('modtable', function(){
+  const rows = document.querySelectorAll('.mod-table tbody tr');
+  if(!rows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.style.background = '');
+    if(rows[idx % rows.length]) rows[idx % rows.length].style.background = 'rgba(255,182,72,.10)';
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.style.background = ''); } };
+});
+
+/* ---------- Slide 20 : narration activity cycle ---------- */
+reg('narrationact', function(){
+  const prompt = document.getElementById('narrationPrompt');
+  if(!prompt) return { stop(){} };
+
+  const prompts = [
+    'Student 1: USB plug detected → which module?',
+    'Student 2: filesystem mounted → which module?',
+    'Student 3: click on file → which module?',
+    'Student 4: password prompt → which module?',
+    'Student 5: file bytes read → which module?',
+    'Student 6: spreadsheet app launched → which module?',
+    'Student 7: screen renders → which module?',
+    'All together: which modules are involved?',
+  ];
+
+  let idx = 0;
+  function tick(){
+    prompt.innerHTML = `<span class="ap-q">${prompts[idx % prompts.length]}</span>`;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2200);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 21 : mindmap cycle ---------- */
+reg('mindmap', function(){
+  const nodes = document.querySelectorAll('#mindmapVis .mm-node');
+  if(!nodes.length) return { stop(){} };
+  const cycle = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  let i = 0;
+  function tick(){
+    nodes.forEach(n => n.classList.remove('active'));
+    if(nodes[cycle[i % cycle.length]]) nodes[cycle[i % cycle.length]].classList.add('active');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1500);
+  return { stop(){ clearInterval(timer); nodes.forEach(n => n.classList.remove('active')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
