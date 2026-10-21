@@ -2438,5 +2438,43 @@ document.addEventListener('wheel', (e) => {
   setTimeout(() => { wheelLock = false; }, 620);
 }, { passive: true });
 </script>
+
+  <!-- ===== BACK TO HOME BUTTON ===== -->
+<script>
+(function(){
+  if (document.querySelector('.course-home-link')) return;
+  const a = document.createElement('a');
+  a.href = 'index.html';
+  a.className = 'course-home-link';
+  a.innerHTML = '← Course Home';
+  a.style.cssText = `
+    position:fixed;top:66px;right:26px;z-index:100;
+    padding:8px 14px;border-radius:10px;
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(6,9,15,.80);color:#c4cfe6;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;
+    text-decoration:none;backdrop-filter:blur(14px);
+    transition:all .24s cubic-bezier(.4,0,.2,1);
+    display:inline-flex;align-items:center;gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,.4);
+  `;
+  a.addEventListener('mouseenter', () => {
+    a.style.background = 'rgba(255,182,72,.15)';
+    a.style.borderColor = 'rgba(255,182,72,.6)';
+    a.style.color = '#ffd18a';
+    a.style.transform = 'translateY(-2px)';
+    a.style.boxShadow = '0 8px 24px rgba(255,182,72,.25)';
+  });
+  a.addEventListener('mouseleave', () => {
+    a.style.background = 'rgba(6,9,15,.80)';
+    a.style.borderColor = 'rgba(255,255,255,.18)';
+    a.style.color = '#c4cfe6';
+    a.style.transform = 'translateY(0)';
+    a.style.boxShadow = '0 4px 16px rgba(0,0,0,.4)';
+  });
+  document.body.appendChild(a);
+})();
+</script>
 </body>
 </html>
