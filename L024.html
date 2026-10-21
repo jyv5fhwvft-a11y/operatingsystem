@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L24 — Program Exploits: Stack Overflows, Canaries &amp; ASLR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,77,109,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.12),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(160,107,255,.08),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--crimson);box-shadow:0 0 12px var(--crimson);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--crimson),var(--amber),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(255,77,109,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(255,77,109,.20);border-color:rgba(255,77,109,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,77,109,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#ff9fb1;background:rgba(255,77,109,.10);border:1px solid rgba(255,77,109,.34);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.blue{color:#b9d0ff;background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--crimson);background:rgba(255,77,109,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#ff9fb1;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(255,77,109,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Shelf analogy */
+.shelf-wrap{padding:10px 0;}
+.shelf-svg{width:100%;height:auto;display:block;}
+
+/* Stack layout visual */
+.stack-vis{padding:6px 0;font-family:var(--mono);}
+.stack-block{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch;padding:10px 14px;border-radius:8px;margin-bottom:4px;border:1.5px solid;}
+.stack-block.ret{border-color:rgba(255,77,109,.75);background:rgba(255,77,109,.10);}
+.stack-block.rbp{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.08);}
+.stack-block.canary{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.08);}
+.stack-block.buffer{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.08);}
+.stack-block .sb-name{font-size:11.5px;font-weight:900;letter-spacing:.04em;}
+.stack-block.ret .sb-name{color:#ff9fb1;}
+.stack-block.rbp .sb-name{color:#ffd18a;}
+.stack-block.canary .sb-name{color:#88ffd8;}
+.stack-block.buffer .sb-name{color:#b9d0ff;}
+.stack-block .sb-size{font-size:10px;color:var(--muted);}
+.stack-block .sb-content{font-size:10.5px;color:var(--ink-2);margin-top:3px;word-break:break-all;}
+.stack-block .sb-tag{font-size:9.5px;color:var(--muted);text-align:right;align-self:center;}
+
+/* Step flow */
+.step-flow{display:flex;flex-direction:column;gap:8px;padding:6px 0;}
+.step-item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 14px;border-radius:10px;border:1.5px solid;background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11px;transition:.4s;}
+.step-item.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.step-item.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.step-item .si-num{font-size:13px;font-weight:900;color:var(--muted);min-width:22px;}
+.step-item.active .si-num{color:#ffd18a;}
+.step-item.done .si-num{color:#88ffd8;}
+.step-item .si-body{color:var(--ink-2);line-height:1.5;}
+.step-item .si-body strong{color:#fff;}
+.step-item .si-tag{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;padding:3px 8px;border-radius:5px;}
+.step-item .si-tag.user{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.step-item .si-tag.kernel{background:rgba(46,230,168,.20);color:#88ffd8;}
+.step-item .si-tag.attack{background:rgba(255,77,109,.20);color:#ff9fb1;}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+.term-red{color:#ff9fb1;font-weight:700;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.crimson{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.16);}
+
+/* Lexicon */
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.lex-card{border-radius:24px;padding:clamp(20px,2.6vw,36px);border:1px solid rgba(255,77,109,.34);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(20px,2.6vw,34px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#ff9fb1;font-weight:800;margin-bottom:20px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:12px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13px,.94vw,14.5px);line-height:1.6;}
+.bracket{color:#ff9fb1;font-style:italic;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.10);color:#ff9fb1;font-weight:700;}
+.mm-node.active{border-color:rgba(255,77,109,.85);background:rgba(255,77,109,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(255,77,109,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(255,77,109,.8)}50%{box-shadow:0 0 40px -2px rgba(255,77,109,1)}}
+.mm-node.leaf{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+
+/* Takeaway */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(255,77,109,.14);border:1px solid rgba(255,77,109,.36);color:#ff9fb1;}
+.takeaway:nth-child(2) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway:nth-child(3) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(4) .tk-num{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(160,107,255,.5))}50%{filter:drop-shadow(0 0 28px rgba(160,107,255,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(160,107,255,.42);background:rgba(160,107,255,.09);color:#c9a7ff;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;}
+.act-prompt{padding:14px 16px;border-radius:12px;border:1.5px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700;text-align:center;transition:.4s;min-height:54px;display:grid;place-items:center;}
+.act-prompt .ap-q{color:#fff;}
+
+/* Real-world cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.example-card{padding:18px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.example-card .ec-icon{font-size:32px;margin-bottom:10px;display:block;}
+.example-card .ec-name{font-size:13px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-2);margin-bottom:12px;}
+.example-card .ec-win{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:6px;}
+
+/* Defense cards */
+.defense-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 0;}
+.defense-card{padding:16px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.defense-card.canary{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.defense-card.aslr{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.defense-card.nx{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.defense-card .dc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.defense-card .dc-icon{font-size:26px;}
+.defense-card .dc-name{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.05em;}
+.defense-card.canary .dc-name{color:#88ffd8;}
+.defense-card.aslr .dc-name{color:#b9d0ff;}
+.defense-card.nx .dc-name{color:#c9a7ff;}
+.defense-card .dc-body{font-size:11.5px;line-height:1.65;color:var(--ink-2);}
+.defense-card .dc-body strong{color:#fff;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.example-grid,.defense-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L24 Program Exploits</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 25</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L24 · Overview" data-anim="attackcanvas">
+  <div class="slide-inner">
+    <span class="badge">💥 🛡️ L24 · Program Exploits — Stack Overflows &amp; Defenses</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Spill <span class="grad-crimson">past the buffer</span> — <span class="grad-crimson">hijack the CPU</span></h1>
+        <p class="lead">Explain how a stack buffer overflow hijacks CPU control flow pipelines, and state the protective roles of <strong>ASLR</strong> and <strong>Stack Canaries</strong> against this classic exploit.</p>
+        <div class="panel crimson">
+          <span class="panel-label">Where we are · Module 7 continues</span>
+          <p>L22 defined what's allowed. L23 established who's asking. L24 shows what happens when a memory-safety bug lets an attacker <strong>overwrite the return address on the stack</strong> — seizing control of the CPU's instruction pointer and running their own code.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Prerequisites · L05 (Process Stack Segment)</span>
+          <p>The active stack frame — its local variables, saved registers, and return address — laid out contiguously in memory. Buffer overflow exploits the <strong>contiguous structural alignment</strong> of these variables in a frame.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Opening hook:</b> "You type your name into a login box. 20 characters. The program crashes with <em>segmentation fault</em> — or worse, spawns a shell. The buffer was 10 bytes. How does typing too many letters let an attacker run arbitrary code inside the kernel's own process?"</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Stack frame → overflow → hijack</div>
+        <canvas id="attackCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Memory is Unsafe by Default</span>
+    <h2 style="margin-bottom:16px;">In C, <span class="grad-crimson">"writes to memory" is not checked</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The dangerous freedom</span>
+          <p>C is a <strong>memory-unsafe language</strong>. When you declare <code style="font-family:var(--mono);color:#ff9fb1">char buffer[10]</code>, the compiler reserves 10 bytes and gives you a pointer. But the pointer doesn't know the array is only 10 bytes — and nothing stops you from writing past it.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The consequence</span>
+          <p>Writing past the buffer's end <strong>overwrites adjacent memory</strong> — other local variables, saved registers, and crucially the <em>return address</em> that tells the CPU where to resume when the function finishes.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution — layered defenses</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Compile-time:</strong> stack canaries — detect corruption before returning<br>
+            <strong>Runtime:</strong> ASLR — randomize where things live<br>
+            <strong>Hardware:</strong> NX / DEP — mark the stack non-executable
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why this is so dangerous:</b> the stack frame is the ONE place the CPU reads a pointer (<code style="font-family:var(--mono);color:#ff9fb1">ret</code>) to determine <em>what instruction to execute next</em>. Corrupt that pointer → control of the CPU.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The stack frame's dangerous adjacency</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">A STACK FRAME · HIGH ADDR AT TOP</text>
+
+          <rect x="30" y="34" width="280" height="40" rx="6" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="52" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">RETURN ADDRESS</text>
+          <text x="170" y="67" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">where the CPU goes after ret</text>
+
+          <rect x="30" y="78" width="280" height="30" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="97" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">SAVED RBP · frame pointer</text>
+
+          <rect x="30" y="112" width="280" height="60" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="132" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">LOCAL BUFFER [10]</text>
+          <text x="170" y="150" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">char buffer[10];</text>
+          <text x="170" y="164" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">the target of your overflow</text>
+
+          <line x1="20" y1="200" x2="320" y2="200" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="3 4"/>
+
+          <text x="170" y="220" text-anchor="middle" font-size="9.5" fill="rgba(255,77,109,.9)" font-family="Inter" font-weight="800">↓ OVERFLOW GROWS THIS WAY ↓</text>
+          <text x="170" y="238" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">write buffer[10..N] → hits saved RBP</text>
+          <text x="170" y="254" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">write buffer[N..M] → hits return address</text>
+
+          <rect x="30" y="266" width="280" height="26" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="284" text-anchor="middle" font-size="9" fill="#fff" font-family="JetBrains Mono" font-weight="800">ret reads the corrupted pointer → attacker wins</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Shelf">
+  <div class="slide-inner">
+    <span class="badge amber">📦 Analogy 1 · The Overfilled Storage Shelf</span>
+    <h2 style="margin-bottom:16px;">Overflow past your slot — <span class="grad-amber">hit the emergency button</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The setup</span>
+          <p>Imagine a warehouse shelf layout where you are assigned a <strong>tight, fixed box slot</strong> (The Allocated Buffer). Directly next to your boundary space sits an <strong>emergency button controlling the warehouse electrical grid</strong> (The Function Return Address).</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The vulnerability</span>
+          <p>If the floor manager leaves you unchecked, you can <strong>overfill your shelf with extra boxes</strong> until they spill straight onto the neighboring slot — <em>knocking the emergency button and halting the facility</em>. Or worse: pressing it yourself gives you control of the building's power.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The mapping</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Your box slot</strong> → the local buffer<br>
+            <strong>Neighboring slot</strong> → saved registers<br>
+            <strong>Emergency button</strong> → the return address<br>
+            <strong>Floor manager</strong> → the missing bounds check
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why the analogy lands:</b> the "button" isn't dangerous by itself — it's just a piece of data on the shelf. It's dangerous because <em>the warehouse electrical system will press it on schedule</em>. Similarly, the return address is just 8 bytes — but <code style="font-family:var(--mono);color:#ff9fb1">ret</code> will jump to it unconditionally.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The shelf, the button, and the spill</div>
+        <svg class="shelf-svg" viewBox="0 0 340 300">
+          <!-- shelf frame -->
+          <rect x="20" y="40" width="300" height="230" rx="8" fill="rgba(255,255,255,.02)" stroke="rgba(255,255,255,.12)" stroke-width="1.2"/>
+
+          <!-- your slot -->
+          <rect x="40" y="170" width="260" height="70" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.6"/>
+          <text x="170" y="190" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">YOUR SLOT · buffer[10]</text>
+          <text x="170" y="208" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">capacity = 10 boxes</text>
+          <text x="170" y="228" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">you keep putting more boxes in…</text>
+
+          <!-- overflow zone -->
+          <rect x="40" y="110" width="260" height="55" rx="6" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <text x="170" y="130" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="800">SPILL ZONE · saved registers</text>
+          <text x="170" y="148" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.65)" font-family="JetBrains Mono">boxes falling out of your slot</text>
+
+          <!-- emergency button -->
+          <rect x="40" y="55" width="260" height="50" rx="6" fill="rgba(255,77,109,.18)" stroke="rgba(255,77,109,.85)" stroke-width="1.8"/>
+          <text x="170" y="75" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">⏻ EMERGENCY BUTTON</text>
+          <text x="170" y="92" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.8)" font-family="JetBrains Mono">= the return address</text>
+
+          <!-- arrows spilling up -->
+          <path d="M 170 195 L 170 175 L 170 145 L 170 105" stroke="rgba(255,77,109,.85)" stroke-width="2" fill="none" stroke-dasharray="5 4"/>
+          <polygon points="170,105 165,113 175,113" fill="rgba(255,77,109,.9)"/>
+          <text x="200" y="160" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">overflow</text>
+
+          <text x="170" y="290" text-anchor="middle" font-size="9" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">the button fires when ret executes</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Expanded">
+  <div class="slide-inner">
+    <span class="badge amber">📦 Analogy 1 · The Three Parts of the Shelf</span>
+    <h2 style="margin-bottom:16px;">What's <span class="grad-amber">above</span> and <span class="grad-amber">below</span> your buffer slot</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Below · your own slot</span>
+          <p>The buffer itself — the 10 bytes you were allocated. Filling within it is fine. <code style="font-family:var(--mono);color:#b9d0ff">buffer[0..9]</code> writes stay inside your slot.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Above · saved registers</span>
+          <p>The first thing an overflow hits is <strong>saved RBP</strong> and any adjacent local variables. Corrupting these can crash the program on function exit (<code style="font-family:var(--mono);color:#ff9fb1">leave; ret</code> restores a garbage frame pointer).</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Above · the return address</span>
+          <p>The critical target. An overflow that reaches this 8-byte region and writes it with an attacker-chosen address <strong>redirects the next instruction fetch</strong> — full control of execution.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The missing guardrail</span>
+          <p>In a safe language, the compiler inserts bounds checks: <em>"is buffer[10] within bounds?"</em> — and refuses to write. In C, <strong>no such check exists</strong>. The floor manager was replaced by a sign that says "trust the developer."</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exact definition:</b> a <strong>buffer overflow</strong> is a critical software security defect where data spills past an allocated memory buffer boundary to corrupt neighboring memory values.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The stack, annotated with the analogy</div>
+        <div class="stack-vis">
+          <div class="stack-block ret">
+            <div><div class="sb-name">RETURN ADDRESS</div><div class="sb-content">where the CPU resumes after ret</div></div>
+            <div class="sb-tag">⏻ EMERGENCY<br>BUTTON</div>
+          </div>
+          <div class="stack-block rbp">
+            <div><div class="sb-name">SAVED RBP</div><div class="sb-content">caller's frame pointer</div></div>
+            <div class="sb-tag">NEIGHBORING<br>SLOT</div>
+          </div>
+          <div class="stack-block buffer">
+            <div><div class="sb-name">LOCAL BUFFER [10]</div><div class="sb-content">char buffer[10];</div></div>
+            <div class="sb-tag">YOUR<br>BOX SLOT</div>
+          </div>
+          <div style="margin-top:12px;padding:10px 12px;border-radius:8px;border:1px dashed rgba(255,255,255,.18);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-align:center;line-height:1.7">
+            <strong style="color:#ff9fb1">↑ overflow direction</strong><br>
+            <span style="color:var(--muted)">bytes spill from buffer into saved RBP, then into return address</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Technical">
+  <div class="slide-inner">
+    <span class="badge violet">🔗 Analogy 2 · Pure Technical — The Unchecked String Copy</span>
+    <h2 style="margin-bottom:16px;"><code style="font-family:var(--mono);color:#c9a7ff">strcpy</code> copies <span class="grad-violet">until it sees a null</span>. Not until the buffer fills.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What strcpy actually does</span>
+          <p>A buffer overflow mimics a <strong>linear streaming copy process that lacks maximum boundary index caps</strong>, allowing incoming string data bytes to spill past local variables and rewrite administrative control flags.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The loop inside</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2);margin-top:4px">
+            while (*src != '\0') {<br>
+            &nbsp;&nbsp;*dst++ = *src++;<br>
+            }<br>
+            *dst = '\0';
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Where the check is missing</span>
+          <p>The loop only checks: <em>"is there more source data?"</em> It never checks <em>"have I exceeded the destination's size?"</em>. If the source is longer than the destination, bytes spill past the buffer's end — into adjacent memory, silently.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix — bounded copy</span>
+          <p>Use <code style="font-family:var(--mono);color:#88ffd8">strncpy(dst, src, size)</code> or better <code style="font-family:var(--mono);color:#88ffd8">snprintf</code> or modern <code style="font-family:var(--mono);color:#88ffd8">strlcpy</code>. Each caps the copy at a maximum byte count and can't overwrite past the buffer.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Source, destination, and the spill</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">strcpy(buffer, input) WITH LONG INPUT</text>
+
+          <!-- source string -->
+          <rect x="20" y="40" width="300" height="50" rx="6" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.4"/>
+          <text x="170" y="60" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">SOURCE · input (20 bytes + null)</text>
+          <text x="170" y="80" text-anchor="middle" font-size="10" fill="#fff" font-family="JetBrains Mono" font-weight="700">AAAAAAAAAAAAAAAAAAA\0</text>
+
+          <!-- arrow copy -->
+          <line x1="170" y1="95" x2="170" y2="130" stroke="rgba(255,182,72,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,130 164,122 176,122" fill="rgba(255,182,72,.85)"/>
+          <text x="170" y="118" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">strcpy · no bounds check</text>
+
+          <!-- destination buffer with first 10 bytes -->
+          <rect x="20" y="140" width="300" height="60" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="160" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">DEST · buffer[10] · first 10 bytes OK</text>
+          <text x="170" y="180" text-anchor="middle" font-size="10" fill="#fff" font-family="JetBrains Mono" font-weight="700">AAAAAAAAAA</text>
+          <text x="170" y="194" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.6)" font-family="JetBrains Mono">buffer[0..9]</text>
+
+          <!-- spill arrow -->
+          <line x1="170" y1="205" x2="170" y2="240" stroke="rgba(255,77,109,.85)" stroke-width="2" stroke-dasharray="5 4"/>
+          <polygon points="170,240 164,232 176,232" fill="rgba(255,77,109,.9)"/>
+
+          <!-- spill zone -->
+          <rect x="20" y="240" width="300" height="55" rx="6" fill="rgba(255,77,109,.12)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="258" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">SPILL · 10 more bytes past buffer</text>
+          <text x="170" y="276" text-anchor="middle" font-size="10" fill="#fff" font-family="JetBrains Mono" font-weight="700">AAAAAAAAAA</text>
+          <text x="170" y="290" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">→ overwrites saved RBP / return address</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="System Cohesion">
+  <div class="slide-inner">
+    <span class="badge blue">🧭 System Cohesion — Where L24 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-blue">exploit layer</span> that justifies every other defense</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 2 · L05 (Process Anatomy)</h4>
+            <p>Exploits the <strong>contiguous structural alignment of variables</strong> on the active memory stack frame segment layout. If the buffer and return address weren't adjacent, there'd be nothing to overflow into.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L27 (Modern Isolation Paradigms)</h4>
+            <p>The persistent danger of memory-unsafe code vulnerabilities serves as the <strong>primary engineering catalyst</strong> for building sandboxes — containers, namespaces, WebAssembly, and language-level memory safety.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 3 (Memory Layout)</h4>
+            <p>The stack, heap, and text segments each sit at different addresses with different protections. The exploit lives in the stack region — its mechanics depend on how memory is laid out.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Everything above</h4>
+            <p>Buffer overflows are the canonical example of "software can break the hardware's trust model." Every isolation mechanism above L24 was designed with this attack in mind.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The Module 7 arc:</b> L22 (policy) → L23 (identity) → L24 (exploit) → L25 (encryption) → L26 (firewall) → L27 (sandbox). L24 is where the model breaks down — and where the motivation for L27 comes from.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L05 · Stack Frame</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">buffer adjacency</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Mem Layout</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">stack region</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">L24 · PROGRAM EXPLOITS</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">buffer overflow · canary · ASLR</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">L27 · Isolation</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">sandboxes</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L22 + L23</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">policy · identity</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Stack frame anatomy">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown · Stack Frame Anatomy</span>
+    <h2 style="margin-bottom:16px;">Every function call builds a <span class="grad-blue">four-part frame</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The frame at a glance</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>High addresses:</strong> Return Address (pushed by <code style="font-family:var(--mono);color:#b9d0ff">call</code>)<br>
+            <strong>↓</strong> Saved RBP (pushed by prologue)<br>
+            <strong>↓</strong> Canary (optional — compiler-inserted)<br>
+            <strong>Low addresses:</strong> Local variables (including your buffer)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">How the prologue builds it</span>
+          <p style="font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--ink-2);margin-top:4px">
+            call vuln &nbsp;&nbsp;&nbsp;→ push return_addr<br>
+            push rbp &nbsp;&nbsp;&nbsp;&nbsp;→ save old frame ptr<br>
+            mov rbp, rsp &nbsp;→ establish frame<br>
+            sub rsp, 48 &nbsp;&nbsp;→ allocate locals
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why adjacency is fatal</span>
+          <p>Local variables — <em>including the vulnerable buffer</em> — sit <strong>directly below</strong> the saved RBP and return address. There is nothing between them but 8 bytes (saved RBP) or 16 bytes (saved RBP + canary). An overflow walks that gap in a few extra characters.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The return address is the crown jewel:</b> it's the only thing on the stack that the CPU reads unconditionally (<code style="font-family:var(--mono);color:#ff9fb1">ret</code>) to decide where to jump next. Corrupt it → control of the CPU.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four-part stack frame</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <text x="170" y="18" text-anchor="middle" font-size="9.5" fill="rgba(255,159,177,.9)" font-family="JetBrains Mono" font-weight="800">HIGH ADDRESSES</text>
+
+          <!-- ret addr -->
+          <rect x="20" y="30" width="300" height="55" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="52" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">RETURN ADDRESS</text>
+          <text x="170" y="70" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">0x00005555555551a7</text>
+          <text x="170" y="82" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">8 bytes · pushed by call</text>
+
+          <!-- saved rbp -->
+          <rect x="20" y="90" width="300" height="55" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.4"/>
+          <text x="170" y="112" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">SAVED RBP</text>
+          <text x="170" y="130" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">0x00007fffffffe4b0</text>
+          <text x="170" y="142" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">8 bytes · caller's frame pointer</text>
+
+          <!-- canary -->
+          <rect x="20" y="150" width="300" height="55" rx="6" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.4"/>
+          <text x="170" y="172" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">STACK CANARY (optional)</text>
+          <text x="170" y="190" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">0x0000a1b2c3d4e5f6</text>
+          <text x="170" y="202" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">8 bytes · secret · checked before ret</text>
+
+          <!-- buffer -->
+          <rect x="20" y="210" width="300" height="75" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="232" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="Inter" font-weight="800">LOCAL BUFFER [10]</text>
+          <text x="170" y="250" text-anchor="middle" font-size="9" fill="#fff" font-family="JetBrains Mono">'h','e','l','l','o','\0', ...</text>
+          <text x="170" y="266" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">10 bytes · char buffer[10];</text>
+          <text x="170" y="278" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">← the overflow target's start</text>
+
+          <text x="170" y="308" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.9)" font-family="JetBrains Mono" font-weight="800">LOW ADDRESSES</text>
+          <text x="170" y="326" text-anchor="middle" font-size="8.5" fill="rgba(132,148,180,.6)" font-family="JetBrains Mono">stack grows downward · overflow writes upward</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · How overflow works" data-anim="overflowsteps">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown · The Overflow, Step by Step</span>
+    <h2 style="margin-bottom:16px;">What <span class="grad-crimson">strcpy</span> does when the input is too long</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The vulnerable code</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2);margin-top:4px">
+            void vuln(char *input) {<br>
+            &nbsp;&nbsp;char buffer[10];<br>
+            &nbsp;&nbsp;<span style="color:#ff9fb1">strcpy(buffer, input);</span> // no bounds check!<br>
+            &nbsp;&nbsp;printf("Got: %s\n", buffer);<br>
+            }
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What happens with a 20-char input</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> strcpy writes <code style="font-family:var(--mono);color:#ffd18a">buffer[0..9]</code> — safe, fills the buffer.<br>
+            <strong>2.</strong> Input continues → overwrites saved RBP with <code style="font-family:var(--mono);color:#ffd18a">AAAAAAAA</code>.<br>
+            <strong>3.</strong> Input continues → overwrites low bytes of the return address.<br>
+            <strong>4.</strong> strcpy writes the null terminator — one byte further.<br>
+            <strong>5.</strong> On return, <code style="font-family:var(--mono);color:#ffd18a">ret</code> jumps to <code style="font-family:var(--mono);color:#ffd18a">0x4141414141</code> — attacker code.
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The result without defenses</span>
+          <p>At minimum a <strong>segmentation fault</strong> (jumping to invalid address). At worst — with carefully crafted payload — <strong>arbitrary code execution</strong>: the return address points to shellcode the attacker placed in the buffer, giving them a shell in the victim's context.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The overflow sequence</div>
+        <div class="step-flow" id="overflowSteps">
+          <div class="step-item" data-idx="0">
+            <div class="si-num">1</div>
+            <div class="si-body"><strong>strcpy(buffer, input)</strong> — copy begins at buffer[0]</div>
+            <div class="si-tag user">SAFE</div>
+          </div>
+          <div class="step-item" data-idx="1">
+            <div class="si-num">2</div>
+            <div class="si-body"><strong>buffer[0..9] written</strong> — within allocated bounds</div>
+            <div class="si-tag user">SAFE</div>
+          </div>
+          <div class="step-item" data-idx="2">
+            <div class="si-num">3</div>
+            <div class="si-body"><strong>buffer[10..17] written</strong> — spills into saved RBP</div>
+            <div class="si-tag attack">SPILL</div>
+          </div>
+          <div class="step-item" data-idx="3">
+            <div class="si-num">4</div>
+            <div class="si-body"><strong>buffer[18..19] + null</strong> — overwrites low bytes of return address</div>
+            <div class="si-tag attack">CRITICAL</div>
+          </div>
+          <div class="step-item" data-idx="4">
+            <div class="si-num">5</div>
+            <div class="si-body"><strong>function returns</strong> — CPU pops corrupted return address</div>
+            <div class="si-tag kernel">KERNEL</div>
+          </div>
+          <div class="step-item" data-idx="5">
+            <div class="si-num">6</div>
+            <div class="si-body"><strong>ret jumps</strong> — to attacker-controlled address</div>
+            <div class="si-tag attack">HIJACK</div>
+          </div>
+          <div class="step-item" data-idx="6">
+            <div class="si-num">7</div>
+            <div class="si-body"><strong>arbitrary code execution</strong> — attacker now controls the process</div>
+            <div class="si-tag attack">COMPROMISE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Return address hijack">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Core Breakdown · The Return Address Hijack</span>
+    <h2 style="margin-bottom:16px;">How <span class="grad-violet">one byte</span> becomes <span class="grad-violet">full CPU control</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">What <code style="font-family:var(--mono);color:#c9a7ff">ret</code> actually does</span>
+          <p>The <code style="font-family:var(--mono);color:#c9a7ff">ret</code> instruction is one machine instruction: <em>"pop the top of the stack into RIP (the instruction pointer) and jump there."</em> That's it. No validation. No bounds check. No authentication.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The control-flow hijack</span>
+          <p>If an attacker overwrites the 8 bytes at the top of the stack with their chosen address, <code style="font-family:var(--mono);color:#ff9fb1">ret</code> jumps there. The attacker now controls <strong>which instruction the CPU executes next</strong> — which is, from the CPU's perspective, indistinguishable from legitimate code.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What the attacker puts at that address</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Shellcode</strong> — injected into the buffer itself<br>
+            <strong>Return-to-libc</strong> — reuses existing libc code (e.g. <code style="font-family:var(--mono);color:#ffd18a">system()</code>)<br>
+            <strong>ROP chain</strong> — strings together small "gadgets" from the binary<br>
+            <strong>JOP</strong> — jumps to dispatcher gadgets instead of returning
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The privilege escalation path</span>
+          <p>If the exploited process runs as root (e.g. a setuid binary), the attacker's code runs as root. If it's a network-facing daemon, the attacker gets a remote shell. If it's the kernel itself (via a driver bug), the attacker is inside Ring 0.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The hijack in one diagram</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="18" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">BEFORE · NORMAL FRAME</text>
+
+          <rect x="20" y="30" width="140" height="40" rx="6" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">ret addr</text>
+          <text x="90" y="62" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">→ main()</text>
+
+          <rect x="20" y="74" width="140" height="32" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="94" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">saved rbp</text>
+
+          <rect x="20" y="110" width="140" height="60" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="128" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">buffer[10]</text>
+          <text x="90" y="144" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">"hello"</text>
+          <text x="90" y="160" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">clean</text>
+
+          <line x1="170" y1="100" x2="195" y2="100" stroke="rgba(255,255,255,.4)" stroke-width="1.4"/>
+
+          <text x="260" y="18" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">AFTER · HIJACKED</text>
+
+          <rect x="200" y="30" width="140" height="40" rx="6" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.85)" stroke-width="1.5"/>
+          <text x="270" y="48" text-anchor="middle" font-size="9" fill="#fff" font-family="JetBrains Mono" font-weight="800">ret addr</text>
+          <text x="270" y="62" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">→ SHELLCODE ✕</text>
+
+          <rect x="200" y="74" width="140" height="32" rx="6" fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.85)" stroke-width="1.3"/>
+          <text x="270" y="94" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">0x41414141</text>
+
+          <rect x="200" y="110" width="140" height="60" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.4"/>
+          <text x="270" y="128" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">buffer[10]</text>
+          <text x="270" y="144" text-anchor="middle" font-size="8" fill="#fff" font-family="JetBrains Mono">AAAA…</text>
+          <text x="270" y="160" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">attacker payload</text>
+
+          <line x1="170" y1="185" x2="170" y2="215" stroke="rgba(255,77,109,.75)" stroke-width="2" class="svg-flow"/>
+          <polygon points="170,215 164,207 176,207" fill="rgba(255,77,109,.9)"/>
+
+          <rect x="20" y="220" width="320" height="80" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.5"/>
+          <text x="180" y="242" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="800">ret POPs 0x41414141 INTO RIP</text>
+          <text x="180" y="260" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">→ CPU jumps to attacker-controlled address</text>
+          <text x="180" y="278" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">→ next instruction is whatever attacker placed there</text>
+          <text x="180" y="294" text-anchor="middle" font-size="9" fill="rgba(255,77,109,.8)" font-family="JetBrains Mono" font-weight="800">✕ arbitrary code execution</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Live · Overflow canvas" data-anim="overflowcanvas">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown · The Overflow Animation</span>
+    <h2 style="margin-bottom:16px;">Watch the bytes <span class="grad-amber">climb the stack</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p>The canvas on the right animates a stack frame being filled with a payload. Watch the fill level climb from the bottom (buffer) to the top (return address).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The four regions</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong style="color:#b9d0ff">Buffer</strong> — safe writes, buffer[0..9]<br>
+            <strong style="color:#ffd18a">Saved RBP</strong> — first spill zone, corrupts frame<br>
+            <strong style="color:#ff9fb1">Return Address</strong> — the hijack target<br>
+            <strong style="color:#ff9fb1">0x41414141…</strong> — attacker-controlled bytes
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">When the fill reaches the top</span>
+          <p>The <code style="font-family:var(--mono);color:#ff9fb1">ret</code> arrow fires. The CPU pops the corrupted address and jumps. That's the moment the attacker takes control.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The takeaway:</b> nothing about the overflow process is subtle. It's a straight line: buffer grows upward, saved RBP gets corrupted, return address gets overwritten, <code style="font-family:var(--mono);color:#ff9fb1">ret</code> jumps. The entire security model of the process depends on <em>nothing going wrong in that one boundary</em>.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The overflow, animated</div>
+        <canvas id="overflowCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Practical · strcpy vuln" data-anim="strcpycode">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">💻 Practical Example — The strcpy() Vulnerability</span>
+    <h2 style="margin-bottom:16px;">20 characters. 10-byte buffer. <span class="grad-crimson">The classic exploit.</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head crimson"><span>vuln.c — the vulnerable program</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;string.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span> <span class="c-name">vuln</span>(<span class="c-kw">const</span> <span class="c-type">char</span> *<span class="c-var">input</span>) {</span><span class="code-line">    <span class="c-type">char</span> <span class="c-var">buffer</span>[<span class="c-num">10</span>];       <span class="c-com">// the vulnerable buffer</span></span><span class="code-line"></span><span class="code-line">    <span class="c-name">strcpy</span>(<span class="c-var">buffer</span>, <span class="c-var">input</span>);   <span class="c-com">// ← no bounds check!</span></span><span class="code-line">    <span class="c-com">// writes until it finds a null byte</span></span><span class="code-line">    <span class="c-com">// NOT until the buffer fills</span></span><span class="code-line"></span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Got: %s\n"</span>, <span class="c-var">buffer</span>);</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>(<span class="c-type">int</span> <span class="c-var">argc</span>, <span class="c-type">char</span> **<span class="c-var">argv</span>) {</span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">argc</span> &lt; <span class="c-num">2</span>) <span class="c-kw">return</span> <span class="c-num">1</span>;</span><span class="code-line">    <span class="c-name">vuln</span>(<span class="c-var">argv</span>[<span class="c-num">1</span>]);        <span class="c-com">// attacker controls argv[1]</span></span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The line that matters</span>
+          <p><code style="font-family:var(--mono);color:#ff9fb1">strcpy(buffer, input)</code> — copies <em>everything</em> in <code style="font-family:var(--mono);color:#ff9fb1">input</code> until it hits a <code style="font-family:var(--mono);color:#ff9fb1">'\0'</code>. If <code style="font-family:var(--mono);color:#ff9fb1">input</code> is longer than 9 bytes (plus null), the copy spills past the buffer's end.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why the source string matters</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Short input</strong> — "hello\0" = 6 bytes → safe<br>
+            <strong>Boundary input</strong> — "0123456789\0" = 11 bytes → overflows 1<br>
+            <strong>Long input</strong> — "AAAAAAAAAAAAAAAAAAAA\0" = 21 bytes → corrupts return address
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            <span style="color:#88ffd8">strncpy(buffer, input, sizeof(buffer) - 1);</span><br>
+            <span style="color:#88ffd8">buffer[sizeof(buffer) - 1] = '\0';</span><br>
+            <span style="color:rgba(136,255,216,.6)">// guaranteed no overflow</span>
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exact example from the source:</b> "If a function declares <code style="font-family:var(--mono);color:#ff9fb1">char buffer[10];</code> and immediately executes <code style="font-family:var(--mono);color:#ff9fb1">strcpy(buffer, input);</code> without validating that input is under 10 bytes, any payload larger than the frame limit will spill directly into the stack management parameters."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Live · GDB crash" data-anim="gdbtrace">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🧪 Live Demo — The Crash &amp; GDB Trace</span>
+    <h2 style="margin-bottom:16px;">See the <span class="grad-crimson">corrupted return address</span> in GDB</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Trigger and debug</div>
+        <div class="terminal" id="gdbTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — triggering the overflow</span>
+          </div>
+          <div class="term-body" id="gdbBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./vuln AAAAAAAAAAAAAAAAAAAA</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What the trace shows</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> Program crashes with SIGSEGV<br>
+            <strong>2.</strong> Backtrace shows <code style="font-family:var(--mono);color:#ff9fb1">0x4141414141414141</code> as the PC<br>
+            <strong>3.</strong> <code style="font-family:var(--mono);color:#ff9fb1">0x41</code> = ASCII 'A' — the payload bytes<br>
+            <strong>4.</strong> The return address was overwritten with "AAAA…"
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it's <code style="font-family:var(--mono);color:#ffd18a">0x4141414141414141</code></span>
+          <p>ASCII uppercase A is <code style="font-family:var(--mono);color:#ffd18a">0x41</code>. When all 8 bytes of the return address are overwritten with "A" characters, the resulting pointer is <code style="font-family:var(--mono);color:#ffd18a">0x4141414141414141</code> — a classic signature of a stack buffer overflow.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What a successful exploit does</span>
+          <p>Instead of "A"s, the attacker writes a <strong>real address</strong> — either to their own shellcode (placed in the buffer) or to a libc function like <code style="font-family:var(--mono);color:#88ffd8">system()</code>. Then the process jumps there and executes the attacker's code.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real-world note:</b> this exact pattern — 0x41414141 in the backtrace — is one of the most recognizable signs of a stack overflow in production crash reports. If you see it, you're looking at an exploited binary.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Defense · Stack canary">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🛡️ Defense 1 — Stack Canaries</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-emerald">secret token</span> sitting between buffer and return address</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The formal definition</span>
+          <p>A <strong>stack canary</strong> is a secret, random value placed by the compiler <strong>between local buffers and the return address</strong> to detect stack frame corruption.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Function prologue writes a random value (the canary) on the stack, right before the return address.<br>
+            <strong>2.</strong> Function body runs — buffer is used normally.<br>
+            <strong>3.</strong> Function epilogue reads the canary back and compares it to a saved copy in thread-local storage.<br>
+            <strong>4.</strong> If the canary was modified → <code style="font-family:var(--mono);color:#88ffd8">__stack_chk_fail()</code> → abort program.<br>
+            <strong>5.</strong> If it's unchanged → safe to execute <code style="font-family:var(--mono);color:#88ffd8">ret</code>.
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it works</span>
+          <p>An overflow that reaches the return address <em>must</em> pass through the canary first. If the canary is corrupted, the check catches it and aborts before <code style="font-family:var(--mono);color:#88ffd8">ret</code> executes. The attacker never gets to jump.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The name's origin</span>
+          <p>Like the canary in a coal mine — the token "dies" (changes) first when there's danger, warning you before the actual disaster (the corrupted return address).</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The canary in the stack frame</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="300" height="55" rx="6" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+          <text x="170" y="52" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">RETURN ADDRESS</text>
+          <text x="170" y="70" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">the hijack target — protected</text>
+
+          <rect x="20" y="90" width="300" height="55" rx="6" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="170" y="112" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">🛡 STACK CANARY</text>
+          <text x="170" y="130" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">0x0000a1b2c3d4e5f6</text>
+          <text x="170" y="144" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">secret · checked before ret</text>
+
+          <rect x="20" y="150" width="300" height="55" rx="6" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="172" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">SAVED RBP</text>
+          <text x="170" y="190" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">corrupted by overflow</text>
+
+          <rect x="20" y="210" width="300" height="60" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="232" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">LOCAL BUFFER [10]</text>
+          <text x="170" y="250" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.65)" font-family="JetBrains Mono">AAAA… → fills upward</text>
+
+          <text x="170" y="292" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.85)" font-family="JetBrains Mono" font-weight="800">canary = 0x…e5f6 ?</text>
+          <text x="170" y="306" text-anchor="middle" font-size="9.5" fill="rgba(255,77,109,.85)" font-family="JetBrains Mono" font-weight="800">✕ corrupted → abort</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Defense · ASLR">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🛡️ Defense 2 — Address Space Layout Randomization (ASLR)</span>
+    <h2 style="margin-bottom:16px;">Randomize <span class="grad-blue">where things live</span>, every run</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The formal definition</span>
+          <p><strong>ASLR (Address Space Layout Randomization)</strong> is a security defense that <strong>randomizes the memory address locations of the stack, heap, and libraries</strong> on every single execution run.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The problem ASLR solves</span>
+          <p>An attacker writing a payload needs to know <em>where</em> their shellcode is, or where <code style="font-family:var(--mono);color:#ffd18a">system()</code> lives, or where a useful ROP gadget is. Without ASLR, these addresses are <strong>identical on every run</strong> — an attacker can just look them up once and hardcode them.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What ASLR changes</span>
+          <p>Each time a program starts, the OS randomizes the base addresses of the stack, heap, shared libraries, and (with PIE) the executable itself. An address that worked for the attacker yesterday might point to garbage today. The payload's hardcoded jump target becomes unpredictable.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The limitation</span>
+          <p>ASLR doesn't stop the overflow itself — it only makes <em>exploiting</em> it harder. Attackers can bypass ASLR with <strong>info leaks</strong> (disclose an address to a second channel), <strong>brute force</strong> (on 32-bit systems with only ~16 bits of entropy), or <strong>partial overwrites</strong>. That's why ASLR is usually combined with canaries.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The same program. Different addresses every run.</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="90" y="20" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">RUN #1</text>
+          <text x="250" y="20" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">RUN #2</text>
+
+          <rect x="20" y="30" width="140" height="35" rx="5" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.2"/>
+          <text x="90" y="52" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono">stack 0x7ffe…</text>
+
+          <rect x="180" y="30" width="140" height="35" rx="5" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <text x="250" y="52" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono">stack 0x7fff…</text>
+
+          <rect x="20" y="75" width="140" height="35" rx="5" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="90" y="97" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">heap 0x5555…</text>
+
+          <rect x="180" y="75" width="140" height="35" rx="5" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <text x="250" y="97" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono">heap 0x5588…</text>
+
+          <rect x="20" y="120" width="140" height="35" rx="5" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="90" y="142" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono">libc 0x7f2a…</text>
+
+          <rect x="180" y="120" width="140" height="35" rx="5" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="250" y="142" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono">libc 0x7f6d…</text>
+
+          <rect x="20" y="165" width="140" height="35" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="90" y="187" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono">code 0x5555…</text>
+
+          <rect x="180" y="165" width="140" height="35" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <text x="250" y="187" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono">code 0x558c…</text>
+
+          <line x1="170" y1="30" x2="170" y2="200" stroke="rgba(255,255,255,.10)" stroke-width="1" stroke-dasharray="3 4"/>
+
+          <rect x="20" y="220" width="300" height="75" rx="8" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="242" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">ATTACKER'S PROBLEM</text>
+          <text x="170" y="260" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">a hardcoded return address</text>
+          <text x="170" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">points to garbage on a different run</text>
+          <text x="170" y="290" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">must leak or brute-force the address</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Defense · NX / DEP">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🛡️ Defense 3 — NX / DEP (Complementary)</span>
+    <h2 style="margin-bottom:16px;">Mark the stack <span class="grad-violet">non-executable</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The third line of defense</span>
+          <p>NX (No-eXecute) and DEP (Data Execution Prevention) mark the stack and heap as <strong>non-executable memory</strong>. The CPU will refuse to fetch instructions from those regions — even if the attacker manages to place shellcode there.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What it stops</span>
+          <p>The simplest buffer overflow exploit: overflow the buffer with shellcode, then redirect the return address back into the buffer. With NX, the return-into-buffer path is blocked — the CPU throws a protection fault instead of executing.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What attackers do instead</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Return-to-libc</strong> — jump to existing libc functions<br>
+            <strong>ROP (Return-Oriented Programming)</strong> — chain existing code "gadgets"<br>
+            <strong>JOP (Jump-Oriented Programming)</strong> — dispatcher-based variant
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why it's not enough alone</span>
+          <p>NX is a powerful defense, but not a complete one — ROP uses legitimate executable code. That's why real systems combine <strong>NX + ASLR + stack canaries</strong>: three different defenses against three different parts of the exploit.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Not in the source but standard:</b> the source explicitly mentions ASLR and Stack Canaries as the two defenses. NX/DEP is the standard third defense in modern systems, and it's directly relevant to the "return to buffer" class of exploits. It's worth knowing alongside the other two.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three-layer defense stack</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">LAYERED DEFENSE AGAINST STACK OVERFLOWS</text>
+
+          <rect x="20" y="35" width="300" height="60" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+          <text x="170" y="55" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">1 · STACK CANARY</text>
+          <text x="170" y="73" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">detects corruption before ret fires</text>
+          <text x="170" y="88" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">compile-time insertion · cheap</text>
+
+          <rect x="20" y="105" width="300" height="60" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="125" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="Inter" font-weight="800">2 · ASLR</text>
+          <text x="170" y="143" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">randomize addresses so jumps miss</text>
+          <text x="170" y="158" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">runtime kernel randomization</text>
+
+          <rect x="20" y="175" width="300" height="60" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.5"/>
+          <text x="170" y="195" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="Inter" font-weight="800">3 · NX / DEP</text>
+          <text x="170" y="213" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">stack/heap non-executable</text>
+          <text x="170" y="228" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">hardware page-table bit</text>
+
+          <rect x="20" y="250" width="300" height="52" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="170" y="272" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">+ BOUNDS-CHECKED CODE</text>
+          <text x="170" y="290" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">the only real fix: don't overflow in the first place</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Live · Canary detection" data-anim="canarytty">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — Canary Detection in Action</span>
+    <h2 style="margin-bottom:16px;">Watch the canary <span class="grad-emerald">catch the overflow</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Canary fires before ret</div>
+        <div class="terminal" id="canaryTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — canary-protected binary</span>
+          </div>
+          <div class="term-body" id="canaryBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./vuln_safe AAAAAAAAAAAAAAAAAAAA</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you see</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> Overflow writes past the buffer<br>
+            <strong>2.</strong> Canary value gets corrupted<br>
+            <strong>3.</strong> Function epilogue reads canary back<br>
+            <strong>4.</strong> Canary mismatch detected → <code style="font-family:var(--mono);color:#88ffd8">__stack_chk_fail()</code><br>
+            <strong>5.</strong> Program prints <code style="font-family:var(--mono);color:#88ffd8">*** stack smashing detected ***</code><br>
+            <strong>6.</strong> Process aborted before ret could fire
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is a win</span>
+          <p>The attacker still gets a crash — but <strong>not a hijack</strong>. The corrupted return address never gets used because <code style="font-family:var(--mono);color:#b9d0ff">abort()</code> fires first. The process dies but the attacker gains nothing.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The honest tradeoff</span>
+          <p>Canaries convert a <strong>silent hijack</strong> into a <strong>loud crash</strong>. The attacker loses control, but the program still terminates. That's a much better failure mode — but it's not a "do nothing" fix. The real fix is still bounds-checked code.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Enable on your builds:</b> modern GCC and Clang have canary support on by default. If you're compiling older code, check with <code style="font-family:var(--mono);color:#c9a7ff">-fstack-protector-strong</code> or <code style="font-family:var(--mono);color:#c9a7ff">-fstack-protector-all</code>. Never build with <code style="font-family:var(--mono);color:#ff9fb1">-fno-stack-protector</code> unless you have a very good reason.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about buffer overflows</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"The buffer is 10 bytes — so I can write 10 bytes safely"</div>
+        <div class="pc-desc">You can write <strong>9 bytes plus a null terminator</strong> — because C strings end with <code style="font-family:var(--mono);color:#ff9fb1">'\0'</code>. A "10-character" input is actually 11 bytes stored. The off-by-one is one of the most common real-world overflow classes. Always reserve one byte for the null.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"If the program doesn't crash, there's no bug"</div>
+        <div class="pc-desc">An overflow doesn't have to crash. It can silently corrupt <em>adjacent local variables</em> — a boolean "authenticated" flag flipping from 0 to 1, a session ID getting overwritten with attacker bytes, a pointer getting slightly shifted. The most dangerous overflows are the ones that <strong>don't</strong> crash. Silent corruption can be a much more effective exploit than a segfault.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"Stack canaries make the bug go away"</div>
+        <div class="pc-desc">No — canaries only detect the exploit <em>after</em> it happens. The overflow still corrupts memory. If the attacker can bypass the canary (info leak + overwrite), or if the vulnerable variable is <em>before</em> the canary in the frame, the bug still kills you. Canaries are a <strong>mitigation</strong>, not a fix. The real fix is bounds-checked code: <code style="font-family:var(--mono);color:#ff9fb1">strncpy</code>, <code style="font-family:var(--mono);color:#ff9fb1">snprintf</code>, or a memory-safe language.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Activity" data-anim="stackact">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Classroom Activity · The Byte-Level Stack Diagramming Race</span>
+    <h2 style="margin-bottom:16px;">Fill the stack. <span class="grad-violet">Cross the canary. Hijack the pointer.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Draw a clean memory layout grid of stack bytes on the blackboard, showing the buffer array, the canary, and the return address.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The activity</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Give a student a 20-character text string<br>
+            <strong>2.</strong> Have them fill the memory cells block-by-block from the bottom up<br>
+            <strong>3.</strong> Watch them physically cross the canary boundary<br>
+            <strong>4.</strong> Identify the exact index byte that hijacks the execution pointer
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The debrief questions</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            · At which byte index does the canary get corrupted?<br>
+            · At which byte index does the saved RBP get corrupted?<br>
+            · At which byte index does the return address get overwritten?<br>
+            · With a canary in place, would the program crash or return normally?
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The "aha" moment</span>
+          <p>Once the student physically writes past the buffer's boundary, they can see <em>exactly where</em> the security boundary sits. The buffer isn't a magic container — it's a fixed 10-byte region, and every byte past it is a step toward control hijack.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The stack diagramming race</div>
+        <div class="act-scene">
+          <div class="act-prompt" id="stackPrompt">
+            <span class="ap-q">Fill buffer[0..9] — still safe</span>
+          </div>
+          <div class="stack-vis">
+            <div class="stack-block ret">
+              <div><div class="sb-name">RETURN ADDRESS</div><div class="sb-content">0x00005555555551a7</div></div>
+              <div class="sb-tag">10-17 spilled<br>target</div>
+            </div>
+            <div class="stack-block canary">
+              <div><div class="sb-name">CANARY</div><div class="sb-content">0x0000a1b2c3d4e5f6</div></div>
+              <div class="sb-tag">check<br>before ret</div>
+            </div>
+            <div class="stack-block rbp">
+              <div><div class="sb-name">SAVED RBP</div><div class="sb-content">0x00007fffffffe4b0</div></div>
+              <div class="sb-tag">frame<br>pointer</div>
+            </div>
+            <div class="stack-block buffer">
+              <div><div class="sb-name">LOCAL BUFFER [10]</div><div class="sb-content">'A','A','A', ... </div></div>
+              <div class="sb-tag">your<br>slot</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🏷️ System Lexicon — Buffer Overflow &amp; Stack Smashing</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Buffer Overflow</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A critical software security defect where data spills past an allocated memory buffer boundary to corrupt neighboring memory values.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Writing more data than a buffer can hold — the extra bytes land on whatever sits next to it. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>Any memory-unsafe language — C, C++, assembly. Memory-safe languages (Rust, Go, Java, Python) prevent it at compile-time.</p>
+        </div>
+      </div>
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Stack Smashing</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 02 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Deliberately corrupting a process's stack frame memory by overflowing local variables to overwrite execution tracking flags.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Weaponizing a buffer overflow specifically to overwrite the return address and hijack execution. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Notable phrase</span>
+          <p>Modern compilers detect this and print <code style="font-family:var(--mono);color:#ff9fb1">*** stack smashing detected ***</code> — a direct reference to the attack class.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏷️ System Lexicon — Return Address, ASLR, Canary</span>
+    <div class="two-lex" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Return Address</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 03 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A vital execution tracking address saved on the stack frame that instructs the CPU where to resume execution once a function ends.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The "return to sender" pointer pushed by call, popped by ret. )</p>
+        </div>
+      </div>
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Stack Canary</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 04 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A secret, random value placed by the compiler between local buffers and the return address to detect stack frame corruption.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A tripwire — if it changes, the program aborts before ret fires. )</p>
+        </div>
+      </div>
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);grid-column:span 2">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Address Space Layout Randomization (ASLR)</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 05 of 05</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A security defense that randomizes the memory address locations of the stack, heap, and libraries on every single execution run.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Make the memory map unpredictable, so the attacker's hardcoded jump lands on garbage. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where to check</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">/proc/sys/kernel/randomize_va_space</code> on Linux — 2 = full ASLR. <code style="font-family:var(--mono);color:#b9d0ff">checksec --file=binary</code> shows PIE + ASLR state.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Mindmap" data-anim="mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🗺️ Mindmap Branch</span>
+    <h2 style="margin-bottom:16px;">L24 in the <span class="grad-blue">course tree</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The branch</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2)">
+            CS 301: Operating Systems<br>
+            &nbsp;&nbsp;→ Module 7: Security &amp; Protection<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;→ <strong style="color:#ff9fb1">L24: Program Exploits</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Stack Buffer Overflow<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Return Address Hijack<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Defenses: Canary · ASLR · NX
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The five core concepts</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Buffer overflow</strong> — writing past a fixed-size buffer<br>
+            <strong>Stack smashing</strong> — deliberately weaponizing it<br>
+            <strong>Return address</strong> — the hijack target<br>
+            <strong>Stack canary</strong> — the tripwire<br>
+            <strong>ASLR</strong> — the unpredictability
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The throughline to L27</span>
+          <p>Buffer overflow is the canonical example of why <em>isolation</em> exists. If a single memory bug can hand an attacker control of the whole process, the only robust answer is to run that process <strong>in a sandbox</strong> where the damage is contained. That's exactly what L27 covers.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Mindmap branch</div>
+        <div class="mindmap" id="mindmapVis">
+          <div class="mm-row"><span class="mm-prefix">├─ </span><div class="mm-node root">CS 301 · Operating Systems</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node">Module 7 · Security &amp; Protection</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf amber">L22 · Access Control</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf emerald">L23 · Authentication</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node active">L24 · Program Exploits</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf">Stack Buffer Overflow</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf blue">Return Address Hijack</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  └─ </span><div class="mm-node leaf emerald">Canary · ASLR · NX</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf violet">L25 · Encryption →</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  └─ </span><div class="mm-node leaf blue">L27 · Sandboxes</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Real world · CVEs">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🌍 Real World — Famous Buffer Overflow Exploits</span>
+    <h2 style="margin-bottom:16px;">This isn't academic. <span class="grad-crimson">These actually happened.</span></h2>
+    <div class="example-grid">
+      <div class="example-card">
+        <span class="ec-icon">🪱</span>
+        <div class="ec-name" style="color:#b9d0ff">Morris Worm · 1988</div>
+        <div class="ec-profile">
+          First major internet worm<br>
+          Exploited a buffer overflow<br>
+          in fingerd daemon<br>
+          ~6,000 machines compromised
+        </div>
+        <div class="ec-win" style="background:rgba(91,141,255,.15);color:#b9d0ff">Proof of concept</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">💥</span>
+        <div class="ec-name" style="color:#ff9fb1">Code Red · 2001</div>
+        <div class="ec-profile">
+          Microsoft IIS index-server<br>
+          buffer overflow<br>
+          359,000+ servers infected<br>
+          in under 14 hours
+        </div>
+        <div class="ec-win" style="background:rgba(255,77,109,.15);color:#ff9fb1">Mass exploitation</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">🔓</span>
+        <div class="ec-name" style="color:#ffd18a">Heartbleed · 2014</div>
+        <div class="ec-profile">
+          OpenSSL out-of-bounds read<br>
+          leaked private keys + sessions<br>
+          ~17% of HTTPS servers affected<br>
+          a decade of cleanup
+        </div>
+        <div class="ec-win" style="background:rgba(255,182,72,.15);color:#ffd18a">Data leakage</div>
+      </div>
+    </div>
+    <div class="panel crimson" style="margin-top:20px;padding:18px">
+      <span class="panel-label">⚠️ The pattern</span>
+      <p>Every major internet worm of the last 30 years has a buffer overflow (or a close cousin: out-of-bounds read, integer overflow, format-string bug) somewhere in its origin story. The exploit class predates the internet — it's described in James Anderson's 1972 US Air Force report — and it's still found in production code today.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>Why Rust exists:</b> the modern answer to this entire class of bugs is memory-safe languages. Rust's borrow checker catches overflows at compile time. If a company is writing new systems code in C in 2026, they need canaries + ASLR + NX + fuzzing + code review — because the language itself won't save them.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Bridge · The sandbox question">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌉 The Sandbox Question — A Bridge to L27</span>
+    <h2 style="margin-bottom:16px;">If memory bugs are <span class="grad-emerald">inevitable</span>, contain the damage</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The honest admission</span>
+          <p>Canaries, ASLR, and NX all help — but none of them fix the underlying bug. Software still ships with buffer overflows. The kernel is still written in C. Users still run code that has never been formally verified.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The shift in strategy</span>
+          <p>Instead of trying to make every program perfect, modern systems <strong>assume compromise</strong>. If this process gets exploited, what can it reach? That's the sandbox question — and it's the subject of L27 (Modern Isolation Paradigms).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What L27 will cover</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Sandboxes</strong> — restrict what a process can syscall<br>
+            <strong>Namespaces</strong> — isolate PID, network, mount views<br>
+            <strong>cgroups</strong> — cap CPU, RAM, storage<br>
+            <strong>Containers</strong> — user-space isolation without a full VM<br>
+            <strong>Hypervisors</strong> — full hardware emulation for the strongest boundary
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design shift:</b> L24 teaches you to <em>prevent</em> compromise. L27 teaches you to <em>survive</em> compromise. Real systems do both. The modern security posture is not "we will never be breached" — it's "if we are breached, the blast radius is contained."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The defense-in-depth architecture</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="40" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="40" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">1 · PREVENT · bounds-checked code</text>
+          <text x="170" y="55" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">the ideal — but not always possible</text>
+
+          <rect x="20" y="70" width="300" height="40" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="90" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">2 · DETECT · canary + ASLR + NX</text>
+          <text x="170" y="105" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">L24 · raise the cost of exploitation</text>
+
+          <rect x="20" y="120" width="300" height="40" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="140" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">3 · CONTAIN · sandbox / namespace</text>
+          <text x="170" y="155" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">L27 · limit the blast radius</text>
+
+          <rect x="20" y="170" width="300" height="40" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="190" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">4 · RECOVER · backup + audit</text>
+          <text x="170" y="205" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">beyond L27 · organizational response</text>
+
+          <rect x="20" y="230" width="300" height="60" rx="8" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1.3" stroke-dasharray="5 4"/>
+          <text x="170" y="252" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">DEFENSE IN DEPTH</text>
+          <text x="170" y="270" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">every layer assumes the one above it fails</text>
+          <text x="170" y="285" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">that's how real systems survive real attackers</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🏆 Grand Summary — L24 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>A <strong>buffer overflow</strong> writes past the end of a fixed-size buffer. In C — a memory-unsafe language — nothing stops this at the language level. The overflow corrupts <strong>adjacent memory</strong>: saved registers, then the return address.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>The <strong>return address</strong> is the exploit's crown jewel. It's the only stack value the CPU reads unconditionally to decide where to jump next. Corrupt it → hijack execution — <code style="font-family:var(--mono);color:#ffd18a">ret</code> jumps to an attacker-chosen address.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Stack canaries</strong> put a secret token between the buffer and the return address — if the overflow corrupts the canary, the program aborts before <code style="font-family:var(--mono);color:#88ffd8">ret</code> fires. <strong>ASLR</strong> randomizes memory layout on every run — so hardcoded jump targets become unpredictable.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>These are <strong>mitigations, not fixes</strong>. The real fix is bounds-checked code — <code style="font-family:var(--mono);color:#b9d0ff">strncpy</code>, <code style="font-family:var(--mono);color:#b9d0ff">snprintf</code>, or a memory-safe language like Rust. When prevention fails (and it does), <strong>containment</strong> — the sandbox isolation of L27 — is the last line of defense.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Gateway to L25">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">➡️ Next Lecture — L25 · Encryption Fundamentals</span>
+    <h2 style="margin-bottom:18px;">From <span class="grad-violet">"code execution"</span> to <span class="grad-violet">"protecting the wire"</span></h2>
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The handoff</span>
+          <p>L24 showed how an attacker who achieves code execution can seize the process. But many attacks don't need code execution at all — they just need to read the data in transit. L25 shows how <strong>encryption</strong> protects data even when the attacker controls the network.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">L25 preview</span>
+          <p>Next lecture distinguishes <strong>symmetric</strong> encryption (AES — one shared key, fast) from <strong>asymmetric</strong> encryption (RSA — public/private keypair, slow). Then shows how modern systems combine them into <strong>hybrid encryption</strong> — asymmetric for key exchange, symmetric for bulk data — the architecture behind HTTPS/TLS.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The connection</span>
+          <p>Buffer overflow exploits hijack what a process <em>does</em>. Encryption protects what a process <em>sees</em>. Together they cover the two ways an attacker can compromise a system: by breaking the code, or by reading the data.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L25: Encryption Fundamentals &nbsp;|&nbsp; [L25.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad24" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#a06bff" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#a06bff"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad24)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad24)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : attack flow canvas ---------- */
+reg('attackcanvas', function(){
+  const c = document.getElementById('attackCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('STACK FRAME · OVERFLOW · RET HIJACK', W/2, 16);
+
+    // Animation phase
+    const totalCycle = 600; // 10 seconds at 60fps
+    const phase = (t % totalCycle) / totalCycle;
+
+    // stack layout: high addr at top
+    const bx = 200, bw = 240;
+    const retY = 70, rbpY = 140, canaryY = 210, bufY = 280;
+    const blockH = 50;
+
+    // fill amount based on phase
+    // 0-0.3: fill buffer
+    // 0.3-0.5: fill saved rbp
+    // 0.5-0.7: fill return address
+    // 0.7-1: show hijack
+    let bufFill = 0, rbpFill = 0, retFill = 0;
+    if(phase < 0.3){
+      bufFill = phase / 0.3;
+    } else if(phase < 0.5){
+      bufFill = 1;
+      rbpFill = (phase - 0.3) / 0.2;
+    } else if(phase < 0.7){
+      bufFill = 1;
+      rbpFill = 1;
+      retFill = (phase - 0.5) / 0.2;
+    } else {
+      bufFill = 1; rbpFill = 1; retFill = 1;
+    }
+
+    // Draw return address block
+    ctx.fillStyle = retFill > 0 ? 'rgba(255,77,109,.30)' : 'rgba(255,77,109,.08)';
+    ctx.fillRect(bx, retY, bw, blockH);
+    ctx.strokeStyle = 'rgba(255,77,109,.75)';
+    ctx.lineWidth = retFill > 0 ? 2.5 : 1.3;
+    ctx.strokeRect(bx, retY, bw, blockH);
+    // fill bar
+    if(retFill > 0){
+      ctx.fillStyle = 'rgba(255,77,109,.6)';
+      ctx.fillRect(bx, retY + blockH - blockH*retFill, bw*retFill, blockH*retFill);
+    }
+    ctx.fillStyle = '#ff9fb1';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RETURN ADDRESS', bx + 12, retY + 18);
+    ctx.fillStyle = 'rgba(255,159,177,.75)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.fillText(retFill > 0.7 ? '0x4141414141414141' : '0x5555555551a7', bx + 12, retY + 36);
+
+    // Draw saved RBP block
+    ctx.fillStyle = rbpFill > 0 ? 'rgba(255,182,72,.20)' : 'rgba(255,182,72,.06)';
+    ctx.fillRect(bx, rbpY, bw, blockH);
+    ctx.strokeStyle = 'rgba(255,182,72,.65)';
+    ctx.lineWidth = rbpFill > 0 ? 2 : 1.2;
+    ctx.strokeRect(bx, rbpY, bw, blockH);
+    if(rbpFill > 0){
+      ctx.fillStyle = 'rgba(255,182,72,.5)';
+      ctx.fillRect(bx, rbpY + blockH - blockH*rbpFill, bw*rbpFill, blockH*rbpFill);
+    }
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SAVED RBP', bx + 12, rbpY + 18);
+    ctx.fillStyle = 'rgba(255,209,138,.7)';
+    ctx.font = '700 8.5px JetBrains Mono, monospace';
+    ctx.fillText(rbpFill > 0.5 ? '0x4141414141' : '0x7fffffffe4b0', bx + 12, rbpY + 36);
+
+    // Draw canary block (skip - source only mentions canary as defense, this is the vulnerable version)
+    // Instead draw buffer at canaryY position
+    ctx.fillStyle = bufFill > 0 ? 'rgba(91,141,255,.25)' : 'rgba(91,141,255,.08)';
+    ctx.fillRect(bx, canaryY, bw, blockH);
+    ctx.strokeStyle = 'rgba(91,141,255,.65)';
+    ctx.lineWidth = bufFill > 0 ? 2 : 1.2;
+    ctx.strokeRect(bx, canaryY, bw, blockH);
+    if(bufFill > 0){
+      ctx.fillStyle = 'rgba(91,141,255,.5)';
+      ctx.fillRect(bx, canaryY + blockH - blockH*bufFill, bw*bufFill, blockH*bufFill);
+    }
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('BUFFER [10]', bx + 12, canaryY + 18);
+    ctx.fillStyle = 'rgba(185,208,255,.7)';
+    ctx.font = '700 8.5px JetBrains Mono, monospace';
+    ctx.fillText(bufFill > 0 ? 'AAAA…' : 'hello\\0', bx + 12, canaryY + 36);
+
+    // second buffer row for visual weight
+    ctx.fillStyle = 'rgba(91,141,255,.05)';
+    ctx.fillRect(bx, bufY, bw, blockH);
+    ctx.strokeStyle = 'rgba(91,141,255,.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, bufY, bw, blockH);
+    ctx.fillStyle = 'rgba(185,208,255,.4)';
+    ctx.font = '700 8.5px JetBrains Mono, monospace';
+    ctx.fillText('lower buffer addresses', bx + 12, bufY + 18);
+    ctx.fillText('(overflow starts here)', bx + 12, bufY + 34);
+
+    // left side labels
+    ctx.textAlign = 'right';
+    ctx.font = '700 8.5px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.fillText('HIGH ADDR', bx - 10, retY + 8);
+    ctx.fillText('LOW ADDR', bx - 10, bufY + blockH - 8);
+
+    // arrow showing overflow direction
+    ctx.strokeStyle = 'rgba(255,77,109,.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bx - 20, bufY + blockH);
+    ctx.lineTo(bx - 20, retY);
+    ctx.stroke();
+    // arrowhead
+    ctx.beginPath();
+    ctx.moveTo(bx - 20, retY);
+    ctx.lineTo(bx - 26, retY + 10);
+    ctx.moveTo(bx - 20, retY);
+    ctx.lineTo(bx - 14, retY + 10);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,159,177,.9)';
+    ctx.font = '800 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.save();
+    ctx.translate(bx - 26, 220);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('OVERFLOW', -40, 0);
+    ctx.restore();
+
+    // Show RET hijack when retFill reaches 1
+    if(retFill >= 1){
+      const pulse = 0.7 + 0.3 * Math.sin(t / 6);
+      ctx.strokeStyle = `rgba(255,77,109,${pulse})`;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bx - 6, retY - 6, bw + 12, blockH + 12);
+
+      // attacker arrow coming from top
+      ctx.strokeStyle = 'rgba(255,77,109,.9)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw/2, retY - 40);
+      ctx.lineTo(bx + bw/2, retY - 8);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx + bw/2, retY - 8);
+      ctx.lineTo(bx + bw/2 - 6, retY - 16);
+      ctx.moveTo(bx + bw/2, retY - 8);
+      ctx.lineTo(bx + bw/2 + 6, retY - 16);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff4d6d';
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ HIJACK', bx + bw/2, retY - 50);
+
+      // show attacker code box
+      ctx.fillStyle = 'rgba(255,77,109,.15)';
+      ctx.fillRect(40, 380, 520, 50);
+      ctx.strokeStyle = 'rgba(255,77,109,.85)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(40, 380, 520, 50);
+      ctx.fillStyle = '#ff9fb1';
+      ctx.font = '800 10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ret → 0x4141414141414141 → attacker-controlled code', 300, 400);
+      ctx.fillStyle = 'rgba(255,159,177,.7)';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.fillText('CPU jumps to address of attacker’s choosing', 300, 418);
+    } else {
+      // show progress indicator
+      ctx.fillStyle = 'rgba(132,148,180,.55)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`fill level: buffer ${Math.round(bufFill*100)}% · rbp ${Math.round(rbpFill*100)}% · ret ${Math.round(retFill*100)}%`, W/2, 430);
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 8 : overflow steps cycle ---------- */
+reg('overflowsteps', function(){
+  const steps = document.querySelectorAll('#overflowSteps .step-item');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 1100);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','done')); } };
+});
+
+/* ---------- Slide 10 : overflow canvas ---------- */
+reg('overflowcanvas', function(){
+  const c = document.getElementById('overflowCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PAYLOAD FILLING THE STACK', W/2, 16);
+
+    // 4 blocks stacked - ret addr (top), saved rbp, canary, buffer (bottom)
+    const bx = 180, bw = 280;
+    const blockH = 60;
+    const retY = 65;
+    const rbpY = retY + blockH + 5;
+    const canaryY = rbpY + blockH + 5;
+    const bufY = canaryY + blockH + 5;
+
+    // current fill level (0-4)
+    const cycle = 500;
+    const phase = (t % cycle) / cycle;
+    const fillLevel = phase * 4; // 0 to 4
+
+    // draw each block with fill
+    const blocks = [
+      { y: retY, color: '#ff4d6d', name: 'RETURN ADDRESS', tag: 'ret', max: fillLevel, threshold: 3 },
+      { y: rbpY, color: '#ffb648', name: 'SAVED RBP', tag: 'rbp', max: fillLevel, threshold: 2 },
+      { y: canaryY, color: '#2ee6a8', name: 'STACK CANARY', tag: 'canary', max: fillLevel, threshold: 1 },
+      { y: bufY, color: '#5b8dff', name: 'BUFFER [10]', tag: 'buf', max: fillLevel, threshold: 0 },
+    ];
+
+    blocks.forEach(b => {
+      const localFill = Math.max(0, Math.min(1, b.max - b.threshold));
+      const isActive = b.max > b.threshold && b.max < b.threshold + 1;
+      const isFilled = b.max >= b.threshold + 1;
+
+      // base block
+      ctx.fillStyle = isFilled ? b.color + '45' : b.color + '12';
+      ctx.fillRect(bx, b.y, bw, blockH);
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = isActive ? 2.5 : (isFilled ? 1.8 : 1.2);
+      ctx.strokeRect(bx, b.y, bw, blockH);
+
+      // fill indicator (from bottom of block)
+      if(localFill > 0){
+        ctx.fillStyle = b.color + '70';
+        ctx.fillRect(bx, b.y + blockH - blockH*localFill, bw*localFill, blockH*localFill);
+      }
+
+      // label
+      ctx.fillStyle = isFilled || isActive ? '#fff' : b.color;
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.name, bx + 14, b.y + 20);
+
+      // content preview
+      ctx.fillStyle = b.color + 'AA';
+      ctx.font = '700 9.5px JetBrains Mono, monospace';
+      if(b.name === 'BUFFER [10]'){
+        ctx.fillText(localFill > 0 ? 'AAAA…' : 'hello\\0', bx + 14, b.y + 40);
+      } else if(b.name === 'STACK CANARY'){
+        ctx.fillText(isFilled ? '0x41414141414141' : '0x0000a1b2c3d4e5f6', bx + 14, b.y + 40);
+      } else if(b.name === 'SAVED RBP'){
+        ctx.fillText(isFilled ? '0x4141414141' : '0x7fffffffe4b0', bx + 14, b.y + 40);
+      } else {
+        ctx.fillText(isFilled ? '0x41414141 → ATTACKER' : '0x5555555551a7', bx + 14, b.y + 40);
+      }
+
+      // highlight ring for active
+      if(isActive){
+        const pulse = 0.6 + 0.4 * Math.sin(t / 5);
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = pulse;
+        ctx.strokeRect(bx - 4, b.y - 4, bw + 8, blockH + 8);
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // arrow showing fill direction on left
+    ctx.strokeStyle = 'rgba(255,77,109,.85)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(bx - 30, bufY + blockH);
+    ctx.lineTo(bx - 30, retY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx - 30, retY);
+    ctx.lineTo(bx - 36, retY + 10);
+    ctx.moveTo(bx - 30, retY);
+    ctx.lineTo(bx - 24, retY + 10);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,159,177,.85)';
+    ctx.font = '800 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.save();
+    ctx.translate(bx - 38, (bufY + retY)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('FILL DIRECTION', 0, 0);
+    ctx.restore();
+
+    // hijack notice
+    if(fillLevel >= 4){
+      ctx.fillStyle = 'rgba(255,77,109,.85)';
+      ctx.font = '800 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ ret fires · control transferred to attacker', W/2, 425);
+    } else {
+      ctx.fillStyle = 'rgba(132,148,180,.55)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`filling… ${Math.round(fillLevel*25)}%`, W/2, 425);
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 11 : strcpy code stepper ---------- */
+reg('strcpycode', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="strcpycode"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  // highlight the vulnerable strcpy line
+  const seq = [0, 3, 4, 6, 7, 8, 11, 12, 13, 14];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => { l.classList.remove('hl','hl-bad','hl-good'); });
+    const target = seq[i % seq.length];
+    if(lines[target]) {
+      if(target === 6) lines[target].classList.add('hl-bad');
+      else lines[target].classList.add('hl');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 750);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 12 : GDB trace terminal ---------- */
+reg('gdbtrace', function(){
+  const body = document.getElementById('gdbBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'Got: AAAAAAAAAAAAAAAAAAAA' },
+    { cls:'term-line err', text:'Segmentation fault (core dumped)' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line dim', text:'# — now trace the crash in GDB —' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">gdb ./vuln</span>' },
+    { cls:'term-line', text:'(gdb) <span class="term-b">run AAAAAAAAAAAAAAAAAAAA</span>' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line err', text:'Program received signal SIGSEGV, Segmentation fault.' },
+    { cls:'term-line', text:'<span class="term-major">0x4141414141414141</span> in ?? ()' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'(gdb) <span class="term-b">bt</span>' },
+    { cls:'term-line', text:'<span class="term-red">#0  0x4141414141414141</span> in ?? ()' },
+    { cls:'term-line', text:'<span class="term-red">#1  0x4141414141414141</span> in ?? ()' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ 0x41 = ASCII "A" · payload overwrote the return address' },
+    { cls:'term-line warn', text:'→ "A" * 20 → the last bytes corrupted the saved RIP' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ classic stack buffer overflow signature' },
+    { cls:'term-line ok', text:'✓ with a real address instead of "A" → code execution' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./vuln AAAAAAAAAAAAAAAAAAAA</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 400);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 16 : canary terminal ---------- */
+reg('canarytty', function(){
+  const body = document.getElementById('canaryBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'Got: AAAAAAAAAAAAAAAAAAAA' },
+    { cls:'term-line err', text:'*** stack smashing detected ***: terminated' },
+    { cls:'term-line err', text:'Aborted (core dumped)' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line dim', text:'# — what happened inside —' },
+    { cls:'term-line', text:'<span class="term-c">→ prologue</span>: wrote canary 0x0000a1b2c3d4e5f6 onto stack' },
+    { cls:'term-line', text:'<span class="term-c">→ strcpy</span>: 20-byte input spilled past buffer[10]' },
+    { cls:'term-line err', text:'→ canary corrupted: 0x41414141414141' },
+    { cls:'term-line', text:'<span class="term-c">→ epilogue</span>: compared canary against saved value' },
+    { cls:'term-line err', text:'→ MISMATCH detected → __stack_chk_fail()' },
+    { cls:'term-line err', text:'→ abort() called BEFORE ret instruction' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'⚠ the process still died — but the attacker got no control' },
+    { cls:'term-line warn', text:'⚠ corrupted return address was never used' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ canary converted silent hijack → loud crash' },
+    { cls:'term-line ok', text:'✓ attacker loses · defender can log & alert' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'still not a fix — bounds-checked code is the real answer' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./vuln_safe AAAAAAAAAAAAAAAAAAAA</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 400);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 18 : activity cycle ---------- */
+reg('stackact', function(){
+  const prompt = document.getElementById('stackPrompt');
+  if(!prompt) return { stop(){} };
+
+  const prompts = [
+    'Fill buffer[0..9] — still safe',
+    'Continue past buffer[9] — canary corrupts',
+    'Continue past canary — saved RBP corrupts',
+    'Continue past saved RBP — return address overwrites',
+    'With canary enabled — program aborts',
+    'Without canary — ret fires into payload',
+  ];
+
+  let idx = 0;
+  function tick(){
+    prompt.innerHTML = `<span class="ap-q">${prompts[idx % prompts.length]}</span>`;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2200);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 21 : mindmap cycle ---------- */
+reg('mindmap', function(){
+  const nodes = document.querySelectorAll('#mindmapVis .mm-node');
+  if(!nodes.length) return { stop(){} };
+  const cycle = [1, 2, 3, 4, 5, 6, 7];
+  let i = 0;
+  function tick(){
+    nodes.forEach(n => n.classList.remove('active'));
+    if(nodes[cycle[i % cycle.length]]) nodes[cycle[i % cycle.length]].classList.add('active');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1600);
+  return { stop(){ clearInterval(timer); nodes.forEach(n => n.classList.remove('active')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
+
