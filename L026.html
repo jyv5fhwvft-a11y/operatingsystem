@@ -1,0 +1,2244 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L26 — Firewalls &amp; Intrusion Detection: Bouncer vs. Camera Guard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,77,109,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(160,107,255,.08),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--crimson);box-shadow:0 0 12px var(--crimson);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--crimson),var(--amber),var(--violet));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(255,77,109,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(255,77,109,.20);border-color:rgba(255,77,109,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,77,109,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:#ff9fb1;background:rgba(255,77,109,.10);border:1px solid rgba(255,77,109,.34);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.blue{color:#b9d0ff;background:rgba(91,141,255,.10);border-color:rgba(91,141,255,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--crimson);background:rgba(255,77,109,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#ff9fb1;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(255,77,109,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+/* Bouncer vs camera analogy */
+.bouncer-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.bouncer-card{padding:16px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.bouncer-card.firewall{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.06);}
+.bouncer-card.ids{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.bouncer-card .bc-icon{font-size:32px;margin-bottom:10px;}
+.bouncer-card .bc-name{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.bouncer-card.firewall .bc-name{color:#ff9fb1;}
+.bouncer-card.ids .bc-name{color:#ffd18a;}
+.bouncer-card .bc-body{font-size:11.5px;line-height:1.65;color:var(--ink-2);}
+.bouncer-card .bc-body strong{color:var(--ink);}
+.bouncer-card .bc-tag{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;}
+.bouncer-card.firewall .bc-tag{color:#ff9fb1;}
+.bouncer-card.ids .bc-tag{color:#ffd18a;}
+
+/* Technical analogy */
+.tech-vis{padding:6px 0;}
+.tech-card{padding:14px;border-radius:12px;border:1.4px solid;background:rgba(0,0,0,.20);margin-bottom:10px;}
+.tech-card.fw{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.05);}
+.tech-card.ids{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.05);}
+.tech-card .tc-title{font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.05em;margin-bottom:8px;}
+.tech-card.fw .tc-title{color:#ff9fb1;}
+.tech-card.ids .tc-title{color:#ffd18a;}
+.tech-card .tc-body{font-size:11.5px;line-height:1.65;color:var(--ink-2);}
+.tech-card .tc-body strong{color:#fff;}
+
+/* Flow route */
+.route-vis{padding:6px 0;}
+.route-step{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:11px 14px;border-radius:10px;border:1.5px solid;background:rgba(0,0,0,.20);margin-bottom:7px;font-family:var(--mono);font-size:11px;transition:.4s;}
+.route-step.active{border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.75);}
+.route-step.done{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.route-step.blocked{border-color:rgba(255,77,109,.85);background:rgba(255,77,109,.10);}
+.route-step .rs-num{font-size:13px;font-weight:900;color:var(--muted);min-width:20px;}
+.route-step.active .rs-num{color:#ffd18a;}
+.route-step.done .rs-num{color:#88ffd8;}
+.route-step.blocked .rs-num{color:#ff9fb1;}
+.route-step .rs-body{color:var(--ink-2);line-height:1.5;}
+.route-step .rs-body strong{color:#fff;}
+.route-step .rs-tag{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;padding:3px 8px;border-radius:5px;}
+.route-step .rs-tag.inet{background:rgba(91,141,255,.20);color:#b9d0ff;}
+.route-step .rs-tag.fw{background:rgba(255,77,109,.20);color:#ff9fb1;}
+.route-step .rs-tag.ids{background:rgba(255,182,72,.20);color:#ffd18a;}
+.route-step .rs-tag.lan{background:rgba(46,230,168,.20);color:#88ffd8;}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-b{color:#b9d0ff;font-weight:700;}
+.term-c{color:#88ffd8;font-weight:700;}
+.term-major{color:#ffd18a;font-weight:700;}
+.term-vio{color:#c9a7ff;font-weight:700;}
+.term-red{color:#ff9fb1;font-weight:700;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.crimson{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.amber{color:#ffd18a;background:rgba(255,182,72,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.16);}
+
+/* Lexicon */
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.lex-card{border-radius:22px;padding:clamp(20px,2.6vw,34px);border:1px solid;background:linear-gradient(150deg,rgba(255,77,109,.08),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-card.fw{border-color:rgba(255,77,109,.4);}
+.lex-card.am{border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-card.vi{border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.7),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(20px,2.6vw,34px);font-weight:900;letter-spacing:-.04em;line-height:1.05;margin-bottom:8px;}
+.lex-card.fw .lex-term{background:linear-gradient(100deg,#ffffff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-card.am .lex-term{background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-card.vi .lex-term{background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;margin-bottom:18px;}
+.lex-card.fw .lex-sub{color:#ff9fb1;}
+.lex-card.am .lex-sub{color:#ffd18a;}
+.lex-card.vi .lex-sub{color:#c9a7ff;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:12px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13px,.94vw,14.5px);line-height:1.6;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.10);color:#ff9fb1;font-weight:700;}
+.mm-node.active{border-color:rgba(255,77,109,.85);background:rgba(255,77,109,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(255,77,109,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(255,77,109,.8)}50%{box-shadow:0 0 40px -2px rgba(255,77,109,1)}}
+.mm-node.leaf{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+
+/* Takeaway */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(255,77,109,.14);border:1px solid rgba(255,77,109,.36);color:#ff9fb1;}
+.takeaway:nth-child(2) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(91,141,255,.14);border-color:rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.act-scene{padding:12px 0;display:flex;flex-direction:column;gap:12px;}
+.act-prompt{padding:14px 16px;border-radius:12px;border:1.5px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:13px;color:#ffd18a;font-weight:700;text-align:center;transition:.4s;min-height:54px;display:grid;place-items:center;}
+.act-prompt .ap-q{color:#fff;}
+
+/* Real-world cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.example-card{padding:18px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.example-card .ec-icon{font-size:32px;margin-bottom:10px;display:block;}
+.example-card .ec-name{font-size:13px;font-weight:900;letter-spacing:.05em;margin-bottom:10px;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-2);margin-bottom:12px;}
+.example-card .ec-win{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:6px;}
+
+/* Port table */
+.port-table{width:100%;border-collapse:separate;border-spacing:5px;font-family:var(--mono);font-size:11px;}
+.port-table th{font-size:9.5px;letter-spacing:.10em;text-transform:uppercase;font-weight:900;color:var(--muted);padding:6px 4px;text-align:left;}
+.port-table td{padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:var(--ink-2);line-height:1.5;}
+.port-table td.port{color:#fff;font-weight:800;}
+.port-table td.ok{border-color:rgba(46,230,168,.35);background:rgba(46,230,168,.05);color:#88ffd8;}
+.port-table td.warn{border-color:rgba(255,182,72,.35);background:rgba(255,182,72,.05);color:#ffd18a;}
+.port-table td.bad{border-color:rgba(255,77,109,.35);background:rgba(255,77,109,.05);color:#ff9fb1;}
+
+/* Signature vs Anomaly */
+.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.sa-card{padding:16px;border-radius:14px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.sa-card.sig{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.sa-card.anom{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.sa-card .sa-icon{font-size:26px;margin-bottom:8px;display:block;}
+.sa-card .sa-title{font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.06em;margin-bottom:10px;}
+.sa-card.sig .sa-title{color:#ffd18a;}
+.sa-card.anom .sa-title{color:#c9a7ff;}
+.sa-card .sa-body{font-size:11.5px;line-height:1.65;color:var(--ink-2);}
+.sa-card .sa-body strong{color:#fff;}
+.sa-card .sa-stats{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;line-height:1.7;}
+.sa-card.sig .sa-stats{color:#ffd18a;}
+.sa-card.anom .sa-stats{color:#c9a7ff;}
+
+/* Log sort table */
+.log-sort{width:100%;border-collapse:separate;border-spacing:4px;font-family:var(--mono);font-size:10.5px;}
+.log-sort th{font-size:9.5px;letter-spacing:.10em;text-transform:uppercase;font-weight:900;color:var(--muted);padding:6px 4px;text-align:left;}
+.log-sort td{padding:8px 10px;border-radius:5px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:var(--ink-2);line-height:1.5;}
+.log-sort td.fw{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);color:#ff9fb1;}
+.log-sort td.ids{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);color:#ffd18a;}
+
+/* Edge visual */
+.edge-vis{padding:6px 0;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.example-grid,.bouncer-grid,.sa-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L26 Firewalls &amp; IDS</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L26 · Overview" data-anim="networkcanvas">
+  <div class="slide-inner">
+    <span class="badge">🛡️ 📡 L26 · Firewalls &amp; Intrusion Detection — Bouncer vs. Camera Guard</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Block at the border. <span class="grad-crimson">Detect inside.</span></h1>
+        <p class="lead">Distinguish a <strong>firewall's blocking role</strong> from an <strong>IDS's detection role</strong> given a sample network log trace — two complementary boundaries of the same defense.</p>
+        <div class="panel crimson">
+          <span class="panel-label">Where we are · Module 7 continues</span>
+          <p>L25 made data on the wire opaque. That changes the game for monitoring. If you can't read the payload anymore, what can you filter? What can you detect? L26 answers by splitting the defense into <strong>two boundaries</strong>: a hard gate at the perimeter, and a soft alarm inside.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Prerequisites · L25 + network ports/sockets</span>
+          <p>Encryption fundamentals (why payloads are opaque) and the port/socket model from Module 6. Firewalls work on port numbers; IDSs work on packet streams. Both require the socket abstraction.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Opening hook:</b> "Your home has a locked front door — that's a firewall. But what about the window on the second floor, or the smart TV that's been secretly uploading your files for six months? A lock at the door can't stop a threat already inside. That's why you also need an intruder alarm."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Firewall blocks. IDS watches.</div>
+        <canvas id="networkCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — One Boundary Is Not Enough</span>
+    <h2 style="margin-bottom:16px;">A perfect gate <span class="grad-crimson">won't stop what's already inside</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The firewall alone is insufficient</span>
+          <p>A firewall blocks traffic at the border — great for rejecting port scans, malicious IPs, and unwanted inbound connections. But it is blind to <strong>anything already past the gate</strong>: an insider, an infected laptop that successfully authenticated, or an outbound exfiltration stream that looks legitimate at the header level.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The IDS alone is insufficient</span>
+          <p>An IDS watches traffic but doesn't block. It sounds alarms — useful for detection, useless for stopping an attack mid-flight. Without a firewall ahead of it, every scan and every probe would hit the internal systems.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The resolution — dual defense boundaries</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Boundary 1 · Firewall</strong> — permit/deny by rule, at the perimeter<br>
+            <strong>Boundary 2 · IDS</strong> — analyse/alert by pattern or anomaly, inside<br>
+            <strong>Together</strong> — deny the obvious, notice the subtle
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The two questions each answers:</b> a firewall asks <em>"should this be let in?"</em> — a policy question. An IDS asks <em>"does this traffic look malicious?"</em> — a behaviour question. Different questions require different tools.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two boundaries</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="30" rx="6" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="33" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">🌐 THE INTERNET</text>
+
+          <!-- firewall barrier -->
+          <rect x="14" y="60" width="312" height="60" rx="8" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="2"/>
+          <text x="170" y="80" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">🧱 FIREWALL · the perimeter gate</text>
+          <text x="170" y="98" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">allow / deny by header rule (IP · port · protocol)</text>
+          <text x="170" y="112" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">blocks before anything enters</text>
+
+          <line x1="170" y1="120" x2="170" y2="150" stroke="rgba(46,230,168,.65)" stroke-width="2" class="svg-flow"/>
+
+          <!-- interior -->
+          <rect x="14" y="150" width="312" height="100" rx="8" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.4)" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <text x="170" y="168" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">INTERNAL NETWORK</text>
+
+          <!-- IDS inside -->
+          <rect x="40" y="180" width="260" height="55" rx="8" fill="rgba(255,182,72,.12)" stroke="rgba(255,182,72,.75)" stroke-width="1.8"/>
+          <text x="170" y="200" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">👁️ IDS · the interior camera</text>
+          <text x="170" y="216" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">analysis of traffic ALREADY inside</text>
+          <text x="170" y="228" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">signature match · anomaly detection</text>
+
+          <rect x="14" y="262" width="312" height="42" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="282" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">🖥️ ENDPOINTS · servers · workstations</text>
+          <text x="170" y="298" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.65)" font-family="JetBrains Mono">the assets we're protecting</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Bouncer" data-anim="bouncer">
+  <div class="slide-inner">
+    <span class="badge crimson">🕴️ Analogy 1 · The Club Bouncer vs. The Undercover Camera Guard</span>
+    <h2 style="margin-bottom:16px;">One stands at the door. <span class="grad-crimson">One watches the floor.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The setup</span>
+          <p>Imagine an elite nightclub. <strong>A Firewall</strong> acts exactly like a large bouncer checking IDs right at the entrance door. They enforce <strong>static rules</strong> to block entry completely before anyone sets foot inside.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The interior</span>
+          <p>An <strong>Intrusion Detection System (IDS)</strong> acts exactly like an undercover security guard watching camera feeds inside the building floors. They don't stop anyone at the door — but if they see suspicious behaviour already happening inside, they instantly ring an alarm.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The complement</span>
+          <p>The bouncer can turn away troublemakers — but can't see who slips through dressed as a guest. The camera guard can't kick anyone out — but catches what the bouncer missed. Together, they cover the whole attack surface.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The key asymmetry:</b> the bouncer uses a <strong>fixed rule list</strong> ("no ID, no entry"). The camera guard uses <strong>judgement</strong> ("that behaviour looks wrong"). Rules are fast and reliable; judgement is slow but catches novel attacks. You need both.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Bouncer and camera guard</div>
+        <div class="bouncer-grid">
+          <div class="bouncer-card firewall">
+            <div class="bc-icon">🕴️</div>
+            <div class="bc-name">THE BOUNCER · FIREWALL</div>
+            <div class="bc-body">
+              Stands at the door.<br>
+              Checks ID against a <strong>fixed rule list</strong>.<br>
+              <strong>Blocks</strong> anyone who fails the rule — before they enter.
+            </div>
+            <div class="bc-tag">RULE-BASED · BORDER · BLOCKS</div>
+          </div>
+          <div class="bouncer-card ids">
+            <div class="bc-icon">📹</div>
+            <div class="bc-name">THE CAMERA GUARD · IDS</div>
+            <div class="bc-body">
+              Sits inside on camera duty.<br>
+              Watches <strong>behaviour</strong> already inside.<br>
+              <strong>Raises an alarm</strong> when something looks wrong.
+            </div>
+            <div class="bc-tag">BEHAVIOUR-BASED · INTERIOR · DETECTS</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">One stops the obvious. One notices the subtle. You need both at a real club — and on a real network.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Expanded">
+  <div class="slide-inner">
+    <span class="badge amber">🕴️📹 Analogy 1 · What Each Guard Can and Cannot See</span>
+    <h2 style="margin-bottom:16px;">Each covers what the <span class="grad-amber">other misses</span></h2>
+    <div class="split wide-right">
+      <div class="vis-frame">
+        <div class="vis-cap">The coverage matrix</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">COVERAGE BY THREAT TYPE</text>
+
+          <rect x="14" y="40" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="60" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">Port scan from internet</text>
+          <text x="240" y="60" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">FIREWALL ✓</text>
+
+          <rect x="14" y="80" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="100" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">Malicious IP blocklist</text>
+          <text x="240" y="100" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">FIREWALL ✓</text>
+
+          <rect x="14" y="120" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="140" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">Worm on a legitimate laptop</text>
+          <text x="240" y="140" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">IDS ✓</text>
+
+          <rect x="14" y="160" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="180" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">3 AM data exfiltration</text>
+          <text x="240" y="180" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">IDS ✓</text>
+
+          <rect x="14" y="200" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="220" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">Insider misbehaviour</text>
+          <text x="240" y="220" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">IDS ✓</text>
+
+          <rect x="14" y="240" width="312" height="34" rx="6" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+          <text x="24" y="260" font-size="9" fill="#eaf0fc" font-family="Inter" font-weight="700">Attack via opened port</text>
+          <text x="240" y="260" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">IDS ✓</text>
+
+          <text x="170" y="292" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">each catches what the other misses</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Firewall's strengths</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>✓</strong> fast — a few bit-checks per packet<br>
+            <strong>✓</strong> reliable — deterministic rules<br>
+            <strong>✓</strong> cheap — negligible CPU overhead<br>
+            <strong>✓</strong> stateless — no memory of packets
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Firewall's blind spots</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>✕</strong> only sees the header, not the payload<br>
+            <strong>✕</strong> trusts a port is safe ("80 is HTTP")<br>
+            <strong>✕</strong> can't tell that a legitimate user is acting maliciously<br>
+            <strong>✕</strong> can't detect a novel attack inside an allowed stream
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">IDS's strengths</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>✓</strong> sees the payload and sequence<br>
+            <strong>✓</strong> detects novel attacks (anomaly)<br>
+            <strong>✓</strong> catches insiders<br>
+            <strong>✓</strong> logs a stream for forensics
+          </p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The tradeoff</span>
+          <p>IDS is <strong>heavier</strong> (must buffer and analyse), <strong>slower</strong> (deeper inspection), and produces <strong>false positives</strong> (mistakes legitimate behaviour for attacks). It's a monitoring tool, not a blocker.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Technical">
+  <div class="slide-inner">
+    <span class="badge violet">🔬 Analogy 2 · Pure Technical — Stateless Header Filter vs. Deep Packet Inspection</span>
+    <h2 style="margin-bottom:16px;">Fast bit-checks vs. <span class="grad-violet">deep log analysis</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The formal analogy</span>
+          <p>A firewall is a <strong>stateless header network filter router</strong> — it runs fast bit checks on incoming IP/port parameters and makes an allow/deny decision per packet, with no memory of the traffic that came before.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The IDS side</span>
+          <p>An IDS is a <strong>deep packet inspection analytical aggregator engine</strong> — it buffers transaction logs, reconstructs streams, and matches data chunks against documented exploit signature footprints (or against a learned baseline of normal behaviour).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The key contrast</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Firewall</strong> — per-packet · header only · no state · 10s of µs<br>
+            <strong>IDS</strong> — per-stream · full payload · stateful · ms per event
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The engineering insight:</b> the firewall's speed comes from its shallowness — it only looks at a few bytes per packet. The IDS's depth comes from its slowness — it reconstructs whole streams. You can't have one tool do both jobs well.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two inspection depths</div>
+        <div class="tech-vis">
+          <div class="tech-card fw">
+            <div class="tc-title">🧱 FIREWALL · HEADER FILTER</div>
+            <div class="tc-body">
+              Reads <strong>IP + TCP header fields</strong> — source, destination, port, flags.<br>
+              <strong>No payload inspection.</strong><br>
+              <strong>Stateless</strong> — decision per packet, no memory.<br>
+              Throughput: <strong>millions of packets/second</strong>.
+            </div>
+          </div>
+          <div class="tech-card ids">
+            <div class="tc-title">👁️ IDS · DPI ENGINE</div>
+            <div class="tc-body">
+              Reads <strong>full payload</strong> — every byte of every packet.<br>
+              Reconstructs <strong>TCP streams</strong> across packets.<br>
+              <strong>Stateful</strong> — remembers the connection history.<br>
+              Throughput: <strong>thousands to millions</strong>, depending on rules.
+            </div>
+          </div>
+        </div>
+        <div style="padding:14px;border-radius:10px;border:1px solid rgba(160,107,255,.5);background:rgba(160,107,255,.05);font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2);margin-top:10px">
+          <strong style="color:#c9a7ff">THE LAYERING</strong><br>
+          Every packet hits the firewall first.<br>
+          If allowed, the IDS sees it inside.<br>
+          The firewall is <em>cheap</em> so it can run at wire speed.<br>
+          The IDS is <em>expensive</em> so it runs on a filtered stream.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="System Cohesion">
+  <div class="slide-inner">
+    <span class="badge blue">🧭 System Cohesion — Where L26 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-blue">network defense layer</span> between encryption and isolation</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 6 (I/O &amp; Network Drivers)</h4>
+            <p>Hooks directly into the kernel's <strong>low-level network driver packet rings</strong> to inspect socket data before it reaches user space. The firewall/IDS must see packets early — before any application processes them.</p>
+          </div>
+          <div class="cohesion-card relies">
+            <h4>Relies On · L25 (Encryption)</h4>
+            <p>Encrypted payloads are opaque to signature matching. This is why L25's effect on L26 matters so much: when TLS wraps the payload, the IDS must fall back to <strong>metadata analysis</strong> — packet sizes, timing, TLS handshake signatures.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L27 (Modern Isolation)</h4>
+            <p>Sandboxes, containers, and VMs rely on network filtering between isolated workloads. Container networking often implements its own internal firewall rules — a synthesis of L26 + L27.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Operations &amp; SOC</h4>
+            <p>Firewall + IDS is the foundation of modern Security Operations Centers. The log streams from both tools feed into SIEM systems for correlation and incident response.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The Module 7 arc:</b> L22 (policy) → L23 (identity) → L24 (exploit) → L25 (encryption) → <strong>L26 (network defense)</strong> → L27 (isolation). L26 is where we start defending the network itself, after defending the data.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">Module 6 · Net</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">driver packet rings</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">L25 · Encryption</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">opaque payloads</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(255,77,109,.14)" stroke="rgba(255,77,109,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">L26 · FIREWALL + IDS</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">border block · interior detect</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">L27 · Sandboxes</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">isolated workloads</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">Ops · SOC</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">monitoring · incident response</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Firewall">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown · Firewalls</span>
+    <h2 style="margin-bottom:16px;">The perimeter's <span class="grad-crimson">rulebook</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The formal definition</span>
+          <p>A <strong>firewall</strong> is a boundary security component that <strong>permits or blocks network traffic frames based on a predetermined set of filtering rule criteria</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What the rules filter on</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Source IP</strong> — "who is sending this?"<br>
+            <strong>Destination IP</strong> — "where is it going?"<br>
+            <strong>Source port</strong> — "what client is it from?"<br>
+            <strong>Destination port</strong> — "what service is it for?"<br>
+            <strong>Protocol</strong> — TCP · UDP · ICMP<br>
+            <strong>TCP flags</strong> — SYN · ACK · FIN · RST
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it lives</span>
+          <p>Firewalls are the <strong>gatekeepers at the network border</strong> — enforcing security policies before any internal system is reached. On Linux: <code style="font-family:var(--mono);color:#b9d0ff">iptables</code>, <code style="font-family:var(--mono);color:#b9d0ff">nftables</code>, <code style="font-family:var(--mono);color:#b9d0ff">ufw</code>. On the network edge: pfSense, Cisco ASA, cloud security groups.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The philosophy</span>
+          <p><strong>Default deny.</strong> Drop everything except what is explicitly permitted. Every open port is a potential attack surface; every rule that opens it must justify its existence.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">A firewall rule set (conceptual)</div>
+        <div class="code-block">
+          <div class="code-head crimson"><span>firewall rules · allow-list</span><span class="dots"><i></i><i></i><i></i></span></div>
+          <pre><code><span class="code-line hl-bad"># DEFAULT · deny everything first</span><span class="code-line">DROP  *  *  *  *  *</span><span class="code-line"></span><span class="code-line"># ─── ALLOWED INBOUND ───</span><span class="code-line hl">ALLOW  *  →  me:22    (SSH)</span><span class="code-line">ALLOW  *  →  me:443   (HTTPS)</span><span class="code-line">ALLOW  *  →  me:80    (HTTP → 301)</span><span class="code-line"></span><span class="code-line"># ─── ALLOWED OUTBOUND ───</span><span class="code-line">ALLOW  me  →  *:443   (HTTPS)</span><span class="code-line">ALLOW  me  →  *:53    (DNS)</span><span class="code-line"></span><span class="code-line"># ─── EVERYTHING ELSE ───</span><span class="code-line hl-bad">DROP  *  *  *  *  *</span></code></pre>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55;text-align:center">Reads top-down. First match wins. The default at the bottom drops anything unmatched.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Port filtering">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown · Port Filtering</span>
+    <h2 style="margin-bottom:16px;">Blocking or opening <span class="grad-amber">explicit channels</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The formal definition</span>
+          <p><strong>Port filtering</strong> — blocking or opening explicit software communication channels (e.g., Port 80 for HTTP, Port 22 for SSH) to restrict vector exposure.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why ports matter</span>
+          <p>Every network service listens on a port number. A closed port means no service is reachable — nothing can attack it. An open port means <em>a whole attack surface is exposed</em>. Every port exposed beyond what's strictly needed is a liability.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The traditional danger ports</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>22</strong> — SSH · remote shell access<br>
+            <strong>23</strong> — Telnet · plaintext, deprecated<br>
+            <strong>445</strong> — SMB · historic worm target<br>
+            <strong>3389</strong> — RDP · common ransomware entry<br>
+            <strong>1433/3306/5432</strong> — databases · never expose
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The policy</span>
+          <p>Allow the minimum. Deny everything else. Audit open ports monthly. Every open port must justify itself — "convenient" is not a justification.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Firewall vs. port scan:</b> a port scan from the internet hits the firewall first. If the port is closed by rule, the scanner sees nothing. If the port is open, they see the service. Port filtering is how a firewall shrinks the observable surface to only what you intend to expose.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Common ports and their risk</div>
+        <table class="port-table">
+          <thead>
+            <tr><th>PORT</th><th>SERVICE</th><th>RISK</th><th>POLICY</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="port">80</td>
+              <td>HTTP</td>
+              <td class="warn">redirects to 443</td>
+              <td>allow · redirect</td>
+            </tr>
+            <tr>
+              <td class="port">443</td>
+              <td>HTTPS</td>
+              <td class="ok">expected</td>
+              <td>allow</td>
+            </tr>
+            <tr>
+              <td class="port">22</td>
+              <td>SSH</td>
+              <td class="warn">target</td>
+              <td>allow restricted IPs</td>
+            </tr>
+            <tr>
+              <td class="port">23</td>
+              <td>Telnet</td>
+              <td class="bad">plaintext</td>
+              <td class="bad">deny always</td>
+            </tr>
+            <tr>
+              <td class="port">445</td>
+              <td>SMB</td>
+              <td class="bad">worm target</td>
+              <td class="bad">deny externally</td>
+            </tr>
+            <tr>
+              <td class="port">3389</td>
+              <td>RDP</td>
+              <td class="bad">ransomware</td>
+              <td class="bad">deny externally</td>
+            </tr>
+            <tr>
+              <td class="port">3306</td>
+              <td>MySQL</td>
+              <td class="bad">never public</td>
+              <td class="bad">deny externally</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Firewall limits">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">📖 Core Breakdown · The Firewall's Blind Spots</span>
+    <h2 style="margin-bottom:16px;">A gatekeeper <span class="grad-crimson">only guards the gate</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Blind spot 1 · The trusted port</span>
+          <p>Port 443 is open for legitimate HTTPS. An attacker who compromises a web application is now sending their exploits over <strong>port 443</strong> — exactly the traffic the firewall was configured to permit. The firewall doesn't look inside the payload, so it can't tell legitimate HTTP from an exploit.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Blind spot 2 · The insider threat</span>
+          <p>A legitimate employee authenticates, opens a VPN connection, and starts exfiltrating data. Every packet is inside an authorised tunnel, on authorised ports, from authorised IPs. The firewall sees a valid session — and passes it.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Blind spot 3 · Novel attacks</span>
+          <p>Firewalls are built from <em>rules</em>. A new class of attack that you didn't anticipate has no rule — so it passes. The firewall can only block what you predicted.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The gap is exactly the IDS's job</span>
+          <p>The firewall answers "is this traffic allowed?" It cannot answer "does this traffic look malicious?". That second question requires a deeper view — one that reconstructs streams, matches patterns, and learns normal behaviour. That's the IDS.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design lesson:</b> a firewall is necessary but not sufficient. It reduces the attack surface — from billions of possible packets down to the few services you actually expose — but it cannot eliminate attacks against those services. Only deeper inspection can see those.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">What slips through a firewall</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">FIREWALL · PASSES THE OBVIOUS</text>
+
+          <rect x="20" y="40" width="300" height="42" rx="7" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+          <text x="30" y="58" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">✕ BLOCKED</text>
+          <text x="30" y="74" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">port 23 scan from unknown IP</text>
+
+          <rect x="20" y="88" width="300" height="42" rx="7" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+          <text x="30" y="106" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">✕ BLOCKED</text>
+          <text x="30" y="122" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">port 445 from public internet</text>
+
+          <rect x="20" y="136" width="300" height="42" rx="7" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.15)" stroke-width="1.2"/>
+          <text x="30" y="154" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">✕ BLOCKED</text>
+          <text x="30" y="170" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">known malicious IP blocklist</text>
+
+          <rect x="20" y="194" width="300" height="42" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="30" y="212" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">✓ ALLOWED</text>
+          <text x="30" y="228" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">HTTPS on port 443</text>
+
+          <rect x="20" y="240" width="300" height="42" rx="7" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="30" y="258" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">✓ ALLOWED</text>
+          <text x="30" y="274" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">SSH from approved IPs</text>
+
+          <text x="170" y="306" text-anchor="middle" font-size="9" fill="rgba(255,182,72,.8)" font-family="JetBrains Mono">⚠ but the allowed traffic can still be malicious</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · IDS">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown · Intrusion Detection Systems (IDS)</span>
+    <h2 style="margin-bottom:16px;">The interior's <span class="grad-amber">tripwires</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The formal definition</span>
+          <p>An <strong>Intrusion Detection System (IDS)</strong> is an internal network data scanner that tracks packet streams already passing inside system boundaries to sound alarms on suspicious behaviors.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it sits</span>
+          <p>Inside the perimeter, on the same network segment as the assets it protects, or inline between two segments. Unlike a firewall, it doesn't stop traffic — it observes. The output is <strong>alerts and logs</strong>, not drops.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The two detection strategies</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Signature-based</strong> — scan for known patterns<br>
+            <strong>Anomaly-based</strong> — flag deviations from normal<br>
+            <strong>Both together</strong> — complementary coverage
+          </p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The deployment flavors</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>NIDS</strong> — Network IDS (watches packets on a segment)<br>
+            <strong>HIDS</strong> — Host IDS (agent on a machine, watches syscalls + files)<br>
+            <strong>IPS</strong> — Intrusion Prevention (an IDS that can also drop)<br>
+            <strong>SIEM</strong> — aggregates IDS + firewall logs
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The philosophical shift:</b> a firewall trusts nothing outside and everything inside is checked at the gate. An IDS assumes the gate might not catch everything — so it watches the inside too. Defense in depth means never trusting a single boundary.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The IDS vantage point</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="34" rx="6" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="35" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">FIREWALL · perimeter (slice 1)</text>
+
+          <line x1="170" y1="48" x2="170" y2="68" stroke="rgba(46,230,168,.65)" stroke-width="2" class="svg-flow"/>
+
+          <!-- interior with IDS at multiple points -->
+          <rect x="14" y="68" width="312" height="180" rx="8" fill="rgba(46,230,168,.05)" stroke="rgba(46,230,168,.35)" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text x="170" y="84" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">INTERIOR · IDS placement options</text>
+
+          <!-- NIDS on segment -->
+          <rect x="40" y="100" width="260" height="34" rx="6" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.75)" stroke-width="1.4"/>
+          <text x="170" y="122" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">NIDS · network IDS on the segment</text>
+
+          <line x1="170" y1="140" x2="170" y2="160" stroke="rgba(255,182,72,.65)" stroke-width="1.4" stroke-dasharray="4 3"/>
+
+          <!-- hosts -->
+          <rect x="40" y="160" width="80" height="42" rx="5" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="80" y="184" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">web</text>
+
+          <rect x="130" y="160" width="80" height="42" rx="5" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="170" y="184" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">db</text>
+
+          <rect x="220" y="160" width="80" height="42" rx="5" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+          <text x="260" y="184" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="700">workstation</text>
+
+          <text x="170" y="224" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">HIDS · one agent per host inside</text>
+
+          <rect x="14" y="262" width="312" height="34" rx="6" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="170" y="283" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="800">→ alerts · logs · forensic stream</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Signature-based" data-anim="signature">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown · Signature-Based Detection</span>
+    <h2 style="margin-bottom:16px;">Scan for <span class="grad-amber">known patterns</span> from a library of malicious exploits</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The definition</span>
+          <p><strong>Signature-based detection</strong> — scanning for <strong>known malicious code string patterns</strong> that match a library of documented exploit profiles.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Security researchers document an attack — its payload bytes, its byte sequence, its behaviour<br>
+            <strong>2.</strong> They generate a "signature" — a pattern matchable against stream content<br>
+            <strong>3.</strong> The IDS reads every byte of every packet, comparing it against thousands of signatures<br>
+            <strong>4.</strong> If it finds a match → alert
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Real examples</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            <span style="color:#88ffd8">"SELECT * FROM"</span> → SQL injection<br>
+            <span style="color:#88ffd8">"&lt;script&gt;"</span> → XSS attempt<br>
+            <span style="color:#88ffd8">"/wp-login.php"</span> → WordPress brute force<br>
+            <span style="color:#88ffd8">"cmd.exe /c"</span> → command injection
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The limitation</span>
+          <p><strong>Only catches known attacks.</strong> A novel exploit — a zero-day, or a custom payload written specifically for this target — has no signature and passes straight through. Signature detection is a library of yesterday's bugs.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Signature matching against a stream</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">IDS · signature engine</span>
+          </div>
+          <div class="term-body" style="min-height:auto">
+            <span class="term-line"><span class="term-b">[stream]</span> <span class="term-c">GET /search?q=SELECT+*+FROM+users--</span></span>
+            <span class="term-line dim">         ↳ reading payload…</span>
+            <span class="term-line dim">         ↳ matching 8,912 signatures…</span>
+            <span class="term-line warn">         ↳ match: sig_id 4211 "SQL injection pattern"</span>
+            <span class="term-line err">         ⚠ ALERT · possible SQL injection</span>
+            <span class="term-line dim"></span>
+            <span class="term-line"><span class="term-b">[stream]</span> <span class="term-c">GET /search?q=hello</span></span>
+            <span class="term-line dim">         ↳ matching 8,912 signatures…</span>
+            <span class="term-line ok">         ↳ no match</span>
+            <span class="term-line dim"></span>
+            <span class="term-line"><span class="term-b">[stream]</span> <span class="term-c">GET /search?q=&lt;script&gt;alert(1)&lt;/script&gt;</span></span>
+            <span class="term-line warn">         ↳ match: sig_id 2201 "XSS attempt"</span>
+            <span class="term-line err">         ⚠ ALERT · possible XSS</span>
+            <span class="term-line dim"></span>
+            <span class="term-line"><span class="term-b">[stream]</span> <span class="term-c">GET /?q=zero_day_payload_here</span></span>
+            <span class="term-line dim">         ↳ matching 8,912 signatures…</span>
+            <span class="term-line dim">         ↳ no match</span>
+            <span class="term-line warn">         → zero-day NOT caught (no signature exists)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Core · Anomaly-based" data-anim="anomaly">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Core Breakdown · Anomaly-Based Detection</span>
+    <h2 style="margin-bottom:16px;">Learn <span class="grad-violet">normal</span>. Flag <span class="grad-violet">deviations</span>.</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The definition</span>
+          <p><strong>Anomaly-based detection</strong> — establishing a statistical baseline of normal network behaviour and flagging deviations from that baseline.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> The IDS learns a baseline — hours or days of normal traffic<br>
+            <strong>2.</strong> It models features: traffic volume, times of day, packet sizes, protocols, destination diversity<br>
+            <strong>3.</strong> When live traffic deviates sharply → flag as suspicious
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What it catches</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Zero-days</strong> — novel attacks have no signature but behave weirdly<br>
+            <strong>Insider threats</strong> — anomalous access patterns<br>
+            <strong>Exfiltration</strong> — sudden outbound volume spikes<br>
+            <strong>Beaconing</strong> — C2 callbacks at regular intervals
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The limitation</span>
+          <p><strong>False positives.</strong> Legitimate behaviour that looks statistically unusual (a new employee who works nights, a scheduled backup, a new service) gets flagged. Attackers can also <em>slowly</em> shift the baseline or blend into it. Anomaly detection is powerful but noisy.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Baseline vs. deviation</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">NETWORK VOLUME OVER 24 HOURS</text>
+
+          <!-- baseline band -->
+          <rect x="20" y="90" width="300" height="60" rx="4" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.45)" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="330" y="105" text-anchor="end" font-size="8" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">baseline band</text>
+
+          <!-- normal traffic line -->
+          <path d="M 20 130 Q 60 115 100 122 T 180 118 T 240 125 L 320 120" stroke="rgba(46,230,168,.85)" stroke-width="2" fill="none"/>
+
+          <!-- time axis -->
+          <line x1="20" y1="240" x2="320" y2="240" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
+          <text x="20" y="256" font-size="8" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">00:00</text>
+          <text x="100" y="256" font-size="8" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">06:00</text>
+          <text x="180" y="256" font-size="8" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">12:00</text>
+          <text x="260" y="256" font-size="8" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">18:00</text>
+          <text x="320" y="256" text-anchor="end" font-size="8" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">24:00</text>
+
+          <!-- anomaly spike at 3AM -->
+          <path d="M 60 130 L 62 50 L 66 130" stroke="rgba(255,77,109,.9)" stroke-width="2.5" fill="none"/>
+          <circle cx="63" cy="50" r="4" fill="rgba(255,77,109,.9)"/>
+          <text x="63" y="40" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">anomaly!</text>
+          <text x="63" y="280" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">3 AM spike</text>
+
+          <!-- anomaly spike at 22:00 -->
+          <path d="M 280 125 L 282 70 L 286 125" stroke="rgba(255,77,109,.9)" stroke-width="2.5" fill="none"/>
+          <circle cx="283" cy="70" r="4" fill="rgba(255,77,109,.9)"/>
+          <text x="283" y="60" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">anomaly!</text>
+
+          <!-- explanation -->
+          <text x="170" y="302" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">two deviations from the 30-day baseline → alerts</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Core · Signature vs Anomaly">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">📖 Core Breakdown · Signature vs Anomaly — Complementary Coverage</span>
+    <h2 style="margin-bottom:16px;">The known and the <span class="grad-emerald">unknown</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Signature · catches the known</span>
+          <p>Exact matches against known exploits. Zero false positives on novel traffic (nothing matches). Fast to add (researchers publish new signatures daily). Fails on zero-days, on custom payloads, and on polymorphic attacks.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Anomaly · catches the unknown</span>
+          <p>Detects deviations. Catches zero-days, insider threats, exfiltration. But produces false positives, requires a learning period, and can be evaded by slow attackers who blend in.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Modern IDS uses both</span>
+          <p>Real systems combine signature and anomaly detection. Signature catches the 99% of attacks that are known. Anomaly catches the 1% that are new. Neither alone is complete.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The formal definition from the source:</b> "Signature-based detection: scanning for known patterns matching a library of malicious exploit profiles. Heuristic/Anomaly-based detection: establishing a statistical baseline of normal network behavior and flagging deviations." Two fundamentally different philosophies — both required for complete coverage.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The two strategies side by side</div>
+        <div class="sa-grid">
+          <div class="sa-card sig">
+            <span class="sa-icon">📋</span>
+            <div class="sa-title">SIGNATURE-BASED</div>
+            <div class="sa-body">
+              <strong>Pattern match</strong> against a library of known bad bytes.<br>
+              If it matches, alert.
+            </div>
+            <div class="sa-stats">
+              ✓ known attacks<br>
+              ✓ fast · deterministic<br>
+              ✕ zero-days<br>
+              ✕ custom payloads<br>
+              ✕ polymorphic
+            </div>
+          </div>
+          <div class="sa-card anom">
+            <span class="sa-icon">📊</span>
+            <div class="sa-title">ANOMALY-BASED</div>
+            <div class="sa-body">
+              <strong>Learn normal.</strong><br>
+              Flag anything statistically far from baseline.
+            </div>
+            <div class="sa-stats">
+              ✓ zero-days · insiders<br>
+              ✓ exfiltration<br>
+              ✕ false positives<br>
+              ✕ slow evasion<br>
+              ✕ learning period
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:12px;border-radius:9px;border:1px solid rgba(46,230,168,.5);background:rgba(46,230,168,.06);font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-2);text-align:center">
+          <strong style="color:#88ffd8">MODERN IDS COMBINES BOTH</strong><br>
+          signature catches known · anomaly catches novel
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Practical · The exact example" data-anim="exactexample">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">📖 Practical Example · Windows Defender vs. Out-of-Hours Telemetry IDS</span>
+    <h2 style="margin-bottom:16px;">The exact scenario from the source</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The scenario</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13.5px">
+            A standard firewall rule block acts at the border, dropping unauthorized incoming connection requests targeting closed terminal lines. But then…<br><br>
+            <strong>If a valid user logs in successfully at 3:00 AM but immediately initiates an abnormal, multi-gigabyte data export loop, the firewall remains blind.</strong><br><br>
+            Catching this threat requires an <strong>anomaly-based IDS</strong> to flag the off-hours pattern deviation.
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why the firewall misses it</span>
+          <p>Every packet is on a permitted port (443 or SMB), from a legitimate authenticated user, to an authorized destination. At the header level — the only level the firewall reads — this traffic looks <strong>completely normal</strong>. The firewall has no rule that says "block legitimate users exfiltrating data at 3 AM" because there is no such rule that could be written — it's not a static property of the packet.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why the anomaly IDS catches it</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Time anomaly</strong> — login at 3 AM is outside the baseline<br>
+            <strong>Volume anomaly</strong> — multi-GB export from a user who normally transfers MB<br>
+            <strong>Direction anomaly</strong> — outbound is larger than inbound<br>
+            <strong>Pattern anomaly</strong> — loop, sustained, unchanging
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The takeaway</span>
+          <p>The exact right tool for the exact right threat. Firewall blocks the obvious external attacks. Anomaly IDS catches the subtle insider behaviour. Neither could catch this scenario alone.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The exfiltration example</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="20" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">3 AM · VALID USER · MASSIVE OUTBOUND</text>
+
+          <!-- firewall at the border - looks normal -->
+          <rect x="14" y="40" width="312" height="40" rx="7" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="170" y="58" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="800">🧱 FIREWALL · sees a normal packet</text>
+          <text x="170" y="72" text-anchor="middle" font-size="8" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">src=user · dst:443 · allowed</text>
+
+          <!-- normal baseline vs current -->
+          <rect x="14" y="90" width="312" height="55" rx="7" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.5)" stroke-width="1.2"/>
+          <text x="24" y="108" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">BASELINE</text>
+          <text x="24" y="126" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">typical user: 50 MB/day · 9 AM–6 PM</text>
+          <text x="24" y="140" font-size="8.5" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">no outbound bursts</text>
+
+          <rect x="14" y="155" width="312" height="55" rx="7" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.65)" stroke-width="1.3"/>
+          <text x="24" y="173" font-size="9" fill="#ff9fb1" font-family="Inter" font-weight="800">CURRENT EVENT · 03:14</text>
+          <text x="24" y="191" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">login at 3 AM (unusual)</text>
+          <text x="24" y="205" font-size="8.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">2.3 GB outbound in a loop</text>
+
+          <line x1="170" y1="210" x2="170" y2="235" stroke="rgba(255,77,109,.75)" stroke-width="2" class="svg-flow"/>
+
+          <!-- IDS alert -->
+          <rect x="14" y="235" width="312" height="55" rx="7" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.85)" stroke-width="1.6"/>
+          <text x="170" y="255" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">⚠ ANOMALY IDS ALERT</text>
+          <text x="170" y="272" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.8)" font-family="JetBrains Mono">off-hours · volume spike · outbound loop</text>
+          <text x="170" y="284" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">correlate with baseline · flag for review</text>
+
+          <text x="170" y="310" text-anchor="middle" font-size="8.5" fill="rgba(196,207,230,.55)" font-family="JetBrains Mono">firewall blind · only IDS sees this</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live · iptables demo" data-anim="iptables">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🧪 Live Demo — iptables Blocking a Port Scan</span>
+    <h2 style="margin-bottom:16px;">Watch the firewall <span class="grad-crimson">silently drop</span> the probes</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · iptables in action</div>
+        <div class="terminal" id="iptablesTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">root@server — iptables</span>
+          </div>
+          <div class="term-body" id="iptablesBody">
+            <span class="term-line"><span class="term-prompt">#</span> <span class="term-cmd">iptables -L INPUT -n --line-numbers</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What to notice</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> The rule set is read top-down<br>
+            <strong>2.</strong> Each packet is checked against rules in order<br>
+            <strong>3.</strong> First match wins — ACCEPT or DROP<br>
+            <strong>4.</strong> No match → default policy applies (DROP)
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How the scan looks</span>
+          <p>An attacker runs <code style="font-family:var(--mono);color:#b9d0ff">nmap -p 1-1000 10.0.0.5</code>. The firewall sees 1000 SYN packets in a few seconds. Rules that close most ports mean the attacker sees 998 "filtered" (no response at all) and only the two ports you actually opened respond.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's silent</span>
+          <p>A firewall in DROP mode sends no response at all to a blocked packet. The attacker's scan sees <em>nothing</em> — a black hole. This is better than REJECT (which sends RST and reveals the host exists). Silent dropping frustrates port scanners and slow attackers down.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Modern replacement:</b> <code style="font-family:var(--mono);color:#c9a7ff">nftables</code> is the current replacement for iptables on modern Linux. The concepts (tables, chains, rules, default policy) are the same — only the syntax differs. Firewalld and ufw are high-level wrappers around these tools.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Live · IDS alert" data-anim="idsalert">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — An IDS Alert in Action</span>
+    <h2 style="margin-bottom:16px;">From <span class="grad-amber">traffic</span> to <span class="grad-amber">alert</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · IDS log and alert</div>
+        <div class="terminal" id="idsAlertTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — tail -f /var/log/ids.log</span>
+          </div>
+          <div class="term-body" id="idsAlertBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">tail -f /var/log/ids/alerts.log</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>1.</strong> A packet stream flows through the segment<br>
+            <strong>2.</strong> The IDS reconstructs the stream<br>
+            <strong>3.</strong> Signature engine matches a known pattern<br>
+            <strong>4.</strong> Alert fires with severity, source, destination<br>
+            <strong>5.</strong> SIEM correlates with other events
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The structure of an alert</span>
+          <p style="font-family:var(--mono);font-size:11.5px;line-height:1.8;color:var(--ink-2);margin-top:4px">
+            <span style="color:#b9d0ff">[timestamp]</span> <span style="color:#ff9fb1">severity</span><br>
+            <span style="color:#ffd18a">src_ip</span>:<span style="color:#ffd18a">src_port</span> → <span style="color:#ffd18a">dst_ip</span>:<span style="color:#ffd18a">dst_port</span><br>
+            <span style="color:#88ffd8">signature_id</span> · <span style="color:#88ffd8">signature_name</span><br>
+            <span style="color:#c9a7ff">payload_preview</span>
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The false-positive risk</span>
+          <p>A signature like <code style="font-family:var(--mono);color:#ff9fb1">"SELECT * FROM"</code> is legitimately used by developers. So is <code style="font-family:var(--mono);color:#ff9fb1">"&lt;script&gt;"</code> in legitimate HTML. Real IDS rules need context — a signature that catches every search query is useless noise.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Tuning matters:</b> a fresh-installed IDS produces hundreds of false positives per day. Security teams spend hours tuning rules, whitelisting known traffic, and correlating alerts across systems. An IDS is not "install and forget" — it's a continuous operational practice.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Live · Combined defense" data-anim="combined">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — Firewall + IDS Together</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">dual defense</span> in one trace</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The scenario</span>
+          <p>Two attacks arrive at the perimeter simultaneously. One is a port scan — the other is a SQL injection hidden in an HTTPS request. Watch the firewall stop the scan and the IDS catch the injection.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Attack 1 · port scan</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            SYN packets to ports 1, 2, 3, …, 1000<br>
+            <strong>Firewall sees</strong> → SYN to closed port → DROP<br>
+            <strong>IDS sees</strong> → nothing (traffic never reaches it)<br>
+            <strong>Attacker sees</strong> → filtered ports (silent)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Attack 2 · SQL injection</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            HTTPS GET on port 443 with <code style="font-family:var(--mono);color:#ffd18a">?q=SELECT+*+FROM+users</code><br>
+            <strong>Firewall sees</strong> → permitted HTTPS → ACCEPT<br>
+            <strong>IDS sees</strong> → payload contains known pattern → ALERT<br>
+            <strong>Admin sees</strong> → alert → investigate → block IP
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The honest truth</span>
+          <p>The IDS did not stop the SQL injection — it only observed it. Without an IPS (intrusion prevention) mode, the attacker's payload reached the server. That's why many IDS deployments are actually inline IPS — the IDS in prevention mode, dropping packets that match a signature. The source material uses "IDS" strictly, but real deployments often combine both.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · dual defense trace</div>
+        <div class="route-vis" id="combinedVis">
+          <div class="route-step" data-idx="0">
+            <div class="rs-num">1</div>
+            <div class="rs-body"><strong>nmap -p 1-1000</strong> — attacker sends SYNs to every port</div>
+            <div class="rs-tag inet">INET</div>
+          </div>
+          <div class="route-step" data-idx="1">
+            <div class="rs-num">2</div>
+            <div class="rs-body"><strong>Firewall DROP</strong> — closed ports silently dropped</div>
+            <div class="rs-tag fw">FW</div>
+          </div>
+          <div class="route-step" data-idx="2">
+            <div class="rs-num">3</div>
+            <div class="rs-body"><strong>Attacker sees nothing</strong> — the scan is defeated</div>
+            <div class="rs-tag fw">FW</div>
+          </div>
+          <div class="route-step" data-idx="3">
+            <div class="rs-num">4</div>
+            <div class="rs-body"><strong>HTTPS attack</strong> — SQL injection via port 443</div>
+            <div class="rs-tag inet">INET</div>
+          </div>
+          <div class="route-step" data-idx="4">
+            <div class="rs-num">5</div>
+            <div class="rs-body"><strong>Firewall ACCEPT</strong> — port 443 is open, header looks fine</div>
+            <div class="rs-tag fw">FW</div>
+          </div>
+          <div class="route-step" data-idx="5">
+            <div class="rs-num">6</div>
+            <div class="rs-body"><strong>IDS signature match</strong> → alert: "SQL injection attempt"</div>
+            <div class="rs-tag ids">IDS</div>
+          </div>
+          <div class="route-step" data-idx="6">
+            <div class="rs-num">7</div>
+            <div class="rs-body"><strong>Admin reviews</strong> · correlates · adds IP block</div>
+            <div class="rs-tag ids">IDS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about firewalls and IDS</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"A firewall is enough if it's configured correctly"</div>
+        <div class="pc-desc">No. A correctly configured firewall blocks <em>unwanted</em> traffic — but cannot see inside the traffic it permits. An attacker who compromises a web app and sends exploits over port 443 is invisible to a header-only firewall. The firewall answers <strong>"should this be let in?"</strong> not <strong>"does this look malicious?"</strong> — two completely different questions.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"An IDS blocks attacks"</div>
+        <div class="pc-desc">Not by default. An IDS <strong>alerts</strong> — it does not drop packets. It sits passively, observing and logging. Only an <em>IPS</em> (Intrusion Prevention System) can drop traffic inline. Without an IPS or manual response, an IDS simply produces a paper trail after the fact. The distinction matters enormously: many "we have an IDS" deployments are really alerts nobody reads.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"Signature detection is obsolete, use anomaly detection"</div>
+        <div class="pc-desc">False. Signature detection catches known attacks <strong>with zero false positives on non-matching traffic</strong> — it's deterministic and reliable. Anomaly detection catches novel behaviour but produces false positives, has a learning period, and can be evaded by a patient attacker. Real IDSs combine both — signature for the known, anomaly for the unknown. The tools are complementary, not competing.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real world · tools">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🌍 Real World — Firewalls and IDS in Production</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">actual tools</span> that run the world</h2>
+    <div class="example-grid">
+      <div class="example-card">
+        <span class="ec-icon">🧱</span>
+        <div class="ec-name" style="color:#ff9fb1">Linux firewalls</div>
+        <div class="ec-profile">
+          iptables · nftables<br>
+          ufw · firewalld<br>
+          cloud security groups
+        </div>
+        <div class="ec-win" style="background:rgba(255,77,109,.15);color:#ff9fb1">Host/edge filtering</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">👁️</span>
+        <div class="ec-name" style="color:#ffd18a">IDS / IPS</div>
+        <div class="ec-profile">
+          Snort · Suricata<br>
+          Zeek (Bro) · OSSEC<br>
+          Cisco Firepower
+        </div>
+        <div class="ec-win" style="background:rgba(255,182,72,.15);color:#ffd18a">Network detection</div>
+      </div>
+      <div class="example-card">
+        <span class="ec-icon">📊</span>
+        <div class="ec-name" style="color:#c9a7ff">SIEM platforms</div>
+        <div class="ec-profile">
+          Splunk · Elastic<br>
+          Wazuh · Graylog<br>
+          aggregating IDS + FW logs
+        </div>
+        <div class="ec-win" style="background:rgba(160,107,255,.15);color:#c9a7ff">Correlation</div>
+      </div>
+    </div>
+    <div class="panel amber" style="margin-top:20px;padding:18px">
+      <span class="panel-label">⚠️ The encryption problem for IDS</span>
+      <p>Modern HTTPS encrypts everything. Signature-based detection on the payload is <strong>impossible without decryption</strong>. This is why modern IDS tools have pivoted toward <strong>metadata analysis</strong>: TLS handshake fingerprints (JA3), packet sizes, timing patterns, and certificate transparency. Signature detection still works on unencrypted traffic (DNS, HTTP, SMTP), but the majority of the internet is now opaque.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The source material's exact point:</b> "High-strength hybrid encryption masks data payloads, forcing modern Intrusion Detection Systems to evaluate traffic metadata shapes instead of raw string keywords." L25's encryption directly shapes L26's IDS design. That's why these two lectures sit next to each other in the syllabus.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Activity" data-anim="logsort">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Classroom Activity · The Raw Log Diagnostic Sorting Game</span>
+    <h2 style="margin-bottom:16px;">Sort the log lines. <span class="grad-violet">Firewall or IDS?</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The activity</span>
+          <p>Hand students sheets displaying a short <strong>10-line network traffic log</strong> containing mixed events — blocked IP sweeps, port scans, sudden massive outbound packet floods, SQL injection attempts, normal traffic, and more. Have them sort the lines into two columns:</p>
+          <p style="line-height:1.9;margin-top:8px;font-size:13px">
+            <strong>Column A</strong> — events caught by static firewall port filters<br>
+            <strong>Column B</strong> — events requiring an IDS analyzer
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The debrief questions</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            · Which lines could <em>both</em> tools catch? (Overlap is real)<br>
+            · Which require payload inspection? (IDS only)<br>
+            · Which require only the header? (Firewall only)<br>
+            · What line requires something neither catches?<br>
+            · What about an encrypted SQL injection?
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The "aha" moment</span>
+          <p>Most lines are easy. But some fall into both columns — and the encrypted attack falls into <em>neither</em>. That's the real insight: no single layer catches everything. Defense in depth, plus a monitoring strategy for what you can't see.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Sort these 8 sample log lines</div>
+        <table class="log-sort" id="logSort">
+          <thead>
+            <tr><th style="width:60%">LOG LINE</th><th>TOOL</th></tr>
+          </thead>
+          <tbody>
+            <tr data-kind="fw"><td>SYN from 185.220.101.5 → :23 (telnet)</td><td class="fw">FW · block</td></tr>
+            <tr data-kind="fw"><td>SYN from 10.0.0.22 → :3389 (RDP)</td><td class="fw">FW · block</td></tr>
+            <tr data-kind="ids"><td>GET /admin?id=1' OR '1'='1 via :443</td><td class="ids">IDS · sig</td></tr>
+            <tr data-kind="ids"><td>3,212 outbound calls to :443 in 60s from 10.0.0.55</td><td class="ids">IDS · anom</td></tr>
+            <tr data-kind="fw"><td>ICMP ping flood from 203.0.113.7</td><td class="fw">FW · block</td></tr>
+            <tr data-kind="ids"><td>2.3 GB upload at 03:14 from alice's workstation</td><td class="ids">IDS · anom</td></tr>
+            <tr data-kind="fw"><td>SYN to closed port 8080 → drop silently</td><td class="fw">FW · block</td></tr>
+            <tr data-kind="ids"><td>Payload matches CVE-2021-44228 (Log4Shell)</td><td class="ids">IDS · sig</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Mindmap" data-anim="mindmap">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">🗺️ Mindmap Branch</span>
+    <h2 style="margin-bottom:16px;">L26 in the <span class="grad-blue">course tree</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The branch</span>
+          <p style="font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2)">
+            CS 301: Operating Systems<br>
+            &nbsp;&nbsp;→ Module 7: Security &amp; Protection<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;→ <strong style="color:#ff9fb1">L26: Firewalls &amp; IDS</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Border Port Filtering<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Deep Packet Analysis<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Signature vs Anomaly Logs
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The four core concepts</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Firewall</strong> — border block by header rule<br>
+            <strong>Port Filtering</strong> — open or close channels<br>
+            <strong>IDS</strong> — interior detection via signature + anomaly<br>
+            <strong>Signature vs Anomaly</strong> — known-pattern vs baseline-deviation
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The throughline to L27</span>
+          <p>L26 defends the network boundary. L27 defends <em>each individual workload</em> — sandboxes, namespaces, containers. The two combine: container networking layers Firewalls + IDSs between isolated workloads, giving each container its own mini-perimeter.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Mindmap branch</div>
+        <div class="mindmap" id="mindmapVis">
+          <div class="mm-row"><span class="mm-prefix">├─ </span><div class="mm-node root">CS 301 · Operating Systems</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  ├─ </span><div class="mm-node">Module 7 · Security &amp; Protection</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf amber">L22 · Access Control</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf emerald">L23 · Authentication</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf crimson">L24 · Program Exploits</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node leaf violet">L25 · Encryption</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  ├─ </span><div class="mm-node active">L26 · Firewalls &amp; IDS</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf">Border Port Filtering</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  ├─ </span><div class="mm-node leaf blue">Deep Packet Analysis</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  │  └─ </span><div class="mm-node leaf amber">Signature vs Anomaly</div></div>
+          <div class="mm-row"><span class="mm-prefix">│  │  └─ </span><div class="mm-node leaf emerald">L27 · Isolation →</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · Firewall">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🏷️ System Lexicon — Firewall &amp; Port Filtering</span>
+    <div class="two-lex">
+      <div class="lex-card fw">
+        <div class="lex-term">Firewall</div>
+        <div class="lex-sub">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A boundary security component that permits or blocks network traffic frames based on a predetermined set of filtering rule criteria.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The bouncer at the door — checks each packet against a fixed rule list. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Real implementations</span>
+          <p>iptables · nftables · pfSense · cloud security groups · Cisco ASA</p>
+        </div>
+      </div>
+      <div class="lex-card fw">
+        <div class="lex-term">Port Filtering</div>
+        <div class="lex-sub">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Blocking or opening explicit software communication channels (e.g. Port 80 for HTTP, Port 22 for SSH) to restrict vector exposure.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( "Open only the ports we need. Everything else is a liability." )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Common practice</span>
+          <p>Default deny · allow-list only · audit open ports monthly · never expose 23, 445, 3389 externally</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · IDS">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🏷️ System Lexicon — IDS &amp; Signature vs Anomaly</span>
+    <div class="two-lex">
+      <div class="lex-card am">
+        <div class="lex-term">IDS</div>
+        <div class="lex-sub">Term 03 of 04 · Intrusion Detection System</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An internal network data scanner that tracks packet streams already passing inside system boundaries to sound alarms on suspicious behaviours.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The undercover camera guard inside — observes, doesn't block. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Deployment types</span>
+          <p>NIDS (network) · HIDS (host) · IPS (prevention — can drop)</p>
+        </div>
+      </div>
+      <div class="lex-card am">
+        <div class="lex-term">Signature vs Anomaly</div>
+        <div class="lex-sub">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p><strong>Signature</strong> — scanning for known malicious code string patterns.<br><strong>Anomaly</strong> — flagging deviations from normal statistical baseline behaviours.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Signature = "I've seen this attack before." Anomaly = "This looks wrong compared to yesterday." )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why both</span>
+          <p>Signature catches known attacks with zero false positives. Anomaly catches novel attacks at the cost of noise. Real IDSs use both.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Summary">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L26 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>A <strong>firewall</strong> blocks or permits traffic based on header rules — source, destination, port, protocol. It is the <strong>bouncer at the door</strong>: fast, reliable, deterministic. But it only guards the perimeter — it cannot see inside the traffic it permits.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>An <strong>IDS</strong> watches traffic already inside — the <strong>undercover camera guard</strong>. It doesn't block, it detects. It reconstructs streams, matches patterns, and learns baselines. The output is alerts and logs, not enforcement.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>An IDS uses <strong>two strategies</strong>: <strong>signature-based</strong> (scan for known exploit patterns — catches known attacks, misses zero-days) and <strong>anomaly-based</strong> (flag deviations from normal baseline — catches zero-days, produces false positives). Real IDSs combine both.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>Neither alone is enough. The <strong>firewall blocks the obvious external attacks</strong>; the <strong>IDS catches the subtle behaviour inside</strong>. The exact example from the source: a firewall cannot see a legitimate user exfiltrating multi-GB data at 3 AM — only an anomaly IDS flags that pattern deviation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Exam focus">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🎯 Exam Focus — What to Remember</span>
+    <h2 style="margin-bottom:18px;">The exact questions this lecture answers</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Question 1</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Distinguish a firewall's blocking role from an IDS's detection role."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Firewall: static rules → permit/deny at the perimeter → the bouncer. IDS: analyses traffic already inside → alerts on suspicious behaviour → the camera guard. One blocks, one detects.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Question 2</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Given a sample log trace, sort events into firewall vs. IDS."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Header-only events (port scans, IP blocklists, protocol violations) → firewall. Payload or pattern events (SQL injection, exfiltration, anomalous timing) → IDS.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Question 3</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Compare signature-based and anomaly-based detection."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Signature: known-pattern match, deterministic, misses zero-days. Anomaly: baseline deviation, catches novel attacks, produces false positives. Both required for complete coverage.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Question 4</span>
+          <p style="font-size:14px;line-height:1.65"><strong>"Explain why a firewall misses an out-of-hours exfiltration."</strong></p>
+          <p style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--muted)">Every packet is on a permitted port, from a legitimate authenticated user, to an authorized destination. Header inspection sees no violation — only an anomaly IDS comparing against baseline catches the 3 AM / multi-GB deviation.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four core facts to memorize</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <g transform="translate(20, 20)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">FIREWALL</text>
+            <text x="15" y="42" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">header only · rule-based · blocks</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">perimeter gate</text>
+          </g>
+          <g transform="translate(20, 90)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">IDS</text>
+            <text x="15" y="42" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">payload · stream · detects</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">interior monitoring</text>
+          </g>
+          <g transform="translate(20, 160)">
+            <rect x="0" y="0" width="300" height="62" rx="10" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">SIGNATURE vs ANOMALY</text>
+            <text x="15" y="42" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">known pattern vs baseline drift</text>
+            <text x="15" y="57" font-size="8.5" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">both required for full coverage</text>
+          </g>
+          <g transform="translate(20, 230)">
+            <rect x="0" y="0" width="300" height="68" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+            <text x="15" y="22" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">DUAL DEFENSE</text>
+            <text x="15" y="42" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">firewall blocks · IDS detects</text>
+            <text x="15" y="57" font-size="9" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">one is not enough · both are</text>
+            <text x="15" y="72" font-size="8.5" fill="rgba(136,255,216,.45)" font-family="JetBrains Mono">defense in depth</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Gateway to L27">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">➡️ Next Lecture — L27 · Modern Isolation Paradigms</span>
+    <h2 style="margin-bottom:18px;">From <span class="grad-emerald">"defend the boundary"</span> to <span class="grad-emerald">"defend each workload"</span></h2>
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The handoff</span>
+          <p>L26 defended the <strong>network perimeter</strong> — one big wall around all your systems. But modern computing has thousands of workloads running on the same host, sharing the same kernel, the same network stack, the same filesystem. A perimeter can't separate <em>them</em> from each other.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">L27 preview</span>
+          <p>Next lecture compares isolation boundaries: <strong>sandboxes</strong> (restrict syscalls), <strong>namespaces</strong> (isolate visibility), <strong>cgroups</strong> (cap resources), <strong>containers</strong> (user-space isolation), and <strong>hypervisors</strong> (full hardware emulation). Each defends a different boundary — and each assumes the one above it will fail.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The connection</span>
+          <p>Firewalls and IDSs protect the <em>network</em>. Isolation paradigms protect <em>within the network</em> — between containers, between VMs, between tenants. Modern container networking often implements firewall rules <em>between</em> containers — a synthesis of L26 (network filtering) and L27 (workload isolation).</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L27: Modern Isolation Paradigms &nbsp;|&nbsp; [L27.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad26" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad26)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad26)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : network canvas ---------- */
+reg('networkcanvas', function(){
+  const c = document.getElementById('networkCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  // packets travel from left to right, firewall filters, then IDS watches
+  const packets = [];
+  for(let i = 0; i < 6; i++){
+    packets.push({
+      x: -100 - i * 90,
+      kind: ['scan','exploit','normal','scan','exploit','normal'][i],
+      blocked: null,
+      y: 130 + (i % 3) * 60
+    });
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('INTERNET → FIREWALL → IDS → LAN', W/2, 16);
+
+    // firewall zone
+    ctx.fillStyle = 'rgba(255,77,109,.12)';
+    ctx.fillRect(W*0.38, 70, 60, H - 140);
+    ctx.strokeStyle = 'rgba(255,77,109,.75)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(W*0.38, 70, 60, H - 140);
+    ctx.save();
+    ctx.translate(W*0.38 + 30, H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = '#ff9fb1';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FIREWALL', 0, 0);
+    ctx.restore();
+
+    // IDS zone
+    ctx.fillStyle = 'rgba(255,182,72,.10)';
+    ctx.fillRect(W*0.62, 70, 60, H - 140);
+    ctx.strokeStyle = 'rgba(255,182,72,.75)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(W*0.62, 70, 60, H - 140);
+    ctx.save();
+    ctx.translate(W*0.62 + 30, H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('IDS', 0, 0);
+    ctx.restore();
+
+    // LAN zone
+    ctx.fillStyle = 'rgba(46,230,168,.08)';
+    ctx.fillRect(W*0.82, 70, W*0.14, H - 140);
+    ctx.strokeStyle = 'rgba(46,230,168,.55)';
+    ctx.lineWidth = 1.3;
+    ctx.strokeRect(W*0.82, 70, W*0.14, H - 140);
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LAN', W*0.89, 90);
+
+    // packets
+    packets.forEach(p => {
+      p.x += 1.4;
+
+      // Firewall check
+      if(p.blocked === null && p.x >= W*0.38 - 12 && p.x <= W*0.38 + 12){
+        if(p.kind === 'scan'){
+          p.blocked = 'fw';
+        }
+      }
+
+      // IDS check
+      if(p.blocked === null && p.kind === 'exploit' && p.x >= W*0.62 - 12 && p.x <= W*0.62 + 12){
+        p.blocked = 'ids';
+      }
+
+      // Draw
+      if(p.blocked === 'fw'){
+        // dropped - fade out at firewall
+        const fade = Math.max(0, 1 - (p.x - W*0.38) / 60);
+        if(fade > 0){
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = '#ff4d6d';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = '700 9px JetBrains Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('✕', p.x, p.y);
+          ctx.globalAlpha = 1;
+        }
+      } else if(p.blocked === 'ids'){
+        // flagged but continues
+        ctx.fillStyle = '#ffb648';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 9, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#06090f';
+        ctx.font = '700 9px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', p.x, p.y);
+      } else {
+        // normal
+        ctx.fillStyle = p.kind === 'exploit' ? 'rgba(255,77,109,.9)' : 'rgba(91,141,255,.85)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // recycle packets that exit
+      if(p.x > W + 40){
+        p.x = -100 - Math.random() * 80;
+        p.blocked = null;
+      }
+    });
+
+    // legend
+    ctx.fillStyle = 'rgba(132,148,180,.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('● normal  ● scan (blocked)  ● exploit (flagged)', 20, H - 24);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 3 : bouncer cycle ---------- */
+reg('bouncer', function(){
+  const cards = document.querySelectorAll('.bouncer-card');
+  if(!cards.length) return { stop(){} };
+  // static, no cycle needed - cards are always visible
+  return { stop(){} };
+});
+
+/* ---------- Slide 11 : signature ---------- */
+reg('signature', function(){
+  // static terminal - no animation needed
+  return { stop(){} };
+});
+
+/* ---------- Slide 12 : anomaly ---------- */
+reg('anomaly', function(){
+  // static svg - no animation needed
+  return { stop(){} };
+});
+
+/* ---------- Slide 14 : exact example ---------- */
+reg('exactexample', function(){
+  return { stop(){} };
+});
+
+/* ---------- Slide 15 : iptables terminal ---------- */
+reg('iptables', function(){
+  const body = document.getElementById('iptablesBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'Chain INPUT (policy DROP)' },
+    { cls:'term-line', text:'num  target  prot opt in   source         destination' },
+    { cls:'term-line', text:'1    ACCEPT  tcp  --  *    0.0.0.0/0      0.0.0.0/0    tcp dpt:22' },
+    { cls:'term-line', text:'2    ACCEPT  tcp  --  *    0.0.0.0/0      0.0.0.0/0    tcp dpt:443' },
+    { cls:'term-line', text:'3    ACCEPT  tcp  --  *    0.0.0.0/0      0.0.0.0/0    tcp dpt:80' },
+    { cls:'term-line hl', text:'4    DROP    all  --  *    0.0.0.0/0      0.0.0.0/0' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'<span class="term-prompt">#</span> <span class="term-cmd"># Now watch a port scan from the attacker side</span>' },
+    { cls:'term-line', text:'<span class="term-prompt">$</span> <span class="term-cmd">nmap -p 1-1000 10.0.0.5</span>' },
+    { cls:'term-line dim', text:'Starting Nmap 7.94' },
+    { cls:'term-line', text:'PORT     STATE    SERVICE' },
+    { cls:'term-line dim', text:'22/tcp   open     ssh' },
+    { cls:'term-line dim', text:'80/tcp   open     http' },
+    { cls:'term-line dim', text:'443/tcp  open     https' },
+    { cls:'term-line warn', text:'997 filtered  ports (no response)' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line err', text:'→ 997 ports silently DROPPED by firewall rule #4' },
+    { cls:'term-line err', text:'→ attacker sees nothing on closed ports' },
+    { cls:'term-line warn', text:'→ DROP sends no RST · stealth' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line ok', text:'✓ only 3 exposed services · 997 invisible' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">#</span> <span class="term-cmd">iptables -L INPUT -n --line-numbers</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 16 : IDS alert terminal ---------- */
+reg('idsalert', function(){
+  const body = document.getElementById('idsAlertBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text:'[03:14:22] flow new: 203.0.113.77:53422 → 10.0.0.5:443' },
+    { cls:'term-line dim', text:'[03:14:22] stream reassembled · 234 bytes' },
+    { cls:'term-line', text:'[03:14:22] payload: <span class="term-c">GET /admin.php?id=1 UNION SELECT ...</span>' },
+    { cls:'term-line warn', text:'[03:14:22] ⚠ signature match: sid 2101 · "SQL injection attempt"' },
+    { cls:'term-line warn', text:'[03:14:22] ⚠ severity: HIGH' },
+    { cls:'term-line err', text:'[03:14:22] ⚠ ALERT · 203.0.113.77 → 10.0.0.5:443 · sid=2101' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line dim', text:'[03:14:31] flow new: 10.0.0.22:44100 → 10.0.0.30:443' },
+    { cls:'term-line dim', text:'[03:14:31] stream: 2.3 GB transferred in 12s' },
+    { cls:'term-line warn', text:'[03:14:31] ⚠ anomaly: outbound volume 46× baseline' },
+    { cls:'term-line warn', text:'[03:14:31] ⚠ anomaly: 03:14 is outside normal hours' },
+    { cls:'term-line err', text:'[03:14:31] ⚠ ALERT · possible exfiltration · 10.0.0.22' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line', text:'[03:14:35] packet: 10.0.0.55 → 10.0.0.12:445 (SMB)' },
+    { cls:'term-line ok', text:'[03:14:35] ✓ no signature match · baseline normal' },
+    { cls:'term-line ok', text:'[03:14:35] ✓ no anomaly · traffic pattern consistent' },
+    { cls:'term-line dim', text:'' },
+    { cls:'term-line warn', text:'→ 2 alerts · 1 clean flow · 3 log lines' },
+    { cls:'term-line ok', text:'✓ IDS distinguishes real signals from normal traffic' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">tail -f /var/log/ids/alerts.log</span></span>';
+    idx = 0;
+  }
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+  const timer = setInterval(tick, 380);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 17 : combined route cycle ---------- */
+reg('combined', function(){
+  const steps = document.querySelectorAll('#combinedVis .route-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active', 'done', 'blocked');
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 1000);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','done','blocked')); } };
+});
+
+/* ---------- Slide 20 : log sort activity ---------- */
+reg('logsort', function(){
+  const table = document.getElementById('logSort');
+  if(!table) return { stop(){} };
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.style.background = '');
+    if(rows[idx % rows.length]){
+      const r = rows[idx % rows.length];
+      r.style.background = r.dataset.kind === 'fw' ? 'rgba(255,77,109,.12)' : 'rgba(255,182,72,.12)';
+    }
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.style.background = ''); } };
+});
+
+/* ---------- Slide 21 : mindmap cycle ---------- */
+reg('mindmap', function(){
+  const nodes = document.querySelectorAll('#mindmapVis .mm-node');
+  if(!nodes.length) return { stop(){} };
+  const cycle = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  let i = 0;
+  function tick(){
+    nodes.forEach(n => n.classList.remove('active'));
+    if(nodes[cycle[i % cycle.length]]) nodes[cycle[i % cycle.length]].classList.add('active');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 1600);
+  return { stop(){ clearInterval(timer); nodes.forEach(n => n.classList.remove('active')); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
