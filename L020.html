@@ -1,0 +1,2323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L20 — The I/O Communication Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#ioCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Mailbox analogy */
+.mailbox-scene{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.mailbox-figure{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;border:1px solid;background:rgba(0,0,0,.20);}
+.mailbox-figure.polling{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.05);}
+.mailbox-figure.interrupt{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.05);}
+.mailbox-figure.dma{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.05);}
+.mailbox-figure .mf-icon{font-size:32px;text-align:center;min-width:60px;}
+.mailbox-figure .mf-body{flex:1;min-width:0;}
+.mailbox-figure .mf-title{font-size:12.5px;font-weight:800;margin-bottom:3px;}
+.mailbox-figure.polling .mf-title{color:#ff9fb1;}
+.mailbox-figure.interrupt .mf-title{color:#ffd18a;}
+.mailbox-figure.dma .mf-title{color:#88ffd8;}
+.mailbox-figure .mf-desc{font-size:11.5px;color:var(--muted);line-height:1.5;}
+
+/* Event loop vs event listener */
+.event-vis{padding:8px 0;font-family:var(--mono);font-size:11.5px;line-height:1.8;}
+.event-row{padding:12px 14px;border-radius:8px;border:1px solid var(--stroke);background:rgba(0,0,0,.20);margin-bottom:8px;}
+.event-row.bad{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.event-row.good{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.event-row .er-tag{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:6px;display:block;}
+.event-row.bad .er-tag{color:var(--crimson);}
+.event-row.good .er-tag{color:var(--emerald);}
+.event-row .er-code{color:var(--ink-2);line-height:1.7;}
+
+/* I/O controller architecture */
+.ctrl-vis{padding:8px 0;}
+.ctrl-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;padding:11px 14px;border-radius:8px;border:1px solid;margin-bottom:8px;font-family:var(--mono);font-size:11.5px;}
+.ctrl-row.cmd{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.06);}
+.ctrl-row.status{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);}
+.ctrl-row.data{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.ctrl-row .cr-name{font-weight:900;letter-spacing:.04em;}
+.ctrl-row.cmd .cr-name{color:var(--blue-2);}
+.ctrl-row.status .cr-name{color:var(--amber);}
+.ctrl-row.data .cr-name{color:var(--emerald);}
+.ctrl-row .cr-desc{color:var(--ink-2);line-height:1.5;}
+
+/* Polling loop visual */
+.polling-loop{padding:14px 0;}
+.polling-row{display:grid;grid-template-columns:60px 1fr auto;gap:12px;align-items:center;padding:9px 12px;border-radius:6px;margin-bottom:4px;font-family:var(--mono);font-size:11px;transition:.4s;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.10);}
+.polling-row.cycle{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.polling-row.hit{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.10);color:#88ffd8;}
+.polling-row.idle{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.08);color:#ff9fb1;}
+.polling-row .pr-num{text-align:center;font-weight:900;color:var(--muted);}
+.polling-row.cycle .pr-num{color:var(--amber);}
+.polling-row.hit .pr-num{color:var(--emerald);}
+.polling-row .pr-body{color:inherit;}
+.polling-row .pr-result{font-weight:800;font-size:10.5px;}
+
+/* Interrupt timing */
+.interrupt-timing{padding:12px 0;}
+.it-timeline{position:relative;height:120px;background:rgba(0,0,0,.20);border-radius:8px;border:1px solid var(--stroke);overflow:hidden;margin-bottom:14px;}
+.it-track{position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(255,255,255,.10);}
+.it-event{position:absolute;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;z-index:3;transition:.3s;}
+.it-event.device{background:rgba(255,182,72,.7);border:2px solid #ffb648;box-shadow:0 0 10px rgba(255,182,72,.6);}
+.it-event.isr{background:rgba(91,141,255,.7);border:2px solid #5b8dff;box-shadow:0 0 10px rgba(91,141,255,.6);}
+.it-event.return{background:rgba(46,230,168,.7);border:2px solid #2ee6a8;box-shadow:0 0 10px rgba(46,230,168,.6);}
+.it-tooltip{position:absolute;font-size:9px;color:var(--muted);font-family:var(--mono);font-weight:700;letter-spacing:.04em;text-align:center;transform:translateX(-50%);}
+.it-tooltip.above{top:15px;}
+.it-tooltip.below{bottom:15px;}
+
+/* ISR structure */
+.isr-flow{padding:8px 0;display:flex;flex-direction:column;gap:6px;}
+.isr-step{padding:11px 14px;border-radius:8px;border:1px solid;background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11px;line-height:1.55;transition:.3s;}
+.isr-step.s1{border-color:rgba(255,77,109,.55);color:#ff9fb1;}
+.isr-step.s2{border-color:rgba(91,141,255,.55);color:#b9d0ff;}
+.isr-step.s3{border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.isr-step.s4{border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.isr-step .is-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;display:block;margin-bottom:3px;opacity:.8;}
+
+/* DMA sequence */
+.dma-seq{padding:8px 0;display:flex;flex-direction:column;gap:8px;}
+.dma-step{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:center;padding:11px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.4);background:rgba(46,230,168,.04);transition:.4s;}
+.dma-step.active{border-color:rgba(255,182,72,.75);background:rgba(255,182,72,.10);box-shadow:0 0 16px -6px rgba(255,182,72,.75);}
+.dma-step.done{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.10);}
+.dma-step .ds-num{font-family:var(--mono);font-size:13px;font-weight:900;text-align:center;color:var(--muted);}
+.dma-step.active .ds-num{color:var(--amber);}
+.dma-step.done .ds-num{color:var(--emerald);}
+.dma-step .ds-body{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink-2);}
+
+/* Strategy comparison */
+.strat-table{display:grid;grid-template-columns:130px 1fr 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;font-size:12px;}
+.strat-cell{background:#0a0f1c;padding:11px 12px;line-height:1.5;}
+.strat-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.strat-head{background:#0d1425;font-size:11px;font-weight:800;text-align:center;}
+.strat-head.poll{color:#ff9fb1;}
+.strat-head.int{color:#ffd18a;}
+.strat-head.dma{color:#88ffd8;}
+.strat-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.strat-val{color:var(--ink-2);text-align:center;}
+.strat-val.good{color:#88ffd8;}
+.strat-val.warn{color:#ffd18a;}
+.strat-val.bad{color:#ff9fb1;}
+
+/* Decision flowchart */
+.decision-tree{padding:8px 0;}
+.dt-node{padding:12px 14px;border-radius:10px;border:1px solid;background:rgba(0,0,0,.20);margin-bottom:10px;}
+.dt-node.q{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.06);}
+.dt-node.a-poll{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.dt-node.a-int{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);}
+.dt-node.a-dma{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.dt-tag{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:5px;display:block;}
+.dt-node.q .dt-tag{color:var(--blue-2);}
+.dt-node.a-poll .dt-tag{color:var(--crimson);}
+.dt-node.a-int .dt-tag{color:var(--amber);}
+.dt-node.a-dma .dt-tag{color:var(--emerald);}
+.dt-body{font-size:12px;line-height:1.6;color:var(--ink-2);}
+
+/* Practical example cards */
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:8px 0;}
+.example-card{padding:16px 14px;border-radius:12px;border:1px solid;background:rgba(0,0,0,.20);}
+.example-card.poll{border-color:rgba(255,77,109,.55);}
+.example-card.int{border-color:rgba(255,182,72,.55);}
+.example-card.dma{border-color:rgba(46,230,168,.55);}
+.example-card .ec-icon{font-size:28px;margin-bottom:8px;display:block;}
+.example-card .ec-name{font-size:12px;font-weight:800;margin-bottom:4px;}
+.example-card.poll .ec-name{color:#ff9fb1;}
+.example-card.int .ec-name{color:#ffd18a;}
+.example-card.dma .ec-name{color:#88ffd8;}
+.example-card .ec-profile{font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.6;margin-bottom:8px;}
+.example-card .ec-win{font-size:11px;font-weight:700;padding:4px 8px;border-radius:5px;display:inline-block;background:rgba(255,255,255,.08);color:var(--ink-2);}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.bad{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.good{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head.blue{color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-bad{color:#ff9fb1;font-weight:800;}
+.c-good{color:#88ffd8;font-weight:800;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.20);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Live polling demo */
+.polling-demo{padding:14px 0;}
+.pd-cpu{padding:16px;border-radius:10px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.06);margin-bottom:10px;text-align:center;font-family:var(--mono);font-size:11.5px;}
+.pd-cpu-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:6px;}
+.pd-cpu-status{font-size:14px;font-weight:900;color:#eaf0fc;margin-bottom:4px;}
+.pd-cpu-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;}
+.pd-cpu-fill{height:100%;background:linear-gradient(90deg,#ff4d6d,#ff9fb1);width:0%;transition:width 1.4s ease;}
+
+/* Interrupt storm demo */
+.int-demo{padding:14px 0;}
+.int-storm-bar{height:22px;border-radius:8px;background:rgba(255,255,255,.05);position:relative;overflow:hidden;margin-bottom:8px;}
+.int-storm-fill{height:100%;background:repeating-linear-gradient(45deg,#ff4d6d 0 6px,#a0344a 6px 12px);width:0%;transition:width .3s linear;}
+
+/* DMA demo */
+.dma-demo{padding:14px 0;}
+.dma-diagram{position:relative;height:180px;}
+.dma-blocks{position:absolute;left:0;right:0;top:0;height:100%;display:flex;align-items:center;justify-content:space-around;}
+.dma-block{width:110px;padding:14px;border-radius:10px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:800;}
+.dma-block.device{border:1.5px solid rgba(255,182,72,.65);background:rgba(255,182,72,.10);color:#ffd18a;}
+.dma-block.cpu{border:1.5px solid rgba(91,141,255,.65);background:rgba(91,141,255,.10);color:#b9d0ff;}
+.dma-block.mem{border:1.5px solid rgba(46,230,168,.65);background:rgba(46,230,168,.10);color:#88ffd8;}
+.dma-block.ctrl{border:1.5px solid rgba(160,107,255,.65);background:rgba(160,107,255,.10);color:#c9a7ff;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}
+.dma-packet{position:absolute;top:50%;left:16%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:#ffd18a;box-shadow:0 0 16px #ffd18a;animation:dmaTravel 3.4s ease-in-out infinite;}
+@keyframes dmaTravel{
+  0%{left:16%;opacity:1;}
+  30%{left:50%;opacity:1;}
+  60%{left:84%;opacity:1;}
+  70%,100%{left:84%;opacity:0;}
+}
+
+/* Real world hybrid */
+.hybrid-vis{padding:8px 0;display:flex;flex-direction:column;gap:10px;}
+.hybrid-row{padding:14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.03);display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:center;}
+.hybrid-icon{font-size:26px;text-align:center;}
+.hybrid-body .hb-title{font-family:var(--mono);font-size:11.5px;font-weight:900;margin-bottom:3px;}
+.hybrid-body .hb-desc{font-size:11.5px;color:var(--muted);line-height:1.55;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(24px,3.2vw,44px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(13.5px,.98vw,15.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.activity-scene{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.activity-roles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.activity-role{padding:12px 10px;border-radius:8px;border:1px solid;text-align:center;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.04em;transition:.4s;}
+.activity-role.cpu{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.activity-role.device{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.activity-role.dma{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.activity-role .ar-icon{font-size:22px;display:block;margin-bottom:4px;}
+.activity-role .ar-name{font-size:11.5px;font-weight:900;margin-bottom:3px;}
+.activity-role .ar-desc{font-size:9.5px;opacity:.8;line-height:1.4;font-weight:600;}
+.activity-role.active{animation:activityPulse 1s ease-in-out infinite;}
+@keyframes activityPulse{0%,100%{opacity:.8}50%{opacity:1;box-shadow:0 0 20px -4px currentColor;}}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.example-grid,.activity-roles{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .strat-table{grid-template-columns:90px 1fr 1fr 1fr;font-size:11px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .activity-roles{grid-template-columns:1fr;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L20 I/O Communication</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L20 · Overview" data-anim="iocanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L20 · The I/O Communication Matrix</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Polling, Interrupts, DMA — <span class="grad-blue">three ways to talk to hardware</span></h1>
+        <p class="lead">Rank and select the optimal I/O communication strategy for a given hardware device profile based on data payload density and arrival frequency constraints.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L20</span>
+          <p>Module 5 ended with the kernel journaling to disk. But how does the CPU actually <strong>talk to the disk controller</strong>? Does it wait? Get interrupted? Or hand off the transfer to a helper chip? Each strategy trades CPU cost against latency and throughput.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the canvas on the right. Ask: <em>"If you're waiting for a 4 KB read from an SSD, do you spin in a loop, sleep until it's ready, or hire an assistant?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three strategies side by side</div>
+        <canvas id="ioCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — CPUs Are Faster Than Devices</span>
+    <h2 style="margin-bottom:16px;">CPU: 3 GHz. Disk: 100 IOPS. <span class="grad-crimson">The gap is enormous.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The asymmetry</span>
+          <p>A modern CPU executes roughly <strong>3 billion instructions per second</strong>. A spinning HDD can complete roughly <strong>100 I/O operations per second</strong>. The CPU is 30 million× faster than the device it needs to talk to.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The naive approach — wait in place</span>
+          <p>If the CPU just spins, asking "are you done yet?" repeatedly, it spends nearly all its time doing nothing productive. On a busy server, this would be catastrophic — most of the machine's compute capacity would be wasted on busy-waiting.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The insight</span>
+          <p>The OS needs a way for the CPU to <strong>do useful work while devices transfer data</strong> — and to only get involved when there's actual work to do. Three strategies have evolved: <strong>polling, interrupts, and DMA</strong>. Each has a place.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design axis:</b> who waits? With polling, the CPU waits. With interrupts, the device notifies. With DMA, a third chip takes the transfer. Each shifts work off the CPU at the cost of complexity.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The CPU vs. device speed gap</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <text x="170" y="24" text-anchor="middle" font-size="10.5" fill="rgba(255,255,255,.6)" font-family="Inter" font-weight="800">EVERY SECOND, THE CPU COULD:</text>
+
+          <rect x="30" y="46" width="280" height="46" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="68" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="Inter" font-weight="800">3,000,000,000 instructions</text>
+          <text x="170" y="84" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">or wait for...</text>
+
+          <rect x="30" y="106" width="280" height="46" rx="8" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="170" y="128" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">100 HDD I/O operations</text>
+          <text x="170" y="144" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">the same wall-clock second</text>
+
+          <rect x="30" y="176" width="280" height="46" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="198" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">10,000 SSD I/O operations</text>
+          <text x="170" y="214" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">still vastly slower than CPU</text>
+
+          <rect x="30" y="242" width="280" height="46" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="170" y="264" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="800">30,000,000× gap</text>
+          <text x="170" y="280" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">CPU vs. HDD — the classic asymmetry</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Mailbox">
+  <div class="slide-inner">
+    <span class="badge violet">📬 Analogy 1 · Mailbox, Doorbell, Desk Assistant</span>
+    <h2 style="margin-bottom:16px;">Three ways to receive a package</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="mailbox-scene">
+          <div class="mailbox-figure polling">
+            <div class="mf-icon">📬</div>
+            <div class="mf-body">
+              <div class="mf-title">POLLING · "check the mailbox every 5 minutes"</div>
+              <div class="mf-desc">You stop working every 5 minutes, walk downstairs, and check the mailbox. It's usually empty. You waste 99% of your trips doing nothing.</div>
+            </div>
+          </div>
+          <div class="mailbox-figure interrupt">
+            <div class="mf-icon">🔔</div>
+            <div class="mf-body">
+              <div class="mf-title">INTERRUPT · "the mail carrier rings the doorbell"</div>
+              <div class="mf-desc">You sit at your desk working smoothly until the mail carrier physically rings the doorbell. You pause your work only when you hear the chime, handle the package, and immediately go back to work.</div>
+            </div>
+          </div>
+          <div class="mailbox-figure dma">
+            <div class="mf-icon">🤝</div>
+            <div class="mf-body">
+              <div class="mf-title">DMA · "hire a private assistant with a key"</div>
+              <div class="mf-desc">You tell them: "Wait for a truck carrying 100 heavy boxes, stack them all directly on my shelf, and only tap me on the shoulder when the entire shelf is full." You're completely out of the lifting process.</div>
+            </div>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The tradeoff:</b> polling is simple but wastes time; interrupts are efficient but add per-event overhead; DMA is best for bulk transfers but requires an extra hardware chip.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three interactions</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="90" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="170" y="36" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">POLLING · CPU keeps checking</text>
+          <g transform="translate(24, 46)">
+            <text x="22" y="30" font-size="26" fill="#b9d0ff" font-family="monospace">🧑</text>
+            <text x="122" y="30" font-size="26" fill="#ffb648" font-family="monospace">📬</text>
+            <line x1="52" y1="28" x2="100" y2="28" stroke="rgba(255,77,109,.85)" stroke-width="2" class="svg-flow"/>
+            <text x="76" y="20" text-anchor="middle" font-size="8" fill="#ff9fb1" font-family="JetBrains Mono">"ready?"</text>
+            <text x="180" y="18" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">repeat 1000×/sec</text>
+          </g>
+
+          <rect x="14" y="112" width="312" height="90" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.5)" stroke-width="1.4"/>
+          <text x="170" y="134" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="800">INTERRUPT · device rings bell</text>
+          <g transform="translate(24, 144)">
+            <text x="22" y="30" font-size="26" fill="#b9d0ff" font-family="monospace">🧑</text>
+            <text x="122" y="30" font-size="26" fill="#ffb648" font-family="monospace">🔔</text>
+            <line x1="140" y1="28" x2="90" y2="28" stroke="rgba(255,182,72,.85)" stroke-width="2" stroke-dasharray="4 3" class="svg-flow"/>
+            <text x="115" y="20" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">"ding!"</text>
+            <text x="180" y="18" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">only when ready</text>
+          </g>
+
+          <rect x="14" y="210" width="312" height="100" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.5)" stroke-width="1.4"/>
+          <text x="170" y="232" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">DMA · assistant does the lifting</text>
+          <g transform="translate(20, 242)">
+            <text x="12" y="30" font-size="26" fill="#b9d0ff" font-family="monospace">🧑</text>
+            <text x="92" y="30" font-size="26" fill="#a06bff" font-family="monospace">🤝</text>
+            <text x="180" y="30" font-size="26" fill="#ffb648" font-family="monospace">📦</text>
+            <text x="268" y="30" font-size="26" fill="#88ffd8" font-family="monospace">🗄️</text>
+            <line x1="52" y1="28" x2="80" y2="28" stroke="rgba(46,230,168,.75)" stroke-width="1.5"/>
+            <line x1="118" y1="28" x2="168" y2="28" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+            <line x1="204" y1="28" x2="256" y2="28" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+            <text x="140" y="75" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.85)" font-family="JetBrains Mono">CPU only told when ALL boxes arrive</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · When Each Wins">
+  <div class="slide-inner">
+    <span class="badge amber">📬 Analogy 1 · When Each Approach Wins</span>
+    <h2 style="margin-bottom:16px;">Match the strategy to the <span class="grad-amber">delivery profile</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Polling wins when...</span>
+          <p>Deliveries are <strong>predictable and frequent</strong>. If you know mail arrives every morning at 9:00, walking down at 9:01 is efficient — no doorbell needed. Polling is also cheap when the check itself is nearly free (a memory-mapped status register read).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Interrupts win when...</span>
+          <p>Deliveries are <strong>unpredictable but infrequent</strong>. A letter from a friend arrives whenever it arrives; being alerted is better than constant checks. The doorbell pays for itself many times over by keeping you at your desk.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">DMA wins when...</span>
+          <p>Deliveries are <strong>bulk shipments</strong>. If a truck arrives with 100 heavy boxes, you don't want to lift them yourself — you delegate. The cost of setting up the assistant is amortized over the massive transfer.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The unifying principle:</b> choose the strategy whose overhead is smallest relative to the actual transfer work. That's why modern hardware uses all three at different scales.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Decision guide</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="60" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="42" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">WHAT IS THE TRANSFER PROFILE?</text>
+          <text x="170" y="60" text-anchor="middle" font-size="9" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">size × frequency × predictability</text>
+
+          <line x1="80" y1="80" x2="80" y2="120" stroke="rgba(255,77,109,.6)" stroke-width="1.5"/>
+          <line x1="170" y1="80" x2="170" y2="120" stroke="rgba(255,182,72,.6)" stroke-width="1.5"/>
+          <line x1="260" y1="80" x2="260" y2="120" stroke="rgba(46,230,168,.6)" stroke-width="1.5"/>
+
+          <rect x="20" y="120" width="120" height="90" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="80" y="142" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">PREDICTABLE</text>
+          <text x="80" y="158" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">periodic · frequent</text>
+          <text x="80" y="182" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="900">POLLING</text>
+          <text x="80" y="200" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">sensor · ADC</text>
+
+          <rect x="150" y="120" width="120" height="90" rx="10" fill="rgba(255,182,72,.06)" stroke="rgba(255,182,72,.55)" stroke-width="1.4"/>
+          <text x="210" y="142" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">UNPREDICTABLE</text>
+          <text x="210" y="158" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">infrequent · tiny</text>
+          <text x="210" y="182" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="Inter" font-weight="900">INTERRUPTS</text>
+          <text x="210" y="200" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">keyboard · mouse</text>
+
+          <rect x="280" y="120" width="60" height="90" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="310" y="142" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">BULK</text>
+          <text x="310" y="158" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">huge payload</text>
+          <text x="310" y="182" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="900">DMA</text>
+          <text x="310" y="200" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">NIC · disk</text>
+
+          <rect x="20" y="234" width="300" height="72" rx="10" fill="rgba(160,107,255,.06)" stroke="rgba(160,107,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="256" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="800">REALITY: HYBRID</text>
+          <text x="170" y="276" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">most modern devices combine all three</text>
+          <text x="170" y="294" text-anchor="middle" font-size="9" fill="rgba(201,167,255,.6)" font-family="JetBrains Mono">e.g., NICs use DMA + interrupts + register polling</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Event Loop">
+  <div class="slide-inner">
+    <span class="badge">🔗 Analogy 2 · Event Loop Poll vs. Hardware Event Listener</span>
+    <h2 style="margin-bottom:16px;">Software's version of <span class="grad-blue">the same tradeoff</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Two polling styles in software</div>
+        <div class="event-vis">
+          <div class="event-row bad">
+            <span class="er-tag">BUSY-POLLING · the naive approach</span>
+            <div class="er-code">
+              while (device_status == BUSY) { /* spin */ }<br>
+              read_data();
+            </div>
+          </div>
+          <div class="event-row bad">
+            <span class="er-tag">BUSY-POLLING · what it costs</span>
+            <div class="er-code">
+              CPU is 100% busy<br>
+              but 99.9% of that work is the loop
+            </div>
+          </div>
+          <div class="event-row good">
+            <span class="er-tag">EVENT-DRIVEN · the modern approach</span>
+            <div class="er-code">
+              register_handler(device, on_data_ready);<br>
+              do_other_work();  // CPU is free
+            </div>
+          </div>
+          <div class="event-row good">
+            <span class="er-tag">EVENT-DRIVEN · what it gains</span>
+            <div class="er-code">
+              CPU is 0% busy on the device<br>
+              until on_data_ready() fires
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>Polling matches a <strong>high-frequency while-loop</strong> that repeatedly checks a flag. An interrupt is like an <strong>asynchronous hardware signal</strong> hitting the CPU chip pins, forcing a register context save.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mapping</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>while (status == BUSY)</strong> → busy-polling<br>
+            <strong>spinlock</strong> → same idea, kernel-level<br>
+            <strong>event listener</strong> → interrupt handler<br>
+            <strong>callback / handler</strong> → ISR<br>
+            <strong>event loop</strong> → the kernel scheduler
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why the analogy is deep</span>
+          <p>Modern async/await, epoll, io_uring — all software abstractions over the same hardware primitives. The problem (CPU vs. slow device) and the solutions (poll vs. wait) are identical across every abstraction layer.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> if you've used Node.js or Python asyncio, you've already seen the software equivalent of interrupts. The kernel does exactly the same thing with hardware.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L20 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">hardware interface layer</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L03 (System Calls &amp; Traps)</h4>
+            <p>Relies on the hardware <strong>Interrupt Vector Table (IVT)</strong> to instantly map physical peripheral signals to correct kernel driver code locations inside Ring 0. Without L03's trap mechanism, interrupts couldn't reach handlers.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L21 (Device Drivers)</h4>
+            <p>DMA is the <strong>primary data highway</strong> that copies file blocks out of disk controllers straight into physical RAM frames without crashing CPU utilization. L21 shows how drivers wrap all three strategies.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Module 6 arc</span>
+          <p style="line-height:1.95;margin-top:4px;font-size:13px">
+            <strong style="color:#88ffd8">L20 · I/O COMMUNICATION</strong> — polling, interrupts, DMA (this lecture)<br>
+            <strong style="color:#b9d0ff">L21 · DEVICE DRIVERS</strong> — block/char/net, /dev, file_operations<br>
+            <strong style="color:#ffd18a">Lab 6</strong> — build a custom char driver
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The progression:</b> Module 5 was about how filesystems organize data. Module 6 is about how the OS physically moves that data between disk and RAM. L20 covers the <em>how</em>; L21 covers the <em>who</em> (the driver).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L03 · Syscalls</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">traps · IVT</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 5</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">storage · block I/O</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L20 · I/O MATRIX</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">poll · interrupt · DMA</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L21 · Drivers</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">/dev · file_operations</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">All I/O paths</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">storage · network · input</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Controller Registers">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — The I/O Controller Registers</span>
+    <h2 style="margin-bottom:16px;">Every device exposes <span class="grad-emerald">three registers</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Command register</span>
+          <p>The CPU writes here to tell the device what to do. Common values: READ, WRITE, RESET, SEEK. This is the "start" button.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Status register</span>
+          <p>The CPU reads here to learn what the device is doing. Common bits: BUSY, READY, ERROR, DONE. Polling reads this register in a tight loop.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Data register</span>
+          <p>The actual data flows through here. On a PIO (programmed I/O) transfer, the CPU copies bytes between the register and memory one at a time. On DMA, the DMA chip handles this directly.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The consistency:</b> every device — keyboard, disk, network card, GPU — presents these same three logical registers. The OS only needs to know how to write commands and read statuses; it doesn't care what the device physically does.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The three-register interface</div>
+        <div class="ctrl-vis">
+          <div class="ctrl-row cmd">
+            <div class="cr-name">COMMAND</div>
+            <div class="cr-desc">CPU writes what to do</div>
+          </div>
+          <div class="ctrl-row status">
+            <div class="cr-name">STATUS</div>
+            <div class="cr-desc">CPU reads what's happening</div>
+          </div>
+          <div class="ctrl-row data">
+            <div class="cr-name">DATA</div>
+            <div class="cr-desc">Payload bytes flow here</div>
+          </div>
+          <div style="margin-top:14px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--ink-2);text-align:center">
+            <div style="color:var(--muted);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:6px">EXAMPLE · DISK READ</div>
+            1. write cmd=READ, sector=42 → COMMAND<br>
+            2. poll STATUS until DONE<br>
+            3. read bytes from DATA → memory
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Polling">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">📖 Core Breakdown — Strategy 1: Polling</span>
+    <h2 style="margin-bottom:16px;">The CPU <span class="grad-crimson">continuously checks</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The mechanism</span>
+          <p>The CPU executes a tight loop: write the command, then repeatedly read the status register until it says "ready." Only then does it read the data. Polling forces the CPU to <strong>continuously read the Status register in a tight loop until the device finishes its work</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">When it's the right choice</span>
+          <p>When the device is <strong>predictable</strong> and <strong>fast relative to the poll cost</strong>. Temperature sensors, GPIO pins, and simple ADCs are the classic examples. If the loop runs only once per event, there's nothing to waste.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">When it's the wrong choice</span>
+          <p>When the device is <strong>slow</strong> or <strong>unpredictable</strong>. A disk transfer can take milliseconds; polling that would spin the CPU billions of times doing nothing. Fast, unpredictable devices (keyboard) also break polling — the CPU would either miss events or waste cycles checking.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> polling is sometimes called "busy-waiting" or "spinlocking." It's considered a bug in most user-space code — but in the kernel, spinlocks are correct for very short critical sections because the alternative (sleep/wake) costs more than the spin.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The polling loop</div>
+        <div class="polling-loop">
+          <div class="polling-row" data-idx="0">
+            <div class="pr-num">1</div>
+            <div class="pr-body">write cmd=READ → COMMAND</div>
+            <div class="pr-result">→ device starts</div>
+          </div>
+          <div class="polling-row" data-idx="1">
+            <div class="pr-num">2</div>
+            <div class="pr-body">read STATUS</div>
+            <div class="pr-result">BUSY</div>
+          </div>
+          <div class="polling-row" data-idx="2">
+            <div class="pr-num">3</div>
+            <div class="pr-body">read STATUS</div>
+            <div class="pr-result">BUSY</div>
+          </div>
+          <div class="polling-row" data-idx="3">
+            <div class="pr-num">4</div>
+            <div class="pr-body">read STATUS</div>
+            <div class="pr-result">BUSY</div>
+          </div>
+          <div class="polling-row" data-idx="4">
+            <div class="pr-num">5</div>
+            <div class="pr-body">read STATUS</div>
+            <div class="pr-result">BUSY</div>
+          </div>
+          <div class="polling-row" data-idx="5">
+            <div class="pr-num">6</div>
+            <div class="pr-body">read STATUS</div>
+            <div class="pr-result">DONE ✓</div>
+          </div>
+          <div class="polling-row" data-idx="6">
+            <div class="pr-num">7</div>
+            <div class="pr-body">read DATA → memory</div>
+            <div class="pr-result">→ got data</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Notice the dozens of wasted STATUS reads. That's the polling tax.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Polling cost">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown — The Cost of Polling</span>
+    <h2 style="margin-bottom:16px;">How much CPU is <span class="grad-amber">wasted on the loop?</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Polling a slow device</div>
+        <div class="polling-demo">
+          <div class="pd-cpu">
+            <div class="pd-cpu-label">CPU UTILIZATION</div>
+            <div class="pd-cpu-status" id="cpuStatus">polling · 100% busy</div>
+            <div class="pd-cpu-bar"><div class="pd-cpu-fill" id="cpuFill"></div></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">The CPU reports 100% utilization — but only a tiny fraction of that is productive work.</p>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The math</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            Device latency: <strong>1 ms</strong><br>
+            Poll read cost: <strong>10 ns</strong><br>
+            Polls per transfer: <strong>100,000</strong><br>
+            Wasted work per transfer: <strong>~1 ms of CPU</strong>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">At scale</span>
+          <p>If the system does 1,000 such transfers per second, polling consumes <strong>100% of one CPU core</strong> doing nothing. On a multi-core machine, that's one core fully wasted on busy-waiting.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">When it's fine</span>
+          <p>If the poll cost is comparable to the device latency — e.g., reading a memory-mapped register in nanoseconds — the overhead is small. On modern CPUs, mmio reads are ~100 cycles; if the device responds in ~1000 cycles, polling is genuinely efficient.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The exception that proves the rule:</b> firmware and bootloaders often poll because they run before interrupts are set up. It's the correct choice <em>for that specific phase</em> — not for steady-state operation.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Interrupts">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown — Strategy 2: Interrupts</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">device notifies</span>, the CPU resumes</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The mechanism</span>
+          <p>Interrupts free the CPU: the device controller fires an <strong>electronic signal down a physical wire line</strong> when it is ready. The CPU catches this, pauses its current instruction loop, handles the data transfer via an <strong>Interrupt Service Routine (ISR)</strong>, and resumes work.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The IVT lookup</span>
+          <p>When the interrupt fires, the CPU uses the interrupt number as an index into the <strong>Interrupt Vector Table</strong> (IDT on x86_64) to find the right ISR address. That's the same mechanism from L03 — just triggered by a device instead of the syscall instruction.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The overhead</span>
+          <p>Every interrupt costs a <strong>register context save/restore</strong> — typically 100–1000 cycles. For occasional events (keystrokes, mouse moves) that's fine. For high-frequency events (1 million packets/second), it becomes prohibitive.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> interrupts aren't free. The <em>interrupt latency</em> is the delay between the device firing the signal and the CPU entering the ISR — typically 1–10 µs on modern hardware. That's 1000× the cost of a single memory access, which is why we still need DMA.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The interrupt timeline</div>
+        <div class="interrupt-timing">
+          <div class="it-timeline">
+            <div class="it-track"></div>
+            <div class="it-event device" style="left:12%;"></div>
+            <div class="it-tooltip above" style="left:12%">device ready</div>
+            <div class="it-event isr" style="left:32%;"></div>
+            <div class="it-tooltip below" style="left:32%">ISR entry</div>
+            <div class="it-event isr" style="left:52%;"></div>
+            <div class="it-tooltip above" style="left:52%">transfer</div>
+            <div class="it-event return" style="left:72%;"></div>
+            <div class="it-tooltip below" style="left:72%">return</div>
+          </div>
+        </div>
+        <div style="padding:14px;border-radius:10px;background:rgba(0,0,0,.20);border:1px solid rgba(255,182,72,.4);font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2);margin-top:12px">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--amber);margin-bottom:6px">KEY COSTS</div>
+          <div>device → CPU signal: ~100 ns</div>
+          <div>context save: ~100 cycles</div>
+          <div>ISR execution: depends on work</div>
+          <div>context restore: ~100 cycles</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · ISR structure" data-anim="isr">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">📖 Core Breakdown — Inside the ISR</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">four phases</span> of interrupt handling</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Phase 1 · Hardware entry</span>
+          <p>The CPU stops the current instruction stream, saves the registers and program counter to the stack, and switches to Ring 0. This happens in <strong>silicon</strong> — no software involved.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Phase 2 · IVT dispatch</span>
+          <p>Read the interrupt number from the controller, index into the IVT/IDT, jump to the registered ISR address. The kernel pre-registered all these addresses at boot.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Phase 3 · Do the work</span>
+          <p>Read the data, acknowledge the interrupt (so the device stops signaling), schedule any deferred work, and write to a buffer that a sleeping process can wake up to read.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Phase 4 · Return</span>
+          <p>Restore the saved registers, execute the IRET instruction, and the CPU resumes the interrupted program exactly where it left off. The program never knew it was paused.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · ISR lifecycle</div>
+        <div class="isr-flow" id="isrFlow">
+          <div class="isr-step s1" data-idx="0">
+            <span class="is-tag">1 · Hardware entry</span>
+            Device signal → CPU stops current work<br>
+            Registers saved to stack · CPL set to 0
+          </div>
+          <div class="isr-step s2" data-idx="1">
+            <span class="is-tag">2 · IVT dispatch</span>
+            Interrupt number → IVT lookup<br>
+            Jump to registered handler address
+          </div>
+          <div class="isr-step s3" data-idx="2">
+            <span class="is-tag">3 · ISR body</span>
+            Read data · acknowledge interrupt<br>
+            Buffer it · wake any waiting process
+          </div>
+          <div class="isr-step s4" data-idx="3">
+            <span class="is-tag">4 · Return</span>
+            IRET · restore registers<br>
+            Resume the interrupted instruction
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">The interrupted program has no idea this happened. From its perspective, time just moved forward.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Core · DMA">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">📖 Core Breakdown — Strategy 3: DMA</span>
+    <h2 style="margin-bottom:16px;">Hand off the transfer to a <span class="grad-emerald">dedicated chip</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The mechanism</span>
+          <p>For high-speed, data-dense devices (hard drives, network cards, GPUs), interrupts still slow the system down due to excessive overhead. <strong>Direct Memory Access (DMA)</strong> resolves this by handing the data transfer off to a secondary hardware chip — the <strong>DMA controller</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p>The CPU tells the DMA controller the <strong>starting RAM address</strong> and <strong>total byte size</strong>. The DMA chip then copies the data directly between the device and RAM <strong>over the system bus</strong>, completely bypassing the CPU for the bulk transfer. It fires a single interrupt only when the entire transfer finishes.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The payoff</span>
+          <p>For a 4 GB file transfer, the CPU would otherwise handle <strong>4 billion byte-by-byte copies</strong>. With DMA, it does one setup call and one completion interrupt. The CPU is <strong>entirely free</strong> during the transfer.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The assistant analogy revisited:</b> the CPU "hires" the DMA controller, gives it instructions ("copy 4 GB from disk address X to RAM address Y"), and then goes back to its desk. The DMA controller taps the CPU on the shoulder only when it's done.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The DMA path</div>
+        <div class="dma-demo">
+          <div class="dma-diagram">
+            <div class="dma-blocks">
+              <div class="dma-block device">DEVICE<br><small style="font-weight:400;font-size:9px;display:block;margin-top:4px">disk · NIC</small></div>
+              <div class="dma-block cpu">CPU<br><small style="font-weight:400;font-size:9px;display:block;margin-top:4px">free to work</small></div>
+              <div class="dma-block mem">RAM<br><small style="font-weight:400;font-size:9px;display:block;margin-top:4px">target address</small></div>
+            </div>
+            <div class="dma-block ctrl">DMA<br><small style="font-weight:400;font-size:9px;display:block;margin-top:4px">controller</small></div>
+            <div class="dma-packet"></div>
+          </div>
+          <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Data flows <strong>directly</strong> from device → RAM, bypassing the CPU. The CPU gets one interrupt at the end.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Core · DMA sequence" data-anim="dmaseq">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown — The DMA Sequence</span>
+    <h2 style="margin-bottom:16px;">Four steps to <span class="grad-amber">move gigabytes without the CPU</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · DMA transfer steps</div>
+        <div class="dma-seq" id="dmaSeq">
+          <div class="dma-step" data-idx="0">
+            <div class="ds-num">1</div>
+            <div class="ds-body"><strong>CPU → DMA controller</strong><br>Set source device, destination RAM, byte count</div>
+          </div>
+          <div class="dma-step" data-idx="1">
+            <div class="ds-num">2</div>
+            <div class="ds-body"><strong>CPU → Device</strong><br>Write "READ" to the device's COMMAND register</div>
+          </div>
+          <div class="dma-step" data-idx="2">
+            <div class="ds-num">3</div>
+            <div class="ds-body"><strong>DMA controller → RAM</strong><br>Streams bytes directly over the system bus<br>CPU is free to do other work</div>
+          </div>
+          <div class="dma-step" data-idx="3">
+            <div class="ds-num">4</div>
+            <div class="ds-body"><strong>DMA → CPU interrupt</strong><br>Single signal: "transfer complete"<br>CPU resumes, finds data already in memory</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">The CPU sees only 2 phases (setup + completion). The DMA controller handles the middle.</p>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The setup cost</span>
+          <p>DMA setup takes ~1000 cycles (write the descriptor, program the controller). For a 4 KB transfer, that's expensive — you wouldn't use DMA. For a 4 MB transfer, it's free (0.02% overhead).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The threshold</span>
+          <p>General rule: <strong>DMA pays off above ~1–4 KB per transfer</strong>. Below that, the setup cost dominates and interrupts are more efficient.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Modern variants</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Standard DMA</strong> — classic PCI/ISA DMA<br>
+            <strong>Bus-mastering DMA</strong> — device is the bus master (PCI, PCIe)<br>
+            <strong>Scatter-gather DMA</strong> — one descriptor covers multiple non-contiguous buffers<br>
+            <strong>IOMMU</strong> — address translation + isolation for DMA
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> bus-mastering is the modern default — the device itself arbitrates for the bus and drives the transfer. This is why a modern NVMe SSD can saturate PCIe without the CPU writing a single byte to the data register.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Comparison matrix">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">📊 The Three-Strategy Comparison Matrix</span>
+    <h2 style="margin-bottom:16px;">Which strategy wins on which dimension?</h2>
+    <div class="strat-table">
+      <div class="strat-cell strat-corner">Dimension</div>
+      <div class="strat-cell strat-head poll">POLLING</div>
+      <div class="strat-cell strat-head int">INTERRUPTS</div>
+      <div class="strat-cell strat-head dma">DMA</div>
+
+      <div class="strat-cell strat-label">CPU cost</div>
+      <div class="strat-cell strat-val bad">100%</div>
+      <div class="strat-cell strat-val warn">~1–10 µs per event</div>
+      <div class="strat-cell strat-val good">~1 µs setup + 1 completion int</div>
+
+      <div class="strat-cell strat-label">Best for</div>
+      <div class="strat-cell strat-val warn">Slow, predictable devices</div>
+      <div class="strat-cell strat-val good">Fast, unpredictable events</div>
+      <div class="strat-cell strat-val good">Bulk data transfer</div>
+
+      <div class="strat-cell strat-label">Latency</div>
+      <div class="strat-cell strat-val warn">Poll interval</div>
+      <div class="strat-cell strat-val good">~1–10 µs</div>
+      <div class="strat-cell strat-val good">Same as device + setup</div>
+
+      <div class="strat-cell strat-label">Complexity</div>
+      <div class="strat-cell strat-val good">Trivial (a while loop)</div>
+      <div class="strat-cell strat-val warn">Moderate (IVT, ISR)</div>
+      <div class="strat-cell strat-val bad">High (controller, descriptors)</div>
+
+      <div class="strat-cell strat-label">Overhead at 1M events/s</div>
+      <div class="strat-cell strat-val bad">Catastrophic</div>
+      <div class="strat-cell strat-val bad">CPU pegged (interrupt storm)</div>
+      <div class="strat-cell strat-val good">Fine (one bulk transfer)</div>
+
+      <div class="strat-cell strat-label">Example device</div>
+      <div class="strat-cell strat-val">Temperature sensor</div>
+      <div class="strat-cell strat-val">Keyboard · mouse</div>
+      <div class="strat-cell strat-val good">Disk · NIC · GPU</div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The pattern in the table:</b> polling is best when the device is slow and predictable. Interrupts win when the device is fast but events are rare. DMA wins when events are bulky — where each "event" is itself megabytes of data.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Decision flowchart">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 The Decision Flowchart</span>
+    <h2 style="margin-bottom:16px;">How to <span class="grad-violet">choose</span> a strategy</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Question 1</span>
+          <p>Is the transfer <strong>larger than ~4 KB</strong>?</p>
+          <p style="margin-top:6px;font-size:13px;color:var(--emerald);font-weight:800">YES → use DMA</p>
+          <p style="font-size:13px;color:var(--muted)">NO → continue</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Question 2</span>
+          <p>Are events <strong>unpredictable</strong> or <strong>infrequent</strong>?</p>
+          <p style="margin-top:6px;font-size:13px;color:var(--emerald);font-weight:800">YES → use INTERRUPTS</p>
+          <p style="font-size:13px;color:var(--muted)">NO → continue</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Question 3</span>
+          <p>Is the transfer <strong>predictable and frequent</strong>, with a <strong>cheap</strong> status check?</p>
+          <p style="margin-top:6px;font-size:13px;color:var(--emerald);font-weight:800">YES → use POLLING</p>
+          <p style="font-size:13px;color:var(--muted)">NO → use interrupts</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The decision tree</div>
+        <div class="decision-tree">
+          <div class="dt-node q">
+            <span class="dt-tag">Q1 · TRANSFER SIZE</span>
+            <div class="dt-body">Is the transfer larger than ~4 KB?</div>
+          </div>
+          <div class="dt-node a-dma">
+            <span class="dt-tag">YES → DMA</span>
+            <div class="dt-body">Bulk transfer — delegate to the DMA controller.</div>
+          </div>
+          <div class="dt-node q">
+            <span class="dt-tag">NO · Q2 · PREDICTABILITY</span>
+            <div class="dt-body">Are events unpredictable or infrequent?</div>
+          </div>
+          <div class="dt-node a-int">
+            <span class="dt-tag">YES → INTERRUPTS</span>
+            <div class="dt-body">Event-driven — device notifies.</div>
+          </div>
+          <div class="dt-node q">
+            <span class="dt-tag">NO · Q3 · CHEAP CHECK?</span>
+            <div class="dt-body">Is the status check nearly free?</div>
+          </div>
+          <div class="dt-node a-poll">
+            <span class="dt-tag">YES → POLLING</span>
+            <div class="dt-body">Simple and efficient — spin.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Practical example">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧮 Practical Example — Three Device Architectures</span>
+    <h2 style="margin-bottom:16px;">Match each device to its <span class="grad-amber">best strategy</span></h2>
+    <div class="example-grid">
+      <div class="example-card poll">
+        <span class="ec-icon">🌡️</span>
+        <div class="ec-name">Temperature sensor</div>
+        <div class="ec-profile">
+          Frequency: 1 event / 10 min<br>
+          Size: 4 bytes<br>
+          Predictable: yes
+        </div>
+        <div class="ec-win">Polling</div>
+      </div>
+      <div class="example-card int">
+        <span class="ec-icon">⌨️</span>
+        <div class="ec-name">Keyboard</div>
+        <div class="ec-profile">
+          Frequency: bursty · unpredictable<br>
+          Size: 1–8 bytes<br>
+          Predictable: no
+        </div>
+        <div class="ec-win">Interrupts</div>
+      </div>
+      <div class="example-card dma">
+        <span class="ec-icon">🌐</span>
+        <div class="ec-name">Gigabit Ethernet</div>
+        <div class="ec-profile">
+          Frequency: millions of packets/s<br>
+          Size: 64–9000 bytes each<br>
+          Predictable: kind of
+        </div>
+        <div class="ec-win">DMA</div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="panel crimson">
+        <span class="panel-label">Temperature sensor → Polling</span>
+        <p>Because data arrives on a <strong>slow, highly predictable</strong> timeline, the kernel can simply schedule a quick check once every 10 minutes, completely bypassing interrupt line allocation.</p>
+      </div>
+      <div class="panel amber">
+        <span class="panel-label">Keyboard → Interrupts</span>
+        <p>Keystrokes are <strong>completely unpredictable</strong> and infrequent on a microsecond scale. Polling would waste billions of CPU cycles; an interrupt lets the CPU ignore the keyboard until a key is physically tapped.</p>
+      </div>
+    </div>
+    <div class="panel emerald" style="margin-top:16px">
+      <span class="panel-label">Gigabit Ethernet → DMA</span>
+      <p>Packets stream in at <strong>millions of bytes per second</strong>. Using standard interrupts for every single incoming byte would throw the CPU into an "Interrupt Storm," paralyzing the machine. The DMA controller streams packets directly to a RAM buffer, alerting the CPU only when a full frame array settles.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Live Demo · Polling" data-anim="polldemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🧪 Live Demo — The Polling Waste</span>
+    <h2 style="margin-bottom:16px;">Watch the CPU <span class="grad-crimson">burn cycles checking</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Polling a slow device</div>
+        <div class="terminal" id="pollTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">kernel — polling trace</span>
+          </div>
+          <div class="term-body" id="pollBody">
+            <span class="term-line dim">Polling device at 0x3F8 for data...</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What you're seeing</span>
+          <p>Each "BUSY" line is a wasted read of the status register. The device isn't ready yet, so the CPU just loops and loops until the data finally arrives.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The waste</span>
+          <p>For a 10 ms device, the CPU executes ~100,000 poll iterations. Only the last one is productive. 99.999% of the work is thrown away.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">When this is fine</span>
+          <p>If you're reading a GPIO pin that you know changes once per second — 1,000 polls per second is basically free on a 3 GHz CPU. The waste only matters when it's in the billions.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Live Demo · Interrupt" data-anim="intdemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — The Interrupt Storm</span>
+    <h2 style="margin-bottom:16px;">Too many interrupts <span class="grad-amber">is also bad</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Interrupt storm on a busy NIC</div>
+        <div class="terminal" id="intTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">kernel — IRQ 42 (eth0)</span>
+          </div>
+          <div class="term-body" id="intBody">
+            <span class="term-line dim">Interrupt handler registering for eth0...</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p>A high-speed network card firing interrupts faster than the CPU can handle them. Each one triggers a context save, an ISR, and a context restore.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The problem</span>
+          <p>At 1 million interrupts per second, the CPU spends <strong>100% of its time in ISR overhead</strong> — saving registers, jumping to the handler, restoring registers — and never gets to do useful application work.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p><strong>NAPI</strong> (New API) — Linux's solution. It disables interrupts after the first one, then switches to <strong>polling the device in bulk</strong>. Best of both worlds: interrupt for the initial wake-up, polling for the throughput.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is the classic L20 lesson:</b> every strategy has an upper bound where it breaks. The trick is to combine them — start with interrupts, escalate to polling under load, and delegate the bulk transfer to DMA.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Live Demo · DMA" data-anim="dmademo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — The DMA Transfer</span>
+    <h2 style="margin-bottom:16px;">4 GB moves. <span class="grad-emerald">CPU stays free.</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Bulk transfer in progress</div>
+        <div class="terminal" id="dmaTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">kernel — DMA engine</span>
+          </div>
+          <div class="term-body" id="dmaBody">
+            <span class="term-line dim">Preparing a 4 GB DMA transfer...</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're seeing</span>
+          <p>One setup call, one big transfer, one completion interrupt. The CPU does nothing during the transfer — it's free to run other processes, handle other devices, or just idle.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The numbers</span>
+          <p>For a 4 GB transfer at 3 GB/s:</p>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            DMA duration: ~1.33 seconds<br>
+            CPU involvement: <strong style="color:#88ffd8">2 interrupts</strong><br>
+            CPU idle time: <strong style="color:#88ffd8">1.33 seconds</strong>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Without DMA</span>
+          <p>If the CPU did the copy itself byte-by-byte at ~1 GB/s, it would take <strong>4 seconds and 100% of one core</strong>. DMA is <strong>3× faster and 100% less busy</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Code · Polling vs Interrupt" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">💻 Code — Polling vs. Interrupt in C</span>
+    <h2 style="margin-bottom:16px;">Side-by-side <span class="grad-blue">driver implementations</span></h2>
+    <div class="split">
+      <div class="code-block">
+        <div class="code-head bad"><span>polling.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Polling: CPU waits in a loop</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">read_device_polling</span>(<span class="c-type">void</span>* <span class="c-var">buf</span>, <span class="c-type">int</span> <span class="c-var">len</span>) {</span><span class="code-line">    <span class="c-name">write_reg</span>(<span class="c-var">CMD</span>, <span class="c-var">READ</span>);</span><span class="code-line">    <span class="c-kw">while</span> ((<span class="c-name">read_reg</span>(<span class="c-var">STATUS</span>) &amp; <span class="c-var">DONE</span>) == <span class="c-num">0</span>) {</span><span class="code-line">        <span class="c-com">// spin — burn CPU cycles</span></span><span class="code-line">    }</span><span class="code-line">    <span class="c-name">copy_from_device</span>(<span class="c-var">DATA</span>, <span class="c-var">buf</span>, <span class="c-var">len</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">len</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="code-block">
+        <div class="code-head good"><span>interrupt.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Interrupt: device signals CPU</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">read_device_interrupt</span>(<span class="c-type">void</span>* <span class="c-var">buf</span>, <span class="c-type">int</span> <span class="c-var">len</span>) {</span><span class="code-line">    <span class="c-name">register_buffer</span>(<span class="c-var">buf</span>, <span class="c-var">len</span>);</span><span class="code-line">    <span class="c-name">write_reg</span>(<span class="c-var">CMD</span>, <span class="c-var">READ</span>);</span><span class="code-line">    <span class="c-name">sleep_until_done</span>();  <span class="c-com">// CPU free</span></span><span class="code-line">    <span class="k-kw">return</span> <span class="c-var">len</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-com">// Called by the kernel on IRQ</span></span><span class="code-line"><span class="c-type">void</span> <span class="c-name">isr_handler</span>(<span class="c-type">void</span>) {</span><span class="code-line">    <span class="c-name">copy_from_device</span>(<span class="c-var">DATA</span>, <span class="c-var">buffer</span>, <span class="c-var">buffer_len</span>);</span><span class="code-line">    <span class="c-name">wake_up_waiting_process</span>();</span><span class="code-line">}</span></code></pre>
+      </div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="panel crimson">
+        <span class="panel-label">Polling · line by line</span>
+        <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+          <strong>1.</strong> Issue the command<br>
+          <strong>2.</strong> Spin in the while loop until DONE<br>
+          <strong>3.</strong> Copy the data<br>
+          <strong>4.</strong> Return
+        </p>
+      </div>
+      <div class="panel emerald">
+        <span class="panel-label">Interrupt · line by line</span>
+        <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+          <strong>1.</strong> Register a buffer for the ISR<br>
+          <strong>2.</strong> Issue the command<br>
+          <strong>3.</strong> Sleep (CPU free!)<br>
+          <strong>4.</strong> ISR copies + wakes<br>
+          <strong>5.</strong> Return from sleep
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Code · DMA" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">💻 Code — The DMA Transfer in C</span>
+    <h2 style="margin-bottom:16px;">Two API calls. <span class="grad-emerald">Billions of bytes.</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head blue"><span>dma_transfer.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Setup + start a DMA transfer</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">read_device_dma</span>(<span class="c-type">void</span>* <span class="c-var">buf</span>, <span class="c-type">size_t</span> <span class="c-var">len</span>) {</span><span class="code-line">    <span class="c-com">// 1. Allocate a DMA descriptor</span></span><span class="code-line">    <span class="c-type">struct</span> <span class="c-type">dma_desc</span> <span class="c-var">desc</span>;</span><span class="code-line">    <span class="c-var">desc</span>.<span class="c-var">src</span>       = <span class="c-var">DEVICE_DMA_ADDR</span>;</span><span class="code-line">    <span class="c-var">desc</span>.<span class="c-var">dst</span>       = <span class="c-name">virt_to_phys</span>(<span class="c-var">buf</span>);</span><span class="code-line">    <span class="c-var">desc</span>.<span class="c-var">length</span>    = <span class="c-var">len</span>;</span><span class="code-line">    <span class="c-var">desc</span>.<span class="c-var">direction</span> = <span class="c-var">DMA_FROM_DEVICE</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 2. Program the DMA controller</span></span><span class="code-line">    <span class="c-name">dma_submit</span>(&amp;<span class="c-var">desc</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 3. Tell the device to start reading</span></span><span class="code-line">    <span class="c-name">write_reg</span>(<span class="c-var">CMD</span>, <span class="c-var">READ</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// 4. CPU is free — wait for completion IRQ</span></span><span class="code-line">    <span class="c-name">wait_for_dma_complete</span>(&amp;<span class="c-var">desc</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">len</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The four steps</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1.</strong> Build a descriptor (source, dest, length)<br>
+            <strong>2.</strong> Give it to the DMA controller<br>
+            <strong>3.</strong> Trigger the device<br>
+            <strong>4.</strong> Sleep until the DMA completes
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The heavy lifting</span>
+          <p>Between step 3 and step 4, the DMA controller takes over. It reads from the device, writes to RAM, and never bothers the CPU. When it finishes, the <strong>completion IRQ fires</strong> — and one interrupt handles an entire 4 GB transfer.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The caveat</span>
+          <p>The destination address must be a <strong>physical</strong> address, not virtual. That's why <code style="font-family:var(--mono);color:#ffd18a">virt_to_phys()</code> is in the code — the DMA controller doesn't go through the MMU.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> on systems with an IOMMU, the DMA controller does go through address translation — but via a separate IOMMU, not the CPU's MMU. This lets the OS pass virtual addresses (safe) while the IOMMU handles the translation for the DMA path.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Real World hybrid">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🌍 Real World — Modern Hybrid Approaches</span>
+    <h2 style="margin-bottom:16px;">Real hardware uses <span class="grad-blue">all three at once</span></h2>
+    <div class="rw-vis">
+      <div class="rw-row">
+        <span class="rw-icon">🌐</span>
+        <div class="rw-body">
+          <div class="rw-title">Linux NAPI — network driver</div>
+          <div class="rw-desc">Interrupt fires once to wake the driver → driver disables interrupts → switches to <strong>polling with a batch budget</strong>. Under heavy load, NAPI polls; under light load, it sleeps until the next interrupt.</div>
+        </div>
+      </div>
+      <div class="rw-row">
+        <span class="rw-icon">💾</span>
+        <div class="rw-body">
+          <div class="rw-title">NVMe SSD — DMA with queue-based polling</div>
+          <div class="rw-desc">Modern NVMe uses DMA for bulk transfers, but also supports <strong>polling mode</strong> (no interrupts at all) for ultra-low-latency workloads. Databases running on NVMe often disable interrupts entirely.</div>
+        </div>
+      </div>
+      <div class="rw-row">
+        <span class="rw-icon">🖥️</span>
+        <div class="rw-body">
+          <div class="rw-title">io_uring — polling from user space</div>
+          <div class="rw-desc">Linux's io_uring can run in <strong>SQPOLL mode</strong> — a kernel thread polls the submission queue, so syscalls are eliminated. The kernel side of io_uring uses interrupts + DMA for the actual I/O, but the API is pure polling.</div>
+        </div>
+      </div>
+      <div class="rw-row">
+        <span class="rw-icon">⚡</span>
+        <div class="rw-body">
+          <div class="rw-title">DPDK — pure polling for packet processing</div>
+          <div class="rw-desc">Data Plane Development Kit bypasses interrupts entirely — user-space processes poll the NIC rings directly. Only viable when you dedicate CPU cores to the task, but produces the lowest latency.</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The pattern:</b> modern systems let software <em>choose</em> the mode at runtime. Interrupts for the slow path, polling for the fast path, DMA for the bulk transfer. The old "one strategy per device" rule has been replaced by <strong>mode switching under load</strong>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Polling &amp; Interrupt</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Polling</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An I/O communication method where the CPU repeatedly inspects a hardware device register to check if an I/O operation has finished.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( "Are you done yet?" — asked in a loop, forever. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Also known as</span>
+          <p>Busy-waiting · spinlock (in kernel context). Best for slow, predictable devices.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Interrupt</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An electronic signal sent by a hardware component that forces the processor to pause its current execution flow and jump to a specialized handler.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The device rings the doorbell. The CPU gets up to answer. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The key property</span>
+          <p>Asynchronous — fires at any time. Requires context save/restore (~100–1000 cycles).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏷️ System Lexicon — ISR &amp; DMA</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">ISR</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Interrupt Service Routine — the low-level kernel code function triggered inside Ring 0 to process and clear a specific hardware interrupt vector.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The code that runs when an interrupt fires. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The discipline</span>
+          <p>ISRs must be <strong>short</strong>. Long ISRs delay other interrupts and stall the system. Defer heavy work to a bottom half / tasklet / workqueue.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">DMA</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Direct Memory Access — a specialized hardware feature allowing peripheral controllers to read or write data blocks straight to main system RAM completely independent of the CPU.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A helper chip that moves data without the CPU lifting a finger. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The benefit</span>
+          <p>CPU is free during transfer. One interrupt on completion. Best for bulk transfers above ~4 KB.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about I/O communication</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Interrupts are always better than polling"</div>
+        <div class="pc-desc">Not true. For a <strong>very fast, very predictable</strong> device, the interrupt overhead (~1–10 µs) can dominate the actual data transfer. Modern NVMe SSDs and 100G NICs actually switch to <strong>polling mode</strong> under high load — because at 10 million packets per second, the interrupt overhead alone would peg every core. The right answer depends on the workload profile.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"DMA replaces the need for interrupts"</div>
+        <div class="pc-desc">DMA and interrupts are <strong>complementary, not substitutes</strong>. DMA moves the bulk data without the CPU, but it still uses an interrupt to signal completion — otherwise the CPU would have to poll to know the transfer finished, defeating the purpose. Every DMA transfer ends with one interrupt.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"More interrupts = faster response"</div>
+        <div class="pc-desc">False. Interrupts can <strong>queue up and delay each other</strong>. If the CPU is busy handling interrupt A, interrupt B waits. If interrupts come faster than the CPU can handle them, you get an <strong>interrupt storm</strong> — the CPU spends all its time entering and exiting ISRs and never gets to the actual work. This is why Linux has NAPI, threaded IRQs, and interrupt affinity tuning.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Human I/O Communication Simulation</span>
+    <h2 style="margin-bottom:16px;">Three students. Three I/O strategies. <span class="grad-violet">One CPU.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Sit at the teacher's desk acting as the <strong>"CPU."</strong> Assign one student to be a <strong>"Mouse Click"</strong> and another to be a <strong>"High-Speed Data Disk."</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Round 1 · Polling</span>
+          <p>You must <strong>continuously point your finger</strong> at each student and ask "Done yet? Done yet?" to simulate cycle waste. The class watches you spend 100% of your time on checking instead of grading homework.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Round 2 · Interrupts</span>
+          <p>Contrast this — you <strong>grade homework smoothly</strong> until a student snaps their fingers (the "interrupt"). You quickly sign their paper, then return to grading. The CPU is free until notified.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Round 3 · DMA</span>
+          <p>Finally, <strong>hand a student a stack of papers</strong> and point to a desk shelf. Ignore them entirely while they move the pile — they "DMA" the work themselves. You only pause when they say "All stacked!" (the completion interrupt).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> ask the class <em>"Which round felt most efficient?"</em> Most will say round 2 — until you point out that in round 3, you did nothing at all during the transfer. The right answer depends on <strong>what the workload looks like</strong>, not which strategy sounds best.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Three roles, one CPU</div>
+        <div class="activity-scene">
+          <div class="activity-roles">
+            <div class="activity-role cpu" data-role="0">
+              <span class="ar-icon">🧑‍🏫</span>
+              <div class="ar-name">CPU</div>
+              <div class="ar-desc">you · teacher</div>
+            </div>
+            <div class="activity-role device" data-role="1">
+              <span class="ar-icon">🖱️</span>
+              <div class="ar-name">Mouse</div>
+              <div class="ar-desc">intermittent event</div>
+            </div>
+            <div class="activity-role dma" data-role="2">
+              <span class="ar-icon">💾</span>
+              <div class="ar-name">Disk</div>
+              <div class="ar-desc">bulk transfer</div>
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(0,0,0,.20);font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--ink-2)" id="actStatus">
+            <strong style="color:var(--crimson)">Round 1:</strong> polling — CPU is 100% busy checking
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 27 (FINAL) -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L20 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>I/O communication has <strong>three foundational strategies</strong>: polling (CPU checks), interrupts (device notifies), DMA (helper chip transfers). Each has a distinct profile of cost, latency, and complexity.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>Polling</strong> wastes CPU cycles but is trivial to implement. Best for slow, predictable devices. <strong>Interrupts</strong> are efficient for occasional events, but add ~1–10 µs overhead per event. <strong>DMA</strong> bypasses the CPU entirely for bulk transfers above ~4 KB.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>Every device exposes the same <strong>three registers</strong>: COMMAND (write what to do), STATUS (read what's happening), DATA (the payload). The three strategies differ in how the CPU interacts with these registers.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>Modern systems <strong>combine all three</strong> — NAPI for NICs, polling mode for high-performance SSDs, io_uring for user-space polling. The old "one strategy per device" rule is gone.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L21 — Uniform Device Drivers &amp; The Linux /dev File Abstraction</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We've covered the three strategies for I/O communication. Now: <strong>who implements them?</strong> L21 shows how the kernel organizes device support — block vs. character vs. network device drivers, the <code style="font-family:var(--mono);color:#b9d0ff">/dev</code> filesystem, and how standard file operations (open/read/write) get routed to the correct driver function pointer.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L21: Device Drivers &amp; /dev &nbsp;|&nbsp; [L21.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad20" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad20)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad20)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : I/O matrix canvas ---------- */
+reg('iocanvas', function(){
+  const c = document.getElementById('ioCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('CPU ↔ DEVICE · THREE COMMUNICATION STRATEGIES', W/2, 16);
+
+    const phase = Math.floor(t / 80) % 3; // 0=poll, 1=int, 2=dma
+
+    // Draw three lanes
+    const lanes = [
+      { y: 100, label:'POLLING', color: '#ff4d6d', active: phase === 0 },
+      { y: 220, label:'INTERRUPTS', color: '#ffb648', active: phase === 1 },
+      { y: 340, label:'DMA', color: '#2ee6a8', active: phase === 2 }
+    ];
+
+    lanes.forEach(lane => {
+      // lane background
+      ctx.fillStyle = lane.active ? lane.color + '12' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(30, lane.y - 20, W - 60, 50);
+      ctx.strokeStyle = lane.active ? lane.color + 'aa' : 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = lane.active ? 2 : 1;
+      ctx.strokeRect(30, lane.y - 20, W - 60, 50);
+
+      // label
+      ctx.fillStyle = lane.active ? lane.color : 'rgba(255,255,255,0.4)';
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lane.label, 42, lane.y + 5);
+
+      // Draw CPU box (left)
+      ctx.fillStyle = 'rgba(91,141,255,0.20)';
+      ctx.fillRect(170, lane.y - 12, 50, 24);
+      ctx.strokeStyle = '#5b8dff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(170, lane.y - 12, 50, 24);
+      ctx.fillStyle = '#b9d0ff';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('CPU', 195, lane.y);
+
+      // Draw Device box (right)
+      ctx.fillStyle = 'rgba(255,182,72,0.20)';
+      ctx.fillRect(380, lane.y - 12, 70, 24);
+      ctx.strokeStyle = '#ffb648';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(380, lane.y - 12, 70, 24);
+      ctx.fillStyle = '#ffd18a';
+      ctx.font = '700 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('DEVICE', 415, lane.y);
+
+      // Draw arrows based on strategy
+      if (lane.active) {
+        const pulse = 0.6 + 0.4 * Math.sin(t / 12);
+
+        if (phase === 0) {
+          // Polling: many small arrows looping
+          for (let i = 0; i < 3; i++) {
+            const offset = (t * 3 + i * 100) % 220;
+            const startX = 220 + (offset % 80);
+            const endX = startX + 25;
+            if (startX < 380) {
+              ctx.strokeStyle = `rgba(255,77,109,${pulse})`;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(startX, lane.y);
+              ctx.lineTo(endX, lane.y);
+              ctx.stroke();
+            }
+          }
+          // "BUSY" small labels
+          ctx.fillStyle = `rgba(255,159,177,${pulse * 0.8})`;
+          ctx.font = '700 8px JetBrains Mono, monospace';
+          ctx.fillText('?', 240, lane.y - 6);
+          ctx.fillText('?', 270, lane.y - 6);
+          ctx.fillText('?', 300, lane.y - 6);
+          ctx.fillText('?', 330, lane.y - 6);
+          ctx.fillText('?', 360, lane.y - 6);
+        } else if (phase === 1) {
+          // Interrupt: single signal from device to CPU
+          const pulse2 = 0.5 + 0.5 * Math.sin(t / 8);
+          ctx.strokeStyle = `rgba(255,182,72,${pulse2})`;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(380, lane.y);
+          ctx.lineTo(220, lane.y);
+          ctx.stroke();
+          // arrow head
+          ctx.beginPath();
+          ctx.moveTo(220, lane.y);
+          ctx.lineTo(230, lane.y - 5);
+          ctx.moveTo(220, lane.y);
+          ctx.lineTo(230, lane.y + 5);
+          ctx.stroke();
+          // "DING" text
+          ctx.fillStyle = `rgba(255,209,138,${pulse2})`;
+          ctx.font = '700 9px JetBrains Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('IRQ', 300, lane.y - 8);
+        } else {
+          // DMA: data path from device to memory, CPU idle
+          // Draw RAM box in the middle
+          ctx.fillStyle = 'rgba(46,230,168,0.20)';
+          ctx.fillRect(290, lane.y - 12, 50, 24);
+          ctx.strokeStyle = '#2ee6a8';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(290, lane.y - 12, 50, 24);
+          ctx.fillStyle = '#88ffd8';
+          ctx.font = '700 9px JetBrains Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('RAM', 315, lane.y);
+
+          // Device → RAM arrow (data path)
+          const dX = 380 - 30 * ((t * 2) % 30) / 30;
+          ctx.strokeStyle = `rgba(46,230,168,${pulse})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(380, lane.y);
+          ctx.lineTo(340, lane.y);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(340, lane.y);
+          ctx.lineTo(350, lane.y - 5);
+          ctx.moveTo(340, lane.y);
+          ctx.lineTo(350, lane.y + 5);
+          ctx.stroke();
+
+          // DMA controller box between CPU and RAM
+          ctx.fillStyle = 'rgba(160,107,255,0.20)';
+          ctx.fillRect(220, lane.y - 12, 60, 24);
+          ctx.strokeStyle = '#a06bff';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(220, lane.y - 12, 60, 24);
+          ctx.fillStyle = '#c9a7ff';
+          ctx.font = '700 8px JetBrains Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('DMA', 250, lane.y);
+
+          void dX;
+        }
+      }
+    });
+
+    // status at bottom
+    const statuses = ['CPU 100% busy polling', 'CPU free · event-driven', 'CPU free · bulk transfer'];
+    ctx.fillStyle = lanes[phase].color;
+    ctx.font = '800 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(statuses[phase], W/2, H - 20);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 8 : polling loop ---------- */
+reg('pollloop', function(){
+  const rows = document.querySelectorAll('.polling-row');
+  if(!rows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.classList.remove('cycle', 'hit'));
+    if(idx > 0 && idx < 5 && rows[idx]) rows[idx].classList.add('cycle');
+    if(idx === 5 && rows[idx]) rows[idx].classList.add('hit');
+    if(idx >= 6) idx = 0;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.classList.remove('cycle', 'hit')); } };
+});
+
+/* ---------- Slide 9 : CPU fill ---------- */
+reg('cpufill', function(){
+  const fill = document.getElementById('cpuFill');
+  const status = document.getElementById('cpuStatus');
+  if(!fill || !status) return { stop(){} };
+  fill.style.width = '98%';
+  let phase = 0;
+  const timer = setInterval(() => {
+    phase = (phase + 1) % 3;
+    if (phase === 0) {
+      fill.style.background = 'linear-gradient(90deg,#ff4d6d,#ff9fb1)';
+      fill.style.width = '98%';
+      status.textContent = 'polling · 100% busy';
+      status.style.color = '#eaf0fc';
+    } else if (phase === 1) {
+      fill.style.background = 'linear-gradient(90deg,#ffb648,#ffd18a)';
+      fill.style.width = '2%';
+      status.textContent = 'interrupt · CPU idle until event';
+      status.style.color = '#88ffd8';
+    } else {
+      fill.style.background = 'linear-gradient(90deg,#2ee6a8,#88ffd8)';
+      fill.style.width = '1%';
+      status.textContent = 'DMA · CPU free during transfer';
+      status.style.color = '#88ffd8';
+    }
+  }, 2000);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 11 : ISR flow ---------- */
+reg('isr', function(){
+  const steps = document.querySelectorAll('#isrFlow .isr-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.style.opacity = (i === idx) ? '1' : '0.4';
+      s.style.transform = (i === idx) ? 'scale(1.02)' : 'scale(1)';
+    });
+    idx = (idx + 1) % steps.length;
+  }
+  tick();
+  const timer = setInterval(tick, 1400);
+  return { stop(){ clearInterval(timer); steps.forEach(s => { s.style.opacity='1'; s.style.transform='scale(1)'; }); } };
+});
+
+/* ---------- Slide 13 : DMA sequence ---------- */
+reg('dmaseq', function(){
+  const steps = document.querySelectorAll('#dmaSeq .dma-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      if(i < idx) s.classList.add('done');
+      else if(i === idx) s.classList.add('active');
+    });
+    idx = (idx + 1) % (steps.length + 1);
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active','done')); } };
+});
+
+/* ---------- Slide 17 : polling terminal ---------- */
+reg('polldemo', function(){
+  const body = document.getElementById('pollBody');
+  if(!body) return { stop(){} };
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line dim">Polling device at 0x3F8 for data...</span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx === 0) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line warn">[poll] write cmd=READ</span>`);
+    } else if (idx < 20) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line dim">[poll] read STATUS → BUSY</span>`);
+    } else if (idx === 20) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[poll] read STATUS → DONE ✓</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[poll] read DATA → 512 bytes received</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line hl">─── total polls: 21 · useful work: 1 ───</span>`);
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 3000);
+      idx = 999;
+      return;
+    }
+    idx++;
+
+    // Auto-reset after done
+    if (idx === 22) {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 3000);
+    }
+  }
+
+  const timer = setInterval(tick, 250);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 18 : interrupt storm ---------- */
+reg('intdemo', function(){
+  const body = document.getElementById('intBody');
+  if(!body) return { stop(){} };
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line dim">Interrupt handler registering for eth0...</span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx === 0) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[eth0] IRQ 42 registered · waiting for packets</span>`);
+    } else if (idx <= 15) {
+      const n = idx;
+      body.insertAdjacentHTML('beforeend', `<span class="term-line warn">[IRQ 42] packet ${n} · enter ISR · ctx save (~100 cycles)</span>`);
+    } else if (idx === 16) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line err">[WARN] interrupt rate: 1,200,000/sec · CPU saturated</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line err">[WARN] userspace starvation · switching to NAPI polling</span>`);
+    } else if (idx === 17) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[eth0] switched to NAPI · interrupts disabled</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[NAPI] polling 64 packets per batch · CPU free</span>`);
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = 999;
+      return;
+    }
+    idx++;
+  }
+
+  const timer = setInterval(tick, 280);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 19 : DMA demo ---------- */
+reg('dmademo', function(){
+  const body = document.getElementById('dmaBody');
+  if(!body) return { stop(){} };
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line dim">Preparing a 4 GB DMA transfer...</span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx === 0) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line warn">[dma] allocate descriptor: 4 GB</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line warn">[dma] src: device@0xA000 · dst: RAM@0x10000</span>`);
+    } else if (idx === 1) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line warn">[dma] program DMA controller · submit transfer</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[dev] write cmd=READ → streaming starts</span>`);
+    } else if (idx === 2) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line dim">[dma] transfer in progress... 25%</span>`);
+    } else if (idx === 3) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line dim">[dma] transfer in progress... 58%</span>`);
+    } else if (idx === 4) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line dim">[dma] transfer in progress... 87%</span>`);
+    } else if (idx === 5) {
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[dma] 100% · 4 GB copied in 1.33 s</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line ok">[dma] completion IRQ fired once</span>`);
+      body.insertAdjacentHTML('beforeend', `<span class="term-line hl">─── CPU was free the entire transfer ───</span>`);
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = 999;
+      return;
+    }
+    idx++;
+  }
+
+  const timer = setInterval(tick, 600);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 20 : code stepper 1 ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 800);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 21 : code stepper 2 ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,5,6,7,9,10,12,13,15,16,17,18,19,20,21];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 26 : activity ---------- */
+reg('activity', function(){
+  const roles = document.querySelectorAll('.activity-role');
+  const status = document.getElementById('actStatus');
+  if(!roles.length || !status) return { stop(){} };
+
+  const phases = [
+    { active: 0, label: 'polling', color: '#ff4d6d', desc: 'Round 1: polling — CPU is 100% busy checking' },
+    { active: 1, label: 'interrupt', color: '#ffb648', desc: 'Round 2: interrupts — CPU is free until the mouse clicks' },
+    { active: 2, label: 'dma', color: '#2ee6a8', desc: 'Round 3: DMA — disk transfers bulk, CPU is idle' }
+  ];
+
+  let idx = 0;
+  function tick(){
+    roles.forEach(r => r.classList.remove('active'));
+    const p = phases[idx % phases.length];
+    if(roles[p.active]) roles[p.active].classList.add('active');
+    status.innerHTML = `<strong style="color:${p.color}">${p.desc}</strong>`;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 2000);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s) => {
+    if (s.querySelector('.polling-row') && !s.dataset.anim) s.dataset.anim = 'pollloop';
+    if (s.querySelector('#cpuFill') && !s.dataset.anim) s.dataset.anim = 'cpufill';
+    if (s.querySelector('#pollBody') && !s.dataset.anim) s.dataset.anim = 'polldemo';
+    if (s.querySelector('#intBody') && !s.dataset.anim) s.dataset.anim = 'intdemo';
+    if (s.querySelector('#dmaBody') && !s.dataset.anim) s.dataset.anim = 'dmademo';
+    if (s.querySelector('#actStatus') && !s.dataset.anim) s.dataset.anim = 'activity';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
