@@ -1,0 +1,2170 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L18 — Inode Architecture &amp; File System Layouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#inodeCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Library card analogy */
+.library-scene{padding:14px 0;display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;}
+.lib-card{flex:1;min-width:240px;padding:16px;border-radius:10px;background:linear-gradient(140deg,rgba(255,182,72,.10),rgba(255,182,72,.03));border:1.5px solid rgba(255,182,72,.55);position:relative;}
+.lib-card::before{content:'INDEX CARD';position:absolute;top:-10px;left:16px;padding:2px 10px;background:#06090f;border:1px solid rgba(255,182,72,.55);border-radius:6px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#ffd18a;}
+.lib-field{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.10);font-size:12px;}
+.lib-field:last-child{border-bottom:none;}
+.lib-field .lbl{color:var(--muted);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.lib-field .val{color:#ffd18a;font-family:var(--mono);font-weight:800;}
+.lib-book{flex:1;min-width:200px;padding:16px;border-radius:10px;background:linear-gradient(140deg,rgba(46,230,168,.08),rgba(46,230,168,.02));border:1.5px solid rgba(46,230,168,.55);}
+.lib-book h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:12px;}
+.lib-page-stack{display:flex;flex-direction:column;gap:5px;}
+.lib-page{padding:8px 12px;border-radius:5px;background:rgba(46,230,168,.10);border:1px solid rgba(46,230,168,.35);font-family:var(--mono);font-size:10.5px;font-weight:700;color:#88ffd8;}
+
+/* Inode field view */
+.inode-card{border-radius:14px;padding:18px;background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(91,141,255,.02));border:1.5px solid rgba(91,141,255,.55);}
+.inode-header{font-family:var(--mono);font-size:11px;font-weight:900;letter-spacing:.06em;color:var(--blue-2);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;justify-content:space-between;}
+.inode-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.inode-field{padding:10px 12px;border-radius:6px;background:rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.10);}
+.inode-field .if-lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:4px;}
+.inode-field .if-val{font-family:var(--mono);font-size:11.5px;font-weight:800;color:#eaf0fc;}
+.inode-field.highlight{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);}
+.inode-field.highlight .if-lbl{color:var(--emerald);}
+.inode-field.highlight .if-val{color:#88ffd8;}
+
+/* Direct/Indirect pointer visualization */
+.pointer-tree{padding:14px 0;font-family:var(--mono);font-size:11px;}
+.pt-level{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.pt-level:last-child{border-bottom:none;}
+.pt-badge{min-width:120px;padding:8px 12px;border-radius:6px;text-align:center;font-weight:800;font-size:10.5px;letter-spacing:.04em;}
+.pt-badge.direct{background:rgba(46,230,168,.15);border:1px solid rgba(46,230,168,.55);color:#88ffd8;}
+.pt-badge.single{background:rgba(91,141,255,.15);border:1px solid rgba(91,141,255,.55);color:#b9d0ff;}
+.pt-badge.double{background:rgba(255,182,72,.15);border:1px solid rgba(255,182,72,.55);color:#ffd18a;}
+.pt-badge.triple{background:rgba(160,107,255,.15);border:1px solid rgba(160,107,255,.55);color:#c9a7ff;}
+.pt-desc{flex:1;color:var(--ink-2);font-size:11.5px;line-height:1.5;}
+.pt-desc .count{font-weight:800;}
+.pt-cap{font-weight:900;color:#eaf0fc;}
+
+/* Pointer blocks diagram */
+.ptr-diagram{padding:8px 0;}
+.ptr-svg{width:100%;max-width:420px;height:auto;display:block;margin:0 auto;}
+
+/* Capacity calculator */
+.calc-rig{padding:8px 0;display:flex;flex-direction:column;gap:14px;}
+.calc-input-row{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:10px;background:rgba(0,0,0,.20);border:1px solid var(--stroke);}
+.calc-input-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;color:var(--ink-2);}
+.calc-input-head .val{font-family:var(--mono);font-size:14px;font-weight:900;color:var(--amber);}
+.calc-slider{width:100%;height:8px;border-radius:4px;-webkit-appearance:none;appearance:none;background:linear-gradient(90deg,#5b8dff,#a06bff);outline:none;cursor:pointer;}
+.calc-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+.calc-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+
+/* Capacity breakdown bars */
+.cap-bars{display:flex;flex-direction:column;gap:10px;padding:8px 0;}
+.cap-row{display:flex;flex-direction:column;gap:5px;}
+.cap-head{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:12px;}
+.cap-name{font-weight:800;letter-spacing:.04em;}
+.cap-val{font-weight:900;}
+.cap-bar{height:20px;border-radius:6px;background:rgba(255,255,255,.05);position:relative;overflow:hidden;}
+.cap-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-family:var(--mono);font-size:10.5px;font-weight:800;color:#0a0f1c;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+.cap-row.direct .cap-name{color:#88ffd8;}
+.cap-row.direct .cap-fill{background:linear-gradient(90deg,#2ee6a8,#88ffd8);}
+.cap-row.single .cap-name{color:#b9d0ff;}
+.cap-row.single .cap-fill{background:linear-gradient(90deg,#5b8dff,#8fb4ff);}
+.cap-row.double .cap-name{color:#ffd18a;}
+.cap-row.double .cap-fill{background:linear-gradient(90deg,#ffb648,#ffd18a);}
+.cap-row.total .cap-name{color:#eaf0fc;font-weight:900;}
+.cap-row.total .cap-bar{height:26px;}
+.cap-row.total .cap-fill{background:linear-gradient(90deg,#5b8dff,#a06bff,#2ee6a8);}
+
+/* Worked example */
+.worked-steps{display:flex;flex-direction:column;gap:8px;padding:8px 0;}
+.ws-item{padding:14px 16px;border-radius:10px;border:1px solid;background:rgba(0,0,0,.20);transition:.4s;}
+.ws-item.direct{border-color:rgba(46,230,168,.55);}
+.ws-item.single{border-color:rgba(91,141,255,.55);}
+.ws-item.double{border-color:rgba(255,182,72,.55);}
+.ws-item.total{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.08);}
+.ws-item .ws-head{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:6px;}
+.ws-item.direct .ws-head{color:var(--emerald);}
+.ws-item.single .ws-head{color:var(--blue-2);}
+.ws-item.double .ws-head{color:var(--amber);}
+.ws-item.total .ws-head{color:var(--violet);}
+.ws-item .ws-body{font-family:var(--mono);font-size:11.5px;line-height:1.75;color:var(--ink-2);}
+.ws-item .ws-body strong{color:#eaf0fc;}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+.term-key{color:#b9d0ff;font-weight:800;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.blue{color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.activity-scene{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.inode-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.inode-item{padding:12px 8px;border-radius:8px;border:1px solid;text-align:center;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.03em;transition:.4s;}
+.inode-item.dir{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.inode-item.file{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.08);color:#88ffd8;}
+.inode-item.link{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.inode-item .ii-name{font-size:11.5px;margin-bottom:4px;font-weight:900;}
+.inode-item .ii-num{font-size:9.5px;opacity:.8;}
+.inode-item.active{box-shadow:0 0 16px -4px currentColor;transform:scale(1.03);}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.inode-fields,.inode-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .library-scene{flex-direction:column;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .inode-grid{grid-template-columns:repeat(2,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L18 Inode Architecture</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L18 · Overview" data-anim="inodecanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L18 · Inode Architecture &amp; File System Layouts</span>
+    <div class="split">
+      <div class="stack">
+        <h1>How does one small file <span class="grad-blue">point to billions of bytes</span>?</h1>
+        <p class="lead">Calculate maximum file scale size capacities for an inode architecture layout featuring direct, single indirect, and double indirect block pointers.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L18</span>
+          <p>L17 showed us that a directory entry maps a name to an <strong>inode number</strong>. But we never opened the inode. What's inside it? How does an inode fit "the address of every block a file uses" in a <strong>fixed-size structure</strong>, even when the file is bigger than the block list itself?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated inode canvas on the right. Let the pointer tree play 2–3 cycles before speaking. The 12-direct + 3-indirect structure is the entire lecture in one picture.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · One inode · three types of block pointers</div>
+        <canvas id="inodeCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Fixed-Size Metadata, Unbounded Data</span>
+    <h2 style="margin-bottom:16px;">An inode is <span class="grad-crimson">fixed size</span>. A file can be huge.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The design constraint</span>
+          <p>Every inode on a Unix filesystem is the <strong>same size</strong> — typically 128 or 256 bytes. This is essential: the filesystem pre-allocates a fixed-size region for all inodes, so they can be located by a simple formula (<code style="font-family:var(--mono);color:#ff9fb1">inode_table + n * sizeof(inode)</code>).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The tension</span>
+          <p>But a file can be 4 GB, requiring <strong>~1 million block pointers</strong>. At 4 bytes each, that's 4 MB of pointer data. Where does it live if the inode is only 128 bytes?</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The clever solution</span>
+          <p><strong>Indirection.</strong> The inode doesn't point directly at all the data blocks — it points at <strong>pointer blocks</strong>, which point at more pointer blocks, which eventually point at data. A tiny fixed-size structure can address an arbitrarily large file by chaining levels of indirection.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole lecture in one sentence:</b> the inode uses a small number of direct pointers plus a chain of indirect pointers to address a range of file sizes spanning six orders of magnitude — from 4 KB to 4 TB — within a 128-byte structure.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The size problem</div>
+        <svg viewBox="0 0 340 300" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="90" rx="10" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.5)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">FIXED-SIZE INODE</text>
+          <rect x="130" y="50" width="80" height="44" rx="6" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.65)" stroke-width="1.4"/>
+          <text x="170" y="70" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">128 B</text>
+          <text x="170" y="86" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">fixed at fs creation</text>
+
+          <line x1="170" y1="108" x2="170" y2="130" stroke="rgba(255,77,109,.85)" stroke-width="2"/>
+
+          <rect x="14" y="130" width="312" height="90" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="170" y="150" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">THE PROBLEM</text>
+          <text x="170" y="175" text-anchor="middle" font-size="10.5" fill="#eaf0fc" font-family="JetBrains Mono">4 GB file needs ~1M pointers</text>
+          <text x="170" y="195" text-anchor="middle" font-size="9.5" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">= 4 MB of pointer data</text>
+          <text x="170" y="212" text-anchor="middle" font-size="9.5" fill="rgba(255,159,177,.55)" font-family="JetBrains Mono">doesn't fit in 128 B</text>
+
+          <rect x="14" y="240" width="312" height="46" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+          <text x="170" y="260" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">THE SOLUTION: INDIRECTION</text>
+          <text x="170" y="278" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">point to pointer blocks · chain levels</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Library Card">
+  <div class="slide-inner">
+    <span class="badge violet">📚 Analogy 1 · The Library Ledger Card vs. The Book Content</span>
+    <h2 style="margin-bottom:16px;">The card <span class="grad-violet">describes</span> the book. The card <span class="grad-violet">is not</span> the book.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Imagine checking out a book from a library. The book text itself — the actual pages — represents the <strong>real data blocks</strong>. The library index filing card taped inside the front cover is the <strong>Inode</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What the card contains</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Who owns the book</strong> — owner ID<br>
+            <strong>Who can read it</strong> — permissions<br>
+            <strong>Character length</strong> — file size<br>
+            <strong>Shelf coordinates</strong> — block pointers<br>
+            <strong>Date last edited</strong> — timestamps
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">When the book grows</span>
+          <p>If the book grows too long for the card to list every shelf coordinate, the card holds <strong>a coordinate to another ledger box</strong> — which contains additional lists of shelf coordinates. That's the indirect pointer.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The key insight:</b> the card never contains the book's content — only metadata + a trail of pointers. Reading the book requires following those pointers to the actual shelves.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The index card · the book</div>
+        <div class="library-scene">
+          <div class="lib-card">
+            <div class="lib-field"><span class="lbl">Owner</span><span class="val">uid 1000</span></div>
+            <div class="lib-field"><span class="lbl">Permissions</span><span class="val">rw-r--r--</span></div>
+            <div class="lib-field"><span class="lbl">Size</span><span class="val">45,832 B</span></div>
+            <div class="lib-field"><span class="lbl">Created</span><span class="val">Oct 15 2026</span></div>
+            <div class="lib-field"><span class="lbl">Modified</span><span class="val">Oct 20 2026</span></div>
+            <div class="lib-field"><span class="lbl">Blocks</span><span class="val">12 direct + indirect</span></div>
+          </div>
+          <div class="lib-book">
+            <h4>THE BOOK · data blocks</h4>
+            <div class="lib-page-stack">
+              <div class="lib-page">block 8829 · page 1</div>
+              <div class="lib-page">block 8830 · page 2</div>
+              <div class="lib-page">block 8831 · page 3</div>
+              <div class="lib-page">block 8832 · page 4</div>
+              <div class="lib-page">… (via indirect)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · When It Grows">
+  <div class="slide-inner">
+    <span class="badge amber">📚 Analogy 1 · When the Card Runs Out of Space</span>
+    <h2 style="margin-bottom:16px;">The card points to <span class="grad-amber">another ledger box</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The overflow</span>
+          <p>The index card has exactly <strong>15 pointer slots</strong> (12 direct + 3 indirect). When the book grows past 12 pages, the first indirect slot activates. It points at a whole new ledger box — a <strong>pointer block</strong> — which holds up to 1024 additional shelf coordinates.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The chain</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>12 direct</strong> → 12 books on nearby shelves<br>
+            <strong>1 single indirect</strong> → 1 box of 1024 shelf coords → 1024 books<br>
+            <strong>1 double indirect</strong> → 1 box → 1024 boxes → 1024² books<br>
+            <strong>1 triple indirect</strong> → 1 box → 1024 boxes → 1024 boxes → 1024³ books
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The beauty</span>
+          <p>The card stays <strong>128 bytes</strong> forever. But the actual reachable capacity is <strong>terabytes</strong>, because each level of indirection is another box that itself holds pointers. It's a branching tree, not a flat list.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The tree of pointer blocks</div>
+        <div class="ptr-diagram">
+          <svg class="ptr-svg" viewBox="0 0 400 320">
+            <!-- Inode -->
+            <rect x="150" y="14" width="100" height="44" rx="6" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.75)" stroke-width="1.6"/>
+            <text x="200" y="34" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">INODE</text>
+            <text x="200" y="50" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">15 pointer slots</text>
+
+            <!-- 12 direct -->
+            <line x1="170" y1="58" x2="60" y2="100" stroke="rgba(46,230,168,.75)" stroke-width="1.4"/>
+            <text x="90" y="82" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">direct ×12</text>
+            <rect x="20" y="100" width="80" height="30" rx="5" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="60" y="118" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">blocks</text>
+
+            <!-- single indirect -->
+            <line x1="200" y1="58" x2="200" y2="100" stroke="rgba(91,141,255,.75)" stroke-width="1.4"/>
+            <text x="215" y="82" text-anchor="start" font-size="8" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">single indirect</text>
+            <rect x="150" y="100" width="100" height="30" rx="5" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.55)" stroke-width="1"/>
+            <text x="200" y="118" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">pointer block</text>
+            <line x1="200" y1="130" x2="200" y2="155" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+            <rect x="150" y="155" width="100" height="30" rx="5" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="200" y="173" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">1024 blocks</text>
+
+            <!-- double indirect -->
+            <line x1="230" y1="58" x2="340" y2="100" stroke="rgba(255,182,72,.75)" stroke-width="1.4"/>
+            <text x="310" y="82" text-anchor="end" font-size="8" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">double indirect</text>
+            <rect x="290" y="100" width="80" height="30" rx="5" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="330" y="118" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">ptr block</text>
+            <line x1="330" y1="130" x2="330" y2="155" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <rect x="290" y="155" width="80" height="30" rx="5" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.35)" stroke-width="1"/>
+            <text x="330" y="173" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">1024 ptr blocks</text>
+            <line x1="330" y1="185" x2="330" y2="210" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+            <rect x="290" y="210" width="80" height="30" rx="5" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1"/>
+            <text x="330" y="228" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">1024² blocks</text>
+
+            <!-- triple indirect -->
+            <rect x="130" y="240" width="140" height="60" rx="6" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+            <text x="200" y="260" text-anchor="middle" font-size="9.5" fill="#c9a7ff" font-family="Inter" font-weight="800">triple indirect</text>
+            <text x="200" y="278" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">1024³ blocks</text>
+            <text x="200" y="292" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">rarely used · huge files</text>
+            <line x1="200" y1="210" x2="200" y2="240" stroke="rgba(160,107,255,.55)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Index Array">
+  <div class="slide-inner">
+    <span class="badge">🔗 Analogy 2 · Index Allocation Array with Indirect Node Chains</span>
+    <h2 style="margin-bottom:16px;">A multi-tiered <span class="grad-blue">array indexing system</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The array analogy</div>
+        <div style="padding:14px 0;font-family:var(--mono);font-size:11.5px">
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.06);margin-bottom:10px">
+            <div style="color:var(--blue-2);font-weight:800;margin-bottom:6px">// the inode · 15 pointers</div>
+            <div style="color:var(--ink-2);line-height:1.6">
+              int direct[12];              // → data blocks<br>
+              int* single_indirect;        // → int[1024] → data<br>
+              int** double_indirect;       // → int*[1024] → data<br>
+              int*** triple_indirect;      // → int**[1024] → data
+            </div>
+          </div>
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);margin-bottom:10px">
+            <div style="color:var(--emerald);font-weight:800;margin-bottom:6px">// resolving a data block at index n</div>
+            <div style="color:var(--ink-2);line-height:1.6">
+              if (n &lt; 12) return direct[n];<br>
+              if (n &lt; 12+1024) return single[n-12];<br>
+              if (n &lt; 12+1024+1024²) return double[n-...];<br>
+              else return triple[n-...];
+            </div>
+          </div>
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.06)">
+            <div style="color:var(--amber);font-weight:800;margin-bottom:6px">// the cost</div>
+            <div style="color:var(--ink-2);line-height:1.6">
+              direct access: 1 disk read<br>
+              single indirect: 2 disk reads<br>
+              double indirect: 3 disk reads<br>
+              triple indirect: 4 disk reads
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>The inode layout is exactly a <strong>multi-tiered array indexing system</strong>. Static top-level row keys (12 direct pointers) reference raw data blocks, while overflow indices point to sub-arrays of secondary pointers (indirect blocks).</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why it's elegant</span>
+          <p>The lookup is a simple <strong>range check + array access</strong>. No hashing, no tree walk — just arithmetic to pick the right level and index. O(1) in the best case, O(levels) in the worst, with <strong>levels capped at 4</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>Each level of indirection is an extra <strong>disk read</strong>. Accessing a byte in the last 4 GB of a 4 GB file requires: inode (already read) → triple-indirect block → double-indirect block → single-indirect block → data block. <strong>4 reads instead of 1.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The tradeoff:</b> small files are fast (direct pointers). Large files are slower per-access but possible at all. This is why database designers and video editors historically preferred filesystems with <strong>extents</strong> (ext4, XFS) instead of indirect pointers.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L18 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">metadata layer</span> of the filesystem</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 3 (Memory Management)</h4>
+            <p>Connects to virtual memory systems to implement <strong>Memory Mapping (mmap)</strong>, which maps a file's disk block inode indexes directly into a thread's virtual page frames. Without the inode's block list, mmap couldn't resolve pages to disk.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L19 (Crash Consistency)</h4>
+            <p>Any modification to file text or directory sizing metrics requires executing <strong>atomic metadata pointer updates</strong> across the inode map. Journaling exists to make these updates crash-safe.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Module 5 arc</span>
+          <p style="line-height:1.95;margin-top:4px;font-size:13px">
+            <strong style="color:#88ffd8">L16</strong> — physical disk blocks<br>
+            <strong style="color:#b9d0ff">L17</strong> — paths → inode numbers<br>
+            <strong style="color:#ffd18a">L18 · INODES</strong> — metadata + block pointers (this lecture)<br>
+            <strong style="color:#c9a7ff">L19</strong> — crash-safe updates to inodes
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The pipeline:</b> path → inode → block list → physical blocks. L17 covered "path → inode". L18 covers "inode → block list". L16 covered "block list → physical blocks". L19 covers "how to update inodes safely".</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L17 · Paths</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">name → inode</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">mmap · pages</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L18 · INODE</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">metadata + block pointers</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L16 · Disk</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">physical blocks</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">L19 · Journaling</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">crash safety</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" stroke-dasharray="3 4"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · What is an Inode">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — What Is an Inode?</span>
+    <h2 style="margin-bottom:16px;">A fixed-size structure <span class="grad-emerald">per file</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Formal definition</span>
+          <p>An <strong>Inode (Index Node)</strong> is a fixed-size kernel data structure dedicated to a single file instance. It stores metadata metrics: File Type, Size, Owner, Access Permissions, Timestamps, and a critical index tracking array called <strong>Block Pointers</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Where it lives</span>
+          <p>Inodes are stored in a dedicated region of the filesystem called the <strong>inode table</strong>. The table is pre-allocated at filesystem creation, with a fixed number of inodes. This is why you can run out of inodes before running out of disk space (on ext4, that's the "df -i" column).</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What an inode does NOT contain</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            ✗ The file's <strong>name</strong> (that lives in the directory)<br>
+            ✗ The file's <strong>contents</strong> (that lives in data blocks)<br>
+            ✗ The file's <strong>full path</strong> (paths are not stored in the file)
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> this is why <code style="font-family:var(--mono);color:#c9a7ff">rename</code> is nearly instant — the inode never changes. Only the directory entry (name → inode mapping) is updated.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">An inode · the fields</div>
+        <div class="inode-card">
+          <div class="inode-header">
+            <span>INODE · example</span>
+            <span>#9042</span>
+          </div>
+          <div class="inode-fields">
+            <div class="inode-field"><div class="if-lbl">Type</div><div class="if-val">regular file</div></div>
+            <div class="inode-field"><div class="if-lbl">Mode</div><div class="if-val">0644 (rw-r--r--)</div></div>
+            <div class="inode-field"><div class="if-lbl">Owner</div><div class="if-val">uid 1000 (user)</div></div>
+            <div class="inode-field"><div class="if-lbl">Group</div><div class="if-val">gid 1000</div></div>
+            <div class="inode-field"><div class="if-lbl">Size</div><div class="if-val">45,832 bytes</div></div>
+            <div class="inode-field"><div class="if-lbl">Block count</div><div class="if-val">96 (4 KB units)</div></div>
+            <div class="inode-field"><div class="if-lbl">Links (nlink)</div><div class="if-val">1</div></div>
+            <div class="inode-field"><div class="if-lbl">Inode #</div><div class="if-val">9042</div></div>
+            <div class="inode-field"><div class="if-lbl">Atime</div><div class="if-val">Oct 20 14:32</div></div>
+            <div class="inode-field"><div class="if-lbl">Mtime</div><div class="if-val">Oct 20 14:22</div></div>
+            <div class="inode-field"><div class="if-lbl">Ctime</div><div class="if-val">Oct 20 14:22</div></div>
+            <div class="inode-field"><div class="if-lbl">Blocks</div><div class="if-val">8829 … 8843</div></div>
+          </div>
+          <div class="inode-field highlight" style="margin-top:8px">
+            <div class="if-lbl">Block pointer array · 15 slots</div>
+            <div class="if-val">12 direct + 1 single + 1 double + 1 triple</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Direct Pointers">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — Direct Pointers</span>
+    <h2 style="margin-bottom:16px;">The first 12 blocks: <span class="grad-emerald">one pointer, one block</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The mechanism</span>
+          <p>Each direct pointer is a single disk block number. Twelve of them live directly in the inode. Each points at one data block. Resolving a direct block requires <strong>zero extra disk reads</strong> — the address is already in the inode you just read.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The capacity</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            12 pointers × 4 KB per block<br>
+            = <strong style="color:#88ffd8">48 KB of file data</strong><br>
+            <span style="color:var(--muted)">covers most small config files, scripts, symlinks</span>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The design choice</span>
+          <p>Why exactly 12? Because the inode has 15 pointer slots and the designers needed to reserve 3 for the indirect levels. 12 direct is enough for 99% of real files (config files, small scripts, HTML, PDFs) to be accessed with maximum speed.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">12 direct pointers · inode slot 1–12</div>
+        <div class="pointer-tree">
+          <div class="pt-level">
+            <span class="pt-badge direct">DIRECT × 12</span>
+            <span class="pt-desc">
+              inode[0..11] → data blocks 8829..8840<br>
+              <span class="count">1 disk read</span> to reach data<br>
+              <span class="pt-cap">capacity: 12 × 4 KB = 48 KB</span>
+            </span>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:14px;border-radius:10px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);font-family:var(--mono);font-size:11px;line-height:1.7;color:#88ffd8">
+          <strong>inode[0]</strong> → block 8829<br>
+          <strong>inode[1]</strong> → block 8830<br>
+          <strong>inode[2]</strong> → block 8831<br>
+          <strong style="color:var(--muted)">…</strong><br>
+          <strong>inode[11]</strong> → block 8840
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Single Indirect">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown — Single Indirect Pointer</span>
+    <h2 style="margin-bottom:16px;">One hop to <span class="grad-blue">1024 more blocks</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The single indirect chain</div>
+        <div class="ptr-diagram">
+          <svg class="ptr-svg" viewBox="0 0 420 240">
+            <rect x="14" y="14" width="120" height="60" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.7)" stroke-width="1.5"/>
+            <text x="74" y="36" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">INODE</text>
+            <text x="74" y="54" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">slot #12</text>
+            <text x="74" y="68" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">indirect</text>
+
+            <line x1="134" y1="44" x2="176" y2="44" stroke="rgba(91,141,255,.85)" stroke-width="1.8" class="svg-flow"/>
+
+            <rect x="176" y="14" width="120" height="60" rx="8" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.5"/>
+            <text x="236" y="36" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">POINTER BLOCK</text>
+            <text x="236" y="54" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">1024 pointers</text>
+            <text x="236" y="68" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">block 8841</text>
+
+            <line x1="296" y1="44" x2="330" y2="44" stroke="rgba(46,230,168,.75)" stroke-width="1.6"/>
+
+            <g fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.55)" stroke-width="1">
+              <rect x="330" y="20" width="22" height="20" rx="3"/>
+              <rect x="354" y="20" width="22" height="20" rx="3"/>
+              <rect x="378" y="20" width="22" height="20" rx="3"/>
+              <rect x="330" y="44" width="22" height="20" rx="3"/>
+              <rect x="354" y="44" width="22" height="20" rx="3"/>
+              <rect x="378" y="44" width="22" height="20" rx="3"/>
+            </g>
+            <text x="365" y="85" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">1024 data blocks</text>
+
+            <text x="210" y="150" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">ACCESS COST</text>
+            <text x="210" y="172" text-anchor="middle" font-size="9.5" fill="rgba(255,209,138,.85)" font-family="JetBrains Mono">2 disk reads</text>
+            <text x="210" y="188" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">(inode → pointer block → data)</text>
+
+            <text x="210" y="215" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">CAPACITY</text>
+            <text x="210" y="232" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="JetBrains Mono">1024 × 4 KB = 4 MB</text>
+          </svg>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The mechanism</span>
+          <p>Inode slot #12 points at a <strong>pointer block</strong> — a full block filled with 1024 pointer values. Each of those 1024 pointers points at a data block. So this one slot covers <strong>1024 additional data blocks</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The capacity</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            1024 pointers × 4 KB per block<br>
+            = <strong style="color:#ffd18a">4 MB of file data</strong><br>
+            <span style="color:var(--muted)">+ 48 KB from direct = ~4.05 MB so far</span>
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The tradeoff</span>
+          <p>Accessing any block in this range costs <strong>2 disk reads</strong>: the inode is already read, but the pointer block must be read to find the address of the data block. Doubling the reads for the medium file range is the price of extending reach.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why 1024?</b> A 4 KB block ÷ 4-byte pointer = 1024 pointers per block. If pointers were 8 bytes (larger disk addresses), it'd be 512. That's why filesystem block size and pointer width matter for the capacity math.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Double Indirect">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — Double Indirect Pointer</span>
+    <h2 style="margin-bottom:16px;">Two hops to <span class="grad-amber">over a million blocks</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The mechanism</span>
+          <p>Inode slot #13 points at a <strong>pointer block</strong> whose entries point at <strong>more pointer blocks</strong>, which finally point at data blocks. It's a two-level tree: 1024 branches per level.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The capacity</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            1024 × 1024 pointers × 4 KB<br>
+            = <strong style="color:#b9d0ff">4 GB of file data</strong><br>
+            <span style="color:var(--muted)">+ 4.05 MB from direct + single</span>
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Accessing a block in this range costs <strong>3 disk reads</strong>: inode → top pointer block → mid pointer block → data block. Doubling has a price.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> on a 4 GB file (the maximum for double indirect coverage), the last few MB are what make it 4 GB, but the last byte still requires 3 reads. This is why video editors historically used <strong>extent-based</strong> filesystems (a single extent can cover a whole contiguous file).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The double indirect chain</div>
+        <div class="ptr-diagram">
+          <svg class="ptr-svg" viewBox="0 0 420 320">
+            <rect x="14" y="14" width="120" height="56" rx="8" fill="rgba(91,141,255,.14)" stroke="rgba(91,141,255,.7)" stroke-width="1.5"/>
+            <text x="74" y="36" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">INODE</text>
+            <text x="74" y="54" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">slot #13</text>
+
+            <line x1="134" y1="42" x2="176" y2="42" stroke="rgba(255,182,72,.85)" stroke-width="1.6" class="svg-flow"/>
+
+            <rect x="176" y="14" width="120" height="56" rx="8" fill="rgba(255,182,72,.14)" stroke="rgba(255,182,72,.75)" stroke-width="1.5"/>
+            <text x="236" y="36" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">TOP BLOCK</text>
+            <text x="236" y="54" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">1024 pointers</text>
+
+            <g stroke="rgba(255,182,72,.6)" stroke-width="1.2">
+              <line x1="296" y1="42" x2="330" y2="30"/>
+              <line x1="296" y1="42" x2="330" y2="70"/>
+              <line x1="296" y1="42" x2="330" y2="110"/>
+            </g>
+
+            <rect x="330" y="20" width="70" height="22" rx="4" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="365" y="35" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">mid block</text>
+            <rect x="330" y="60" width="70" height="22" rx="4" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="365" y="75" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">mid block</text>
+            <rect x="330" y="100" width="70" height="22" rx="4" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1"/>
+            <text x="365" y="115" text-anchor="middle" font-size="8" fill="#ffd18a" font-family="JetBrains Mono">…1022 more</text>
+
+            <g stroke="rgba(46,230,168,.6)" stroke-width="1.2">
+              <line x1="400" y1="31" x2="410" y2="31"/>
+              <line x1="400" y1="71" x2="410" y2="71"/>
+              <line x1="400" y1="111" x2="410" y2="111"/>
+            </g>
+            <text x="405" y="140" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">data blocks</text>
+
+            <text x="210" y="185" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">THE MATH</text>
+            <text x="210" y="210" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.85)" font-family="JetBrains Mono">1024 top × 1024 mid</text>
+            <text x="210" y="226" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.85)" font-family="JetBrains Mono">= 1,048,576 data blocks</text>
+
+            <text x="210" y="255" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">ACCESS COST</text>
+            <text x="210" y="277" text-anchor="middle" font-size="9.5" fill="rgba(255,209,138,.85)" font-family="JetBrains Mono">3 disk reads</text>
+
+            <text x="210" y="302" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">CAPACITY: 4 GB</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Triple Indirect">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Core Breakdown — Triple Indirect Pointer</span>
+    <h2 style="margin-bottom:16px;">Three hops to <span class="grad-violet">4 TB</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The triple indirect chain</div>
+        <div style="padding:12px 0;font-family:var(--mono);font-size:11.5px">
+          <div style="padding:14px;border-radius:10px;background:rgba(160,107,255,.06);border:1px solid rgba(160,107,255,.55);margin-bottom:10px">
+            <div style="color:var(--violet);font-weight:800;margin-bottom:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">THE STRUCTURE</div>
+            <div style="color:var(--ink-2);line-height:1.9">
+              inode[14] → <span style="color:#c9a7ff;font-weight:800">top block</span> (1024 ptrs)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;↓ each of 1024<br>
+              <span style="color:#ffd18a;font-weight:800">mid block</span> (1024 ptrs)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;↓ each of 1024²<br>
+              <span style="color:#b9d0ff;font-weight:800">low block</span> (1024 ptrs)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;↓ each of 1024³<br>
+              <span style="color:#88ffd8;font-weight:800">data block</span> (4 KB each)
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:10px;background:rgba(255,182,72,.06);border:1px solid rgba(255,182,72,.55);margin-bottom:10px">
+            <div style="color:var(--amber);font-weight:800;margin-bottom:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">THE MATH</div>
+            <div style="color:var(--ink-2);line-height:1.9">
+              1024³ = <strong style="color:#fff">1,073,741,824</strong> pointers<br>
+              × 4 KB per block<br>
+              = <strong style="color:#88ffd8">4 TB of file data</strong>
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:10px;background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.55)">
+            <div style="color:var(--crimson);font-weight:800;margin-bottom:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">THE COST</div>
+            <div style="color:var(--ink-2);line-height:1.9">
+              4 disk reads per data access<br>
+              <strong style="color:#ff9fb1">only reached by huge files (4 GB–4 TB)</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The mechanism</span>
+          <p>Inode slot #14 points at three levels of pointer blocks. Each level has 1024 entries. The leaves of this tree are <strong>1 billion data blocks</strong>, covering 4 TB of file data.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The size class</span>
+          <p>Only files larger than 4 GB reach this level. A movie, a virtual machine disk, a database file. The access cost is 4 reads, but for such files — where a single read is 4 KB and the file is many GB — the extra reads are amortized.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The historical note</span>
+          <p>In the original Unix filesystem (1970s), disk capacity was measured in <strong>megabytes</strong>. A 4 TB triple-indirect ceiling was unimaginably huge. Modern filesystems (ext4, XFS, Btrfs) use <strong>extents</strong> instead — a single descriptor covers a whole contiguous run, so the pointer hierarchy is much shallower.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Core · The Full Tree" data-anim="ptree">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Core Breakdown — The Full Pointer Tree</span>
+    <h2 style="margin-bottom:16px;">One inode · four reach tiers</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Tier 1 · direct</span>
+          <p>Slots 0–11 · 12 data blocks · <strong>48 KB</strong> · 1 disk read</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Tier 2 · single indirect</span>
+          <p>Slot 12 · 1 pointer block → 1024 data blocks · <strong>4 MB</strong> · 2 disk reads</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Tier 3 · double indirect</span>
+          <p>Slot 13 · 1 top → 1024 mid → 1024² data blocks · <strong>4 GB</strong> · 3 disk reads</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">Tier 4 · triple indirect</span>
+          <p>Slot 14 · 1 → 1024 → 1024² → 1024³ data blocks · <strong>4 TB</strong> · 4 disk reads</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The pattern:</b> each tier multiplies the capacity by 1024× but adds one disk read to the access cost. Filesystem designers tuned the number of direct pointers (12) to balance "small files fast" against "large files reachable".</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The tier hierarchy</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="120" y="14" width="100" height="40" rx="8" fill="rgba(91,141,255,.16)" stroke="rgba(91,141,255,.75)" stroke-width="1.5"/>
+          <text x="170" y="32" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">INODE</text>
+          <text x="170" y="48" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">15 slots</text>
+
+          <line x1="140" y1="54" x2="50" y2="100" stroke="rgba(46,230,168,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="160" y1="54" x2="110" y2="130" stroke="rgba(91,141,255,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="180" y1="54" x2="200" y2="130" stroke="rgba(255,182,72,.75)" stroke-width="1.5" class="svg-flow"/>
+          <line x1="200" y1="54" x2="290" y2="100" stroke="rgba(160,107,255,.75)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="20" y="100" width="80" height="56" rx="8" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="60" y="120" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="Inter" font-weight="800">DIRECT</text>
+          <text x="60" y="136" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">12 × 4 KB</text>
+          <text x="60" y="150" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">48 KB</text>
+
+          <rect x="70" y="130" width="80" height="56" rx="8" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="110" y="150" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="Inter" font-weight="800">SINGLE</text>
+          <text x="110" y="166" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">1024 × 4 KB</text>
+          <text x="110" y="180" text-anchor="middle" font-size="8" fill="rgba(185,208,255,.55)" font-family="JetBrains Mono">4 MB</text>
+
+          <rect x="160" y="130" width="80" height="56" rx="8" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="200" y="150" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="Inter" font-weight="800">DOUBLE</text>
+          <text x="200" y="166" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">1024² × 4 KB</text>
+          <text x="200" y="180" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.55)" font-family="JetBrains Mono">4 GB</text>
+
+          <rect x="240" y="100" width="80" height="56" rx="8" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="280" y="120" text-anchor="middle" font-size="9" fill="#c9a7ff" font-family="Inter" font-weight="800">TRIPLE</text>
+          <text x="280" y="136" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.75)" font-family="JetBrains Mono">1024³ × 4 KB</text>
+          <text x="280" y="150" text-anchor="middle" font-size="8" fill="rgba(201,167,255,.55)" font-family="JetBrains Mono">4 TB</text>
+
+          <line x1="60" y1="156" x2="60" y2="200" stroke="rgba(46,230,168,.55)" stroke-width="1.2"/>
+          <line x1="110" y1="186" x2="110" y2="200" stroke="rgba(91,141,255,.55)" stroke-width="1.2"/>
+          <line x1="200" y1="186" x2="200" y2="200" stroke="rgba(255,182,72,.55)" stroke-width="1.2"/>
+          <line x1="280" y1="156" x2="280" y2="200" stroke="rgba(160,107,255,.55)" stroke-width="1.2"/>
+
+          <text x="170" y="220" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="800">DATA BLOCKS</text>
+
+          <rect x="20" y="240" width="300" height="60" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="260" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">TOTAL CAPACITY</text>
+          <text x="170" y="282" text-anchor="middle" font-size="11" fill="#eaf0fc" font-family="JetBrains Mono" font-weight="800">48 KB + 4 MB + 4 GB + 4 TB ≈ 4.004 TB</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Core · The Formula">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">📖 Core Breakdown — The Capacity Formula</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-blue">generalized</span> capacity equation</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The variables</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            <strong>B</strong> = block size (e.g., 4096 bytes)<br>
+            <strong>P</strong> = pointer size (e.g., 4 bytes)<br>
+            <strong>N</strong> = pointers per block = B / P<br>
+            <strong>D</strong> = number of direct pointers<br>
+            <strong>S</strong> = 1 (single indirect slot)<br>
+            <strong>X</strong> = 1 (double indirect slot)<br>
+            <strong>T</strong> = 1 (triple indirect slot)
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The formula</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            max_file_size =<br>
+            &nbsp;&nbsp;(D + N + N² + N³) × B
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Plugging in the numbers</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            N = 4096 / 4 = 1024<br>
+            = (12 + 1024 + 1024² + 1024³) × 4096<br>
+            = (12 + 1024 + 1,048,576 + 1,073,741,824) × 4096<br>
+            = <strong style="color:#88ffd8">≈ 4.004 TB</strong>
+          </p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The dominant term</div>
+        <div style="padding:14px 0">
+          <div style="font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--ink-2)">
+            <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);margin-bottom:8px">
+              <strong style="color:#88ffd8">direct:</strong> 12 × 4 KB = 48 KB<br>
+              <span style="font-size:10px;color:var(--muted)">0.0000011% of total</span>
+            </div>
+            <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.06);margin-bottom:8px">
+              <strong style="color:#b9d0ff">single:</strong> 1024 × 4 KB = 4 MB<br>
+              <span style="font-size:10px;color:var(--muted)">0.0001% of total</span>
+            </div>
+            <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.06);margin-bottom:8px">
+              <strong style="color:#ffd18a">double:</strong> 1024² × 4 KB = 4 GB<br>
+              <span style="font-size:10px;color:var(--muted)">0.1% of total</span>
+            </div>
+            <div style="padding:14px 16px;border-radius:8px;border:1.5px solid rgba(160,107,255,.75);background:rgba(160,107,255,.10)">
+              <strong style="color:#c9a7ff">triple:</strong> 1024³ × 4 KB = <strong style="color:#fff">4 TB</strong><br>
+              <span style="font-size:10px;color:var(--muted)">99.9% of total</span>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:12px;border-radius:8px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.4);font-size:11.5px;color:var(--ink-2);line-height:1.6">
+            <strong style="color:#b9d0ff">Insight:</strong> the total capacity is <em>dominated by the largest tier</em>. That's why removing the triple indirect pointer (as some lightweight filesystems do) cuts capacity to ~4 GB — the double indirect tier's ceiling.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Worked Example">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧮 Worked Example — The Canonical Calculation</span>
+    <h2 style="margin-bottom:16px;">12 direct + 1 single + 1 double · 4 KB blocks · 4 B pointers</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">The four-step calculation</div>
+        <div class="worked-steps">
+          <div class="ws-item direct">
+            <div class="ws-head">Step 1 · Direct block capacity</div>
+            <div class="ws-body">12 blocks × 4 KB = <strong>48 KB</strong></div>
+          </div>
+          <div class="ws-item single">
+            <div class="ws-head">Step 2 · Single indirect capacity</div>
+            <div class="ws-body">
+              1 block of pointers can hold 4096 ÷ 4 = 1024 pointer addresses<br>
+              1024 pointers × 4 KB blocks = <strong>4 MB</strong>
+            </div>
+          </div>
+          <div class="ws-item double">
+            <div class="ws-head">Step 3 · Double indirect capacity</div>
+            <div class="ws-body">
+              1024 × 1024 = 1,048,576 pointer addresses<br>
+              1,048,576 × 4 KB = <strong>4 GB</strong>
+            </div>
+          </div>
+          <div class="ws-item total">
+            <div class="ws-head">Step 4 · Sum all branches</div>
+            <div class="ws-body">
+              48 KB + 4 MB + 4 GB<br>
+              = <strong style="font-size:14px;color:#88ffd8">≈ 4.004 GB maximum file size</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The canonical numbers</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12.5px;color:var(--ink-2)">
+            direct:  <strong style="color:#88ffd8">48 KB</strong><br>
+            single:  <strong style="color:#b9d0ff">4 MB</strong><br>
+            double:  <strong style="color:#ffd18a">4 GB</strong><br>
+            <span style="border-top:1px solid rgba(255,255,255,.10);padding-top:8px;margin-top:8px;display:block">total:   <strong style="color:#eaf0fc;font-size:15px">4.004 GB</strong></span>
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The exam trick</span>
+          <p>Note that the answer is <strong>4.004 GB</strong>, not exactly 4 GB. The direct and single tiers add a tiny bit on top of the 4 GB double tier — about 4 MB extra. In practice, you can round to "4 GB" for a quick answer, but the precise calculation is 4.004 GB (or 4 GB + 4 MB + 48 KB).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Unit conversion</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            4096 B = 4 KB<br>
+            1024 × 4 KB = 4096 KB = <strong>4 MB</strong><br>
+            1024² × 4 KB = 4,194,304 KB = <strong>4 GB</strong><br>
+            1024³ × 4 KB = 4,294,967,296 KB = <strong>4 TB</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Live Demo · Calculator" data-anim="capcalc">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — Interactive Capacity Calculator</span>
+    <h2 style="margin-bottom:16px;">Change block size. <span class="grad-emerald">Watch the max file size.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="calc-rig" style="padding:16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.20)">
+          <div class="calc-input-row">
+            <div class="calc-input-head"><span>BLOCK SIZE</span><span class="val" id="bsVal">4 KB</span></div>
+            <input type="range" class="calc-slider" id="bsSlider" min="0" max="3" value="1" step="1">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">
+              <span>1 KB</span><span>4 KB</span><span>8 KB</span><span>16 KB</span>
+            </div>
+          </div>
+          <div class="calc-input-row">
+            <div class="calc-input-head"><span>POINTER SIZE</span><span class="val" id="psVal">4 B</span></div>
+            <input type="range" class="calc-slider" id="psSlider" min="0" max="1" value="0" step="1">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">
+              <span>4 B</span><span>8 B</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px;border-radius:12px;border:1.5px solid rgba(46,230,168,.65);background:rgba(46,230,168,.10);text-align:center;margin-top:8px">
+          <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:8px">MAX FILE SIZE</div>
+          <div id="maxSize" style="font-family:var(--mono);font-size:clamp(24px,2.8vw,34px);font-weight:900;color:#88ffd8;letter-spacing:-.02em">4.004 GB</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Breakdown</div>
+        <div class="cap-bars" id="capBars">
+          <div class="cap-row direct">
+            <div class="cap-head"><span class="cap-name">DIRECT (×12)</span><span class="cap-val" id="capDirectVal">48 KB</span></div>
+            <div class="cap-bar"><div class="cap-fill" id="capDirect" style="width:0.001%">48 KB</div></div>
+          </div>
+          <div class="cap-row single">
+            <div class="cap-head"><span class="cap-name">SINGLE INDIRECT</span><span class="cap-val" id="capSingleVal">4 MB</span></div>
+            <div class="cap-bar"><div class="cap-fill" id="capSingle" style="width:0.1%">4 MB</div></div>
+          </div>
+          <div class="cap-row double">
+            <div class="cap-head"><span class="cap-name">DOUBLE INDIRECT</span><span class="cap-val" id="capDoubleVal">4 GB</span></div>
+            <div class="cap-bar"><div class="cap-fill" id="capDouble" style="width:100%">4 GB</div></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:14px;border-radius:10px;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink-2)" id="formulaBreakdown">
+          (12 + 1024 + 1024²) × 4096 B
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Live Demo · Inode Walk" data-anim="inodewalk">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — Resolving a Block Within a File</span>
+    <h2 style="margin-bottom:16px;">Which tier is block N in? <span class="grad-amber">Watch the routing.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Which pointer to follow for byte offset X?</div>
+        <div class="pointer-tree" id="inodeWalk">
+          <div class="pt-level">
+            <span class="pt-badge direct">DIRECT</span>
+            <span class="pt-desc">
+              block &lt; 12 · <span class="pt-cap">1 read</span><br>
+              offset: 0 – 48 KB
+            </span>
+          </div>
+          <div class="pt-level">
+            <span class="pt-badge single">SINGLE</span>
+            <span class="pt-desc">
+              block 12 – 1035 · <span class="pt-cap">2 reads</span><br>
+              offset: 48 KB – 4 MB
+            </span>
+          </div>
+          <div class="pt-level">
+            <span class="pt-badge double">DOUBLE</span>
+            <span class="pt-desc">
+              block 1036 – 1,049,611 · <span class="pt-cap">3 reads</span><br>
+              offset: 4 MB – 4 GB
+            </span>
+          </div>
+          <div class="pt-level">
+            <span class="pt-badge triple">TRIPLE</span>
+            <span class="pt-desc">
+              block ≥ 1,049,612 · <span class="pt-cap">4 reads</span><br>
+              offset: 4 GB – 4 TB
+            </span>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:12px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:11.5px;color:#ffd18a;text-align:center" id="walkTarget">
+          Target: byte offset 0 → DIRECT tier
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The routing logic</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            offset / 4096 = block index<br>
+            if block &lt; 12 → DIRECT<br>
+            elif block &lt; 12+1024 → SINGLE<br>
+            elif block &lt; 12+1024+1024² → DOUBLE<br>
+            else → TRIPLE
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What you're watching</span>
+          <p>The demo cycles through different byte offsets, showing which tier the kernel will use to look up the block — and how many disk reads it will cost.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The amortization</span>
+          <p>For sequential reading, the pointer block is read <strong>once</strong> and cached in memory. Then 1024 data blocks can be read in a single burst from that pointer block's cached content. Sequential access has much lower overhead than random access.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Code · inode struct" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge blue">💻 Code — The Inode Struct in C</span>
+    <h2 style="margin-bottom:16px;">A <span class="grad-blue">simplified</span> ext2-style inode</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head blue"><span>inode.h · conceptual</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Simplified ext2-style inode — real inode is 128 bytes</span></span><span class="code-line"><span class="c-kw">struct</span> <span class="c-type">inode</span> {</span><span class="code-line">    <span class="c-type">uint16_t</span> <span class="c-var">mode</span>;         <span class="c-com">// permissions + type</span></span><span class="code-line">    <span class="c-type">uint16_t</span> <span class="c-var">uid</span>;          <span class="c-com">// owner user id</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">size</span>;         <span class="c-com">// file size in bytes</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">atime</span>;        <span class="c-com">// access time</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">mtime</span>;        <span class="c-com">// modify time</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">ctime</span>;        <span class="c-com">// change time</span></span><span class="code-line">    <span class="c-type">uint16_t</span> <span class="c-var">gid</span>;          <span class="c-com">// owner group id</span></span><span class="code-line">    <span class="c-type">uint16_t</span> <span class="c-var">nlink</span>;        <span class="c-com">// hard link count</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">blocks</span>;       <span class="c-com">// # of 512B blocks</span></span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">i_block</span>[<span class="c-num">15</span>];   <span class="c-com">// ← pointer array!</span></span><span class="code-line">};</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The critical field</span>
+          <p><code style="font-family:var(--mono);color:#b9d0ff">i_block[15]</code> — an array of 15 integers. Slots 0–11 are direct pointers. Slot 12 is the single indirect pointer. Slot 13 is the double indirect. Slot 14 is the triple indirect.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The size math</span>
+          <p style="line-height:1.85;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            2 + 2 + 4 + 4 + 4 + 4 + 2 + 2 + 4 + (15 × 4)<br>
+            = 28 bytes of metadata<br>
+            + 60 bytes of pointers<br>
+            = 88 bytes used, padded to 128
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The padding</span>
+          <p>Real ext2 inodes have extra fields: <code style="font-family:var(--mono);color:#ffd18a">i_blocks</code>, <code style="font-family:var(--mono);color:#ffd18a">i_flags</code>, generation, file ACL, etc. The whole thing pads to 128 bytes — the filesystem's fixed inode size. All inodes on one ext2/3/4 filesystem are the same size.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Code · Resolve" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">💻 Code — Resolving a Block Address</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-emerald">tier-routing</span> logic</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head emerald"><span>block_lookup.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Given an inode and a block index, return the disk block</span></span><span class="code-line"><span class="c-type">uint32_t</span> <span class="c-name">inode_get_block</span>(<span class="c-type">struct</span> <span class="c-type">inode</span>* <span class="c-var">ino</span>, <span class="c-type">uint32_t</span> <span class="c-var">logical</span>) {</span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">block_size</span> = <span class="c-num">4096</span>;</span><span class="code-line">    <span class="c-type">uint32_t</span> <span class="c-var">ptrs_per_block</span> = <span class="c-var">block_size</span> / <span class="c-kw">sizeof</span>(<span class="c-type">uint32_t</span>); <span class="c-com">// 1024</span></span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Tier 1 — direct</span></span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">logical</span> &lt; <span class="c-num">12</span>) <span class="c-kw">return</span> <span class="c-var">ino</span>-&gt;<span class="c-var">i_block</span>[<span class="c-var">logical</span>];</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Tier 2 — single indirect</span></span><span class="code-line">    <span class="c-var">logical</span> -= <span class="c-num">12</span>;</span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">logical</span> &lt; <span class="c-var">ptrs_per_block</span>) {</span><span class="code-line">        <span class="c-type">uint32_t</span>* <span class="c-var">p</span> = <span class="c-name">read_block</span>(<span class="c-var">ino</span>-&gt;<span class="c-var">i_block</span>[<span class="c-num">12</span>]);</span><span class="code-line">        <span class="c-kw">return</span> <span class="c-var">p</span>[<span class="c-var">logical</span>];</span><span class="code-line">    }</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Tier 3 — double indirect</span></span><span class="code-line">    <span class="c-var">logical</span> -= <span class="c-var">ptrs_per_block</span>;</span><span class="code-line">    <span class="c-kw">if</span> (<span class="c-var">logical</span> &lt; <span class="c-var">ptrs_per_block</span> * <span class="c-var">ptrs_per_block</span>) {</span><span class="code-line">        <span class="c-type">uint32_t</span>* <span class="c-var">top</span> = <span class="c-name">read_block</span>(<span class="c-var">ino</span>-&gt;<span class="c-var">i_block</span>[<span class="c-num">13</span>]);</span><span class="code-line">        <span class="c-type">uint32_t</span>* <span class="c-var">mid</span> = <span class="c-name">read_block</span>(<span class="c-var">top</span>[<span class="c-var">logical</span> / <span class="c-var">ptrs_per_block</span>]);</span><span class="code-line">        <span class="c-kw">return</span> <span class="c-var">mid</span>[<span class="c-var">logical</span> % <span class="c-var">ptrs_per_block</span>];</span><span class="code-line">    }</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Tier 4 — triple indirect</span></span><span class="code-line">    <span class="c-var">logical</span> -= <span class="c-var">ptrs_per_block</span> * <span class="c-var">ptrs_per_block</span>;</span><span class="code-line">    <span class="c-type">uint32_t</span>* <span class="c-var">t1</span> = <span class="c-name">read_block</span>(<span class="c-var">ino</span> -&gt; <span class="c-var">i_block</span>[<span class="c-num">14</span>]);</span><span class="code-line">    <span class="c-type">uint32_t</span>* <span class="c-var">t2</span> = <span class="c-name">read_block</span>(<span class="c-var">t1</span>[<span class="c-var">logical</span> / (<span class="c-var">ptrs_per_block</span>*<span class="c-var">ptrs_per_block</span>)]);</span><span class="code-line">    <span class="c-type">uint32_t</span>* <span class="c-var">t3</span> = <span class="c-name">read_block</span>(<span class="c-var">t2</span>[(<span class="c-var">logical</span> / <span class="c-var">ptrs_per_block</span>) % <span class="c-var">ptrs_per_block</span>]);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">t3</span>[<span class="c-var">logical</span> % <span class="c-var">ptrs_per_block</span>];</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The simple part</span>
+          <p>The <strong>direct tier</strong> (first branch) is trivial — direct array access. Most file accesses hit this: small files, header reads, config files.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The work</span>
+          <p>Each <code style="font-family:var(--mono);color:#b9d0ff">read_block()</code> call is a real disk read (or a cache hit if the block is in the page cache). For a double-indirect access, that's <strong>2 reads</strong> just to find the data block address.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The optimization</span>
+          <p>Real kernels don't call <code style="font-family:var(--mono);color:#ffd18a">read_block()</code> fresh each time — the block device cache (page cache) stores recently-read pointer blocks. Walking a file sequentially touches each pointer block once, then reuses the cached contents for 1024 data block lookups.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Live Demo · stat" data-anim="statdemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🧪 Live Demo — Reading a Real Inode with stat</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">full inode</span> via stat</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · stat output</div>
+        <div class="terminal" id="statTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — stat</span>
+          </div>
+          <div class="term-body" id="statBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">stat resume.pdf</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're seeing</span>
+          <p><code style="font-family:var(--mono);color:#ffd18a">stat</code> reads the inode and prints all its fields. Every line is a real field from the fixed-size inode structure on disk — read via the <code style="font-family:var(--mono);color:#ffd18a">stat(2)</code> syscall.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The interesting fields</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:12.5px">
+            <strong>Size</strong> — total bytes in the file<br>
+            <strong>Blocks</strong> — physical 512B blocks allocated<br>
+            <strong>Inode</strong> — the inode number<br>
+            <strong>Links</strong> — hard link count<br>
+            <strong>Access / Modify / Change</strong> — the three timestamps
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The size vs blocks gap</span>
+          <p>Notice <code style="font-family:var(--mono);color:#88ffd8">Size: 45832</code> but <code style="font-family:var(--mono);color:#88ffd8">Blocks: 96</code>. 96 blocks × 512 B = 49,152 bytes allocated — slightly more than 45,832 because the file's last block is partially used. That's <strong>internal fragmentation</strong> at the block level.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Try it yourself:</b> run <code style="font-family:var(--mono);color:#c9a7ff">stat</code> on any file. The output is a direct readout of the inode's fields. It's the fastest way to see what an inode actually contains.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Real World · ext4">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🌍 Real World — Modern Filesystems: Extents</span>
+    <h2 style="margin-bottom:16px;">The indirect pointer tree <span class="grad-violet">was replaced</span> by extents</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The ext2/ext3 approach</span>
+          <p>Every block of a file has its own pointer in the inode's block array (via direct or indirect). This works but requires <strong>one pointer per block</strong> — a 4 GB file consumes ~4 MB of pointer data, scattered across pointer blocks.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The ext4 approach: extents</span>
+          <p>An <strong>extent</strong> is a triple: (start_block, length, physical_block). A single extent can describe a <strong>contiguous run of up to 128 MB</strong> in one record. A 4 GB contiguous file needs ~32 extents, not millions of pointers.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The tradeoff</span>
+          <p>Extents are incredibly efficient for sequential files. For highly fragmented files, they degrade back to something like the old scheme. In practice, extents are a huge win — so much so that ext4, XFS, Btrfs, and ZFS all use them.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Historical context:</b> the indirect pointer tree is what Linux used for ~20 years (ext2, ext3). Ext4 (2008) replaced it with extents. Modern filesystems (Btrfs, ZFS) go further — Btrfs stores blocks in a <strong>copy-on-write B-tree</strong>, allowing O(log n) access to any block without a fixed inode size.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Pointer array vs. extents</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="130" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.5)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">EXT2/3 · POINTER ARRAY</text>
+          <g transform="translate(30, 52)">
+            <rect x="0" y="0" width="22" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.65)" stroke-width="1"/>
+            <rect x="26" y="0" width="22" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.65)" stroke-width="1"/>
+            <rect x="52" y="0" width="22" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.65)" stroke-width="1"/>
+            <rect x="78" y="0" width="22" height="22" rx="3" fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.65)" stroke-width="1"/>
+            <text x="165" y="16" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">…one per block…</text>
+          </g>
+          <text x="170" y="106" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">4 GB file ≈ 4 MB of pointer data</text>
+          <text x="170" y="124" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.5)" font-family="JetBrains Mono">scattered across indirect blocks</text>
+
+          <rect x="14" y="160" width="312" height="146" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="180" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">EXT4 · EXTENT TREE</text>
+          <g transform="translate(30, 198)">
+            <rect x="0" y="0" width="120" height="26" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.65)" stroke-width="1"/>
+            <text x="60" y="17" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">start=8829, len=128 MB</text>
+            <rect x="130" y="0" width="120" height="26" rx="4" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.65)" stroke-width="1"/>
+            <text x="190" y="17" text-anchor="middle" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono">start=…, len=128 MB</text>
+            <text x="145" y="44" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">…~32 extents for 4 GB…</text>
+          </g>
+          <text x="170" y="272" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">4 GB file ≈ 32 extents × 16 B</text>
+          <text x="170" y="290" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">= 512 bytes of metadata (vs 4 MB)</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Inode &amp; Metadata</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Inode</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The foundational data structure in Unix file systems tracking a single file's complete metadata metrics and physical disk block locations.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A fixed-size record holding everything about a file except its name and contents. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Typical size</span>
+          <p>128 bytes (ext2/ext3) or 256 bytes (ext4). Fixed at filesystem creation.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Metadata</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Structural descriptive data about a file (permissions, sizing, timestamps) rather than the literal file contents.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Data about the data. Everything except the actual bytes of content. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Where it lives</span>
+          <p>In the inode (per-file) and in the directory entries (name→inode mappings). Never in the data blocks themselves.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">🏷️ System Lexicon — Direct &amp; Indirect Pointers</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Direct Pointer</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An internal inode array address slot that points directly to a real physical block holding file data bytes.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A pointer in the inode that just says "block N is this file's next block". No intermediates. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Typical count</span>
+          <p>12 slots. Covers the first 48 KB (with 4 KB blocks). One disk read to reach the data.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Indirect Pointer</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An array slot inside an inode that points to a sector block allocated exclusively to hold additional address tracking pointers.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A pointer that points to a block full of pointers. The tree grows. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Variants</span>
+          <p><strong>Single indirect</strong> — one hop, 1024 pointers<br>
+          <strong>Double indirect</strong> — two hops, 1024² pointers<br>
+          <strong>Triple indirect</strong> — three hops, 1024³ pointers</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about inodes</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"The filename is stored in the inode"</div>
+        <div class="pc-desc">No — the inode has <strong>no name field</strong>. Names live in directory entries (parent_dir_entry → inode_number). This is why one inode can have multiple names (hard links) and why renaming a file doesn't touch the inode at all. It's also why <code style="font-family:var(--mono);color:#ff9fb1">/proc/PID/fd/3</code> shows the resolved path — the kernel reconstructed it by walking backwards through directories.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Deleting a file frees the inode immediately"</div>
+        <div class="pc-desc">Not always. When you <code style="font-family:var(--mono);color:#ff9fb1">rm</code> a file, <strong>nlink</strong> decreases by 1. The inode is only freed when nlink reaches 0 AND no process has the file open. So deleting a large file that's still being read by another process doesn't actually reclaim disk space until that process exits.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"More disk space = more files"</div>
+        <div class="pc-desc">Not on ext2/ext3/ext4. Each filesystem is created with a fixed number of <strong>inodes</strong>. If you create millions of empty files (e.g., a mail server with tiny message files), you can run out of inodes before running out of disk space. That's what <code style="font-family:var(--mono);color:#ff9fb1">df -i</code> shows — the inode usage column. Once inodes are exhausted, <code style="font-family:var(--mono);color:#ff9fb1">open(O_CREAT)</code> fails with ENOSPC even though there's free space.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Live Inode Inspection Hunt</span>
+    <h2 style="margin-bottom:16px;">Open a real terminal. <span class="grad-violet">Find the same inode behind two names.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Open a live Linux terminal (or WSL) in front of the class. Navigate to a directory with a few test files.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The commands</span>
+          <p style="line-height:1.9;margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            $ echo "test" &gt; original.txt<br>
+            $ ln original.txt hardlink.txt<br>
+            $ ls -li original.txt hardlink.txt<br>
+            $ ln -s original.txt softlink.txt<br>
+            $ ls -li softlink.txt<br>
+            $ stat original.txt
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The observation</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>original.txt</strong> and <strong>hardlink.txt</strong> share the same inode number (first column of <code style="font-family:var(--mono);color:#ffd18a">ls -li</code>).<br>
+            <strong>softlink.txt</strong> has a <em>different</em> inode — its own.<br>
+            The nlink column shows 2 for original/hardlink, 1 for softlink.
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> ask the class <em>"If I edit original.txt and read hardlink.txt, what do I see?"</em> Answer: the change — they're the same file. <em>"What if I read softlink.txt?"</em> Answer: also the change — the symlink resolves to original.txt. Both work, but through completely different mechanisms.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Inode display from ls -li</div>
+        <div class="inode-grid">
+          <div class="inode-item dir">
+            <div class="ii-name">original.txt</div>
+            <div class="ii-num">inode 9042</div>
+            <div class="ii-num">nlink 2</div>
+          </div>
+          <div class="inode-item dir">
+            <div class="ii-name">hardlink.txt</div>
+            <div class="ii-num">inode 9042</div>
+            <div class="ii-num">nlink 2</div>
+          </div>
+          <div class="inode-item link active">
+            <div class="ii-name">softlink.txt</div>
+            <div class="ii-num">inode 9045</div>
+            <div class="ii-num">nlink 1</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);font-family:var(--mono);font-size:11px;line-height:1.6;color:#88ffd8;text-align:center">
+          same inode = same file · different inode = different file
+        </div>
+        <div style="margin-top:10px;padding:12px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.06);font-family:var(--mono);font-size:11px;line-height:1.6;color:#ffd18a;text-align:center">
+          hardlink: inode shared directly<br>
+          softlink: its own inode · points to a path
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Cohesion Full">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🧭 Full Module 5 Arc — Where L18 Fits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">metadata layer</span> in the storage stack</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Module 5 arc</span>
+          <p style="line-height:1.95;margin-top:4px;font-size:13.5px">
+            <strong style="color:#88ffd8">L16 · Disk Geometry</strong> — physical blocks, seek, wear<br>
+            <strong style="color:#b9d0ff">L17 · File Abstraction</strong> — paths, FDs, directories<br>
+            <strong style="color:#ffd18a">L18 · Inode Architecture</strong> — metadata + block pointers (this lecture)<br>
+            <strong style="color:#c9a7ff">L19 · Crash Consistency</strong> — journaling, recovery
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The lesson from L18</span>
+          <p>The filesystem is a complex data structure built from <strong>fixed-size units</strong> (inodes, blocks, directory entries) held together by <strong>pointers</strong>. Every operation — create, write, delete, rename — is a manipulation of these pointers and metadata.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What comes next</span>
+          <p>L19 is about what happens when a pointer update is <strong>interrupted by a crash</strong>. If the inode says "file has 5 blocks" but only 4 block pointers are updated, the file is corrupt. Journaling (write-ahead logging) solves this by recording the intended update in a safe region before executing it.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The system view:</b> every file write goes through: page cache → block layer → disk driver → platter. The inode is the bookkeeping that keeps this multilevel pipeline coherent. L19 covers how to keep it coherent <em>even when power fails at the worst moment</em>.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Full picture</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">APPLICATION</text>
+          <text x="170" y="50" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">read() · write()</text>
+
+          <line x1="170" y1="60" x2="170" y2="78" stroke="rgba(160,107,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="78" width="312" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="98" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="700">VFS · PATH RESOLUTION</text>
+          <text x="170" y="114" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">name → inode</text>
+
+          <line x1="170" y1="124" x2="170" y2="142" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="142" width="312" height="56" rx="9" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="170" y="162" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">L18 · INODE ARCHITECTURE</text>
+          <text x="170" y="178" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">metadata · block pointers</text>
+          <text x="170" y="192" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.55)" font-family="JetBrains Mono">direct + indirect tree</text>
+
+          <line x1="170" y1="198" x2="170" y2="216" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="14" y="216" width="312" height="46" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="236" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="700">L16 · DISK GEOMETRY</text>
+          <text x="170" y="252" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">physical blocks · seek</text>
+
+          <rect x="14" y="270" width="312" height="36" rx="9" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.15)" stroke-width="1.3"/>
+          <text x="170" y="288" text-anchor="middle" font-size="10" fill="#eaf0fc" font-family="Inter" font-weight="700">L19 · JOURNALING · CRASH SAFETY</text>
+          <text x="170" y="300" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.6)" font-family="JetBrains Mono">atomic updates to the inode tree</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L18 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>An <strong>inode</strong> is a fixed-size structure (typically 128 or 256 B) holding one file's metadata: type, permissions, owner, size, timestamps, and a block pointer array.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>The block pointer array has <strong>15 slots</strong>: 12 direct, 1 single indirect, 1 double indirect, 1 triple indirect. This scales capacity from 48 KB (direct) to 4 TB (triple indirect).</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Capacity calculation:</strong> <code style="font-family:var(--mono);color:#88ffd8">(D + N + N² + N³) × B</code> where N = block_size / pointer_size. With 4 KB blocks and 4 B pointers, max = <strong>4.004 GB</strong> for a 12+1+1 layout.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Modern filesystems use extents</strong> instead of pointer arrays — a single record covers a contiguous run of blocks. This reduces metadata by 4–5 orders of magnitude for large sequential files.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L19 — Crash Consistency &amp; Journaling</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Every file update touches multiple metadata structures — the inode, the block bitmap, the directory entry. If power fails midway through, the filesystem is left in an inconsistent state. L19 shows how <strong>write-ahead logging</strong> (journaling) makes these updates crash-safe, why journaling costs performance, and how modern filesystems like ext4 and ZFS achieve both speed and safety.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L19: Crash Consistency &amp; Journaling &nbsp;|&nbsp; [L19.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad18" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad18)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad18)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : inode canvas ---------- */
+reg('inodecanvas', function(){
+  const c = document.getElementById('inodeCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('ONE INODE · THREE POINTER TIERS', W/2, 16);
+
+    const cx = W/2;
+    const inodeY = 80;
+
+    // inode box
+    ctx.fillStyle = 'rgba(91,141,255,0.20)';
+    ctx.fillRect(cx - 100, inodeY - 30, 200, 60);
+    ctx.strokeStyle = 'rgba(91,141,255,0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 100, inodeY - 30, 200, 60);
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('INODE 9042', cx, inodeY - 8);
+    ctx.fillStyle = 'rgba(185,208,255,0.7)';
+    ctx.font = '700 10px JetBrains Mono, monospace';
+    ctx.fillText('12 direct + 3 indirect', cx, inodeY + 12);
+
+    const tierY = 220;
+    const tiers = [
+      {x: cx - 180, label:'DIRECT', sub:'48 KB', color:'#2ee6a8', target:12, active: Math.floor(t / 60) % 3 === 0},
+      {x: cx - 60, label:'SINGLE', sub:'4 MB', color:'#5b8dff', target:1024, active: Math.floor(t / 60) % 3 === 1},
+      {x: cx + 60, label:'DOUBLE', sub:'4 GB', color:'#ffb648', target:1024*1024, active: Math.floor(t / 60) % 3 === 2},
+      {x: cx + 180, label:'TRIPLE', sub:'4 TB', color:'#a06bff', target:-1, active: false}
+    ];
+
+    // arrows from inode to each tier
+    tiers.forEach(tier => {
+      const alpha = tier.active ? 0.9 : 0.25;
+      ctx.strokeStyle = tier.color + Math.round(alpha * 255).toString(16).padStart(2, '0');
+      ctx.lineWidth = tier.active ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + (tier.x - cx) * 0.3, inodeY + 32);
+      ctx.lineTo(tier.x, tierY - 40);
+      ctx.stroke();
+
+      // arrowhead
+      const dx = tier.x - (cx + (tier.x - cx) * 0.3);
+      const dy = (tierY - 40) - (inodeY + 32);
+      const ang = Math.atan2(dy, dx);
+      ctx.beginPath();
+      ctx.moveTo(tier.x, tierY - 40);
+      ctx.lineTo(tier.x - 8 * Math.cos(ang - 0.4), tierY - 40 - 8 * Math.sin(ang - 0.4));
+      ctx.moveTo(tier.x, tierY - 40);
+      ctx.lineTo(tier.x - 8 * Math.cos(ang + 0.4), tierY - 40 - 8 * Math.sin(ang + 0.4));
+      ctx.stroke();
+    });
+
+    // tier boxes
+    tiers.forEach(tier => {
+      const bw = 90, bh = 60;
+      ctx.fillStyle = tier.active ? tier.color + '40' : tier.color + '15';
+      ctx.fillRect(tier.x - bw/2, tierY - bh/2, bw, bh);
+      ctx.strokeStyle = tier.color;
+      ctx.lineWidth = tier.active ? 2.5 : 1.2;
+      ctx.strokeRect(tier.x - bw/2, tierY - bh/2, bw, bh);
+
+      ctx.fillStyle = tier.active ? '#fff' : tier.color;
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tier.label, tier.x, tierY - 10);
+
+      ctx.fillStyle = tier.active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.fillText(tier.sub, tier.x, tierY + 8);
+
+      ctx.fillStyle = tier.active ? tier.color : 'rgba(255,255,255,0.4)';
+      ctx.font = '700 8px JetBrains Mono, monospace';
+      ctx.fillText(tier.target > 0 ? (tier.target + ' blocks') : '1B blocks', tier.x, tierY + 22);
+    });
+
+    // bottom: capacity summary
+    ctx.fillStyle = 'rgba(132,148,180,0.55)';
+    ctx.font = '700 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('12 direct + 1 single + 1 double + 1 triple', cx, 320);
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 12px JetBrains Mono, monospace';
+    ctx.fillText('max file size ≈ 4.004 TB', cx, 345);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 12 : pointer tree highlight ---------- */
+reg('ptree', function(){
+  // Static — pointer tree visual is CSS/SVG only, no JS animation needed
+  return { stop(){} };
+});
+
+/* ---------- Slide 15 : capacity calculator ---------- */
+reg('capcalc', function(){
+  const bsSlider = document.getElementById('bsSlider');
+  const psSlider = document.getElementById('psSlider');
+  if(!bsSlider || !psSlider) return { stop(){} };
+
+  const blockSizes = [1024, 4096, 8192, 16384];
+  const pointerSizes = [4, 8];
+
+  function formatBytes(b){
+    if (b >= 1024*1024*1024*1024) return (b / (1024*1024*1024*1024)).toFixed(3) + ' TB';
+    if (b >= 1024*1024*1024) return (b / (1024*1024*1024)).toFixed(3) + ' GB';
+    if (b >= 1024*1024) return (b / (1024*1024)).toFixed(2) + ' MB';
+    if (b >= 1024) return (b / 1024).toFixed(1) + ' KB';
+    return b + ' B';
+  }
+
+  function update(){
+    const bs = blockSizes[parseInt(bsSlider.value)];
+    const ps = pointerSizes[parseInt(psSlider.value)];
+
+    document.getElementById('bsVal').textContent = (bs / 1024) + ' KB';
+    document.getElementById('psVal').textContent = ps + ' B';
+
+    const n = bs / ps;
+    const direct = 12 * bs;
+    const single = n * bs;
+    const double = n * n * bs;
+    const total = direct + single + double;
+
+    document.getElementById('capDirectVal').textContent = formatBytes(direct);
+    document.getElementById('capSingleVal').textContent = formatBytes(single);
+    document.getElementById('capDoubleVal').textContent = formatBytes(double);
+    document.getElementById('maxSize').textContent = formatBytes(total);
+
+    // Bar widths (log scale)
+    document.getElementById('capDirect').style.width = '0.5%';
+    document.getElementById('capSingle').style.width = '5%';
+    document.getElementById('capDouble').style.width = '100%';
+    document.getElementById('capDirect').textContent = formatBytes(direct);
+    document.getElementById('capSingle').textContent = formatBytes(single);
+    document.getElementById('capDouble').textContent = formatBytes(double);
+
+    document.getElementById('formulaBreakdown').innerHTML =
+      `(12 + ${n} + ${n}²) × ${bs} B<br>= ${formatBytes(total)}`;
+  }
+
+  bsSlider.addEventListener('input', update);
+  psSlider.addEventListener('input', update);
+  update();
+
+  return {
+    stop(){
+      bsSlider.removeEventListener('input', update);
+      psSlider.removeEventListener('input', update);
+    }
+  };
+});
+
+/* ---------- Slide 16 : inode walk ---------- */
+reg('inodewalk', function(){
+  const target = document.getElementById('walkTarget');
+  if(!target) return { stop(){} };
+
+  const offsets = [
+    {label:'0', tier:'DIRECT', reads:1, color:'#2ee6a8'},
+    {label:'32 KB', tier:'DIRECT', reads:1, color:'#2ee6a8'},
+    {label:'100 KB', tier:'SINGLE', reads:2, color:'#5b8dff'},
+    {label:'2 MB', tier:'SINGLE', reads:2, color:'#5b8dff'},
+    {label:'100 MB', tier:'DOUBLE', reads:3, color:'#ffb648'},
+    {label:'2 GB', tier:'DOUBLE', reads:3, color:'#ffb648'},
+    {label:'6 GB', tier:'TRIPLE', reads:4, color:'#a06bff'}
+  ];
+
+  let idx = 0;
+  function tick(){
+    const o = offsets[idx % offsets.length];
+    target.innerHTML = `<strong style="color:${o.color}">offset ${o.label}</strong> → ${o.tier} tier · <strong style="color:${o.color}">${o.reads} disk read${o.reads > 1 ? 's' : ''}</strong>`;
+    target.style.borderColor = o.color + '99';
+    target.style.background = o.color + '18';
+    target.style.color = o.color;
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1600);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 17 : code stepper 1 ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,5,6,7,8,9,10,11];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 18 : code stepper 2 ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,4,5,7,8,9,10,12,13,14,15,17,18,19,20,22,23,24,25,26,27];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 550);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 19 : stat demo ---------- */
+reg('statdemo', function(){
+  const body = document.getElementById('statBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line', text:'  File: resume.pdf' },
+    { cls:'term-line', text:'  Size: 45832      Blocks: 96         IO Block: 4096   regular file' },
+    { cls:'term-line', text:'Device: 8,2       Inode: 9042         Links: 1' },
+    { cls:'term-line warn', text:'Access: (0644/-rw-r--r--)  Uid: ( 1000/user)   Gid: ( 1000/user)' },
+    { cls:'term-line warn', text:'Access: 2026-10-20 14:32:11.823411091 +0000' },
+    { cls:'term-line warn', text:'Modify: 2026-10-20 14:22:04.432108920 +0000' },
+    { cls:'term-line warn', text:'Change: 2026-10-20 14:22:04.432108920 +0000' },
+    { cls:'term-line dim', text:' Birth: 2026-10-15 09:11:00.123456789 +0000' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">stat resume.pdf</span></span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 500);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
