@@ -1,0 +1,2337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L16 — Disk Geometry &amp; Physical Storage Realities</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#hddCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Record player analogy */
+.vinyl-scene{padding:14px 0;display:grid;place-items:center;position:relative;}
+.vinyl-wrap{position:relative;width:260px;height:260px;display:grid;place-items:center;}
+.vinyl-disc{position:relative;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,#1a1f2e 25%,#0a0f1a 60%,#1a1f2e 100%);border:2px solid rgba(255,255,255,.15);box-shadow:0 0 40px rgba(0,0,0,.8),inset 0 0 30px rgba(0,0,0,.6);animation:spin 3s linear infinite;}
+.vinyl-disc::before{content:'';position:absolute;inset:8px;border-radius:50%;background:repeating-radial-gradient(circle,rgba(255,255,255,.04) 0 1px,transparent 1px 4px);}
+.vinyl-disc::after{content:'';position:absolute;inset:45%;border-radius:50%;background:radial-gradient(circle,#5b8dff,#3a5fb0);box-shadow:0 0 20px rgba(91,141,255,.6);}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tonearm{position:absolute;top:6px;left:50%;width:150px;height:6px;background:linear-gradient(90deg,#ffb648,#ff7a59);border-radius:3px;transform-origin:0% 50%;transform:rotate(15deg);box-shadow:0 4px 12px rgba(0,0,0,.5);animation:tonearmSweep 6s ease-in-out infinite;}
+.tonearm::after{content:'';position:absolute;right:-8px;top:-3px;width:14px;height:14px;border-radius:50%;background:#ff4d6d;box-shadow:0 0 16px #ff4d6d;}
+@keyframes tonearmSweep{0%,100%{transform:rotate(25deg)}45%{transform:rotate(5deg)}55%{transform:rotate(55deg)}}
+.vinyl-hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#eaf0fc;z-index:2;box-shadow:0 0 20px #eaf0fc;}
+
+/* Light switch grid */
+.switch-grid{padding:14px 0;display:grid;grid-template-columns:repeat(16,1fr);gap:4px;aspect-ratio:2/1;}
+.switch-cell{aspect-ratio:1;border-radius:3px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);transition:.3s;}
+.switch-cell.lit{background:rgba(46,230,168,.30);border-color:rgba(46,230,168,.65);box-shadow:0 0 12px rgba(46,230,168,.6);}
+.switch-cell.worn{background:rgba(255,77,109,.30);border-color:rgba(255,77,109,.65);}
+.switch-legend{display:flex;gap:14px;margin-top:12px;font-size:11px;font-family:var(--mono);font-weight:700;color:var(--muted);}
+.switch-legend span{display:flex;align-items:center;gap:5px;}
+.switch-legend .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* Elevator/SCAN */
+.elevator-vis{padding:14px 0;position:relative;height:300px;}
+.elev-track{position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.10);}
+.elev-req{position:absolute;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:800;color:#0a0f1c;transition:.4s;}
+.elev-req.ungrouped{background:rgba(255,77,109,.65);box-shadow:0 0 12px rgba(255,77,109,.6);}
+.elev-req.grouped{background:rgba(46,230,168,.65);box-shadow:0 0 12px rgba(46,230,168,.6);}
+.elev-head{position:absolute;top:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;border:2px solid #ffd18a;background:rgba(255,182,72,.15);display:grid;place-items:center;font-size:11px;font-weight:800;color:#ffd18a;z-index:3;transition:.8s ease-out;}
+
+/* Disk top-down view */
+.platter-view{padding:8px 0;display:grid;place-items:center;}
+.platter-svg{width:100%;max-width:340px;height:auto;}
+
+/* Latency bars */
+.latency-bars{display:flex;flex-direction:column;gap:12px;padding:8px 0;}
+.lat-row{display:flex;flex-direction:column;gap:5px;}
+.lat-head{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:12px;}
+.lat-name{font-weight:800;letter-spacing:.04em;}
+.lat-val{font-weight:900;}
+.lat-bar{height:22px;border-radius:8px;background:rgba(255,255,255,.05);position:relative;overflow:hidden;}
+.lat-fill{height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-family:var(--mono);font-size:11px;font-weight:900;color:#0a0f1c;transform-origin:left center;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+.lat-row.seek .lat-name{color:#ff9fb1;}
+.lat-row.seek .lat-fill{background:linear-gradient(90deg,#ff4d6d,#ff9fb1);}
+.lat-row.rotate .lat-name{color:#ffd18a;}
+.lat-row.rotate .lat-fill{background:linear-gradient(90deg,#ffb648,#ffd18a);}
+.lat-row.transfer .lat-name{color:#88ffd8;}
+.lat-row.transfer .lat-fill{background:linear-gradient(90deg,#2ee6a8,#88ffd8);}
+
+/* Worked example timeline */
+.wx-timeline{padding:16px 0;}
+.wx-bar{display:flex;height:40px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);}
+.wx-seg{display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.04em;position:relative;transition:.4s;}
+.wx-seg.seek{background:linear-gradient(180deg,rgba(255,77,109,.55),rgba(255,77,109,.35));color:#fff;}
+.wx-seg.rotate{background:linear-gradient(180deg,rgba(255,182,72,.55),rgba(255,182,72,.35));color:#fff;}
+.wx-seg.transfer{background:linear-gradient(180deg,rgba(46,230,168,.55),rgba(46,230,168,.35));color:#fff;}
+.wx-legend{display:flex;gap:16px;margin-top:10px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--muted);}
+.wx-legend span{display:flex;align-items:center;gap:5px;}
+.wx-legend .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* Interactive calculator */
+.calc-rig{padding:8px 0;display:flex;flex-direction:column;gap:14px;}
+.calc-row{display:flex;flex-direction:column;gap:6px;}
+.calc-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;font-weight:700;color:var(--ink-2);}
+.calc-head .val{font-family:var(--mono);font-size:14px;font-weight:900;color:var(--amber);}
+.calc-slider{width:100%;height:8px;border-radius:4px;-webkit-appearance:none;appearance:none;background:linear-gradient(90deg,#5b8dff,#a06bff);outline:none;cursor:pointer;}
+.calc-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+.calc-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#eaf0fc;border:3px solid var(--blue);box-shadow:0 0 10px rgba(91,141,255,.7);cursor:pointer;}
+.calc-result{padding:16px;border-radius:12px;border:1.5px solid rgba(46,230,168,.65);background:rgba(46,230,168,.10);text-align:center;}
+.calc-result .cr-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:8px;}
+.calc-result .cr-val{font-family:var(--mono);font-size:clamp(24px,2.8vw,34px);font-weight:900;color:#88ffd8;letter-spacing:-.02em;}
+.calc-breakdown{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.calc-stat{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);text-align:center;}
+.calc-stat .cs-l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:4px;}
+.calc-stat .cs-v{font-family:var(--mono);font-size:13px;font-weight:900;}
+.calc-stat.seek .cs-v{color:#ff9fb1;}
+.calc-stat.rotate .cs-v{color:#ffd18a;}
+.calc-stat.transfer .cs-v{color:#88ffd8;}
+
+/* SSD NAND */
+.nand-grid{padding:8px 0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
+.nand-page{aspect-ratio:1;border-radius:3px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);transition:.4s;}
+.nand-page.written{background:rgba(91,141,255,.30);border-color:rgba(91,141,255,.65);}
+.nand-page.erased{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.20);}
+.nand-page.wearing{background:rgba(255,77,109,.30);border-color:rgba(255,77,109,.65);}
+.nand-block-bracket{position:relative;}
+.nand-legend{display:flex;gap:14px;margin-top:10px;font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--muted);}
+.nand-legend span{display:flex;align-items:center;gap:5px;}
+.nand-legend .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* Asymmetry comparison */
+.asym-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.asym-card{padding:16px;border-radius:12px;border:1px solid;}
+.asym-card.read{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.asym-card.write{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.asym-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.asym-card.read h4{color:var(--emerald);}
+.asym-card.write h4{color:var(--crimson);}
+.asym-card p{font-size:12px;line-height:1.55;color:var(--ink-2);}
+.asym-card .asym-size{font-family:var(--mono);font-size:14px;font-weight:900;margin-top:10px;}
+.asym-card.read .asym-size{color:#88ffd8;}
+.asym-card.write .asym-size{color:#ff9fb1;}
+
+/* Wear leveling */
+.wear-vis{padding:8px 0;}
+.wear-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:14px;}
+.wear-cell{aspect-ratio:1;border-radius:3px;border:1px solid rgba(255,255,255,.10);display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;font-weight:800;color:var(--muted);transition:.4s;background:rgba(255,255,255,.03);}
+.wear-cell.lv1{background:rgba(46,230,168,.15);border-color:rgba(46,230,168,.35);color:#88ffd8;}
+.wear-cell.lv2{background:rgba(46,230,168,.30);border-color:rgba(46,230,168,.55);color:#88ffd8;}
+.wear-cell.lv3{background:rgba(255,182,72,.30);border-color:rgba(255,182,72,.55);color:#ffd18a;}
+.wear-cell.lv4{background:rgba(255,77,109,.30);border-color:rgba(255,77,109,.65);color:#ff9fb1;}
+.wear-cell.lv5{background:rgba(255,77,109,.55);border-color:rgba(255,77,109,.85);color:#fff;}
+.wear-legend{display:flex;gap:10px;font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--muted);flex-wrap:wrap;}
+.wear-legend span{display:flex;align-items:center;gap:4px;}
+.wear-legend .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* Comparison table */
+.cmp-table{display:grid;grid-template-columns:160px 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;font-size:12px;}
+.cmp-cell{background:#0a0f1c;padding:12px 14px;line-height:1.5;}
+.cmp-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.cmp-head{background:#0d1425;font-size:11.5px;font-weight:800;text-align:center;}
+.cmp-head.hdd{color:#ff9fb1;}
+.cmp-head.ssd{color:#88ffd8;}
+.cmp-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:900;display:flex;align-items:center;color:var(--muted);}
+.cmp-val{color:var(--ink-2);}
+.cmp-val.good{color:#88ffd8;}
+.cmp-val.bad{color:#ff9fb1;}
+.cmp-val.warn{color:#ffd18a;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.blue{color:#b9d0ff;background:rgba(91,141,255,.08);}
+.code-head.emerald{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+.mm-node.leaf.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08);color:#ff9fb1;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity defrag */
+.defrag-vis{padding:8px 0;}
+.defrag-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:12px;}
+.defrag-cell{aspect-ratio:1;border-radius:3px;border:1px solid rgba(255,255,255,.10);display:grid;place-items:center;font-family:var(--mono);font-size:9px;font-weight:800;background:rgba(255,255,255,.03);color:var(--muted);transition:.4s;}
+.defrag-cell.file{background:rgba(91,141,255,.30);border-color:rgba(91,141,255,.65);color:#b9d0ff;}
+.defrag-cell.free{background:rgba(255,255,255,.03);}
+.defrag-cell.target{background:rgba(255,77,109,.30);border-color:rgba(255,77,109,.65);color:#ff9fb1;animation:defragPulse 1.4s ease-in-out infinite;}
+@keyframes defragPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 12px rgba(255,77,109,.7)}}
+.defrag-arrow{text-align:center;color:var(--crimson);font-family:var(--mono);font-size:10px;font-weight:800;margin:8px 0}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.asym-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .switch-grid{grid-template-columns:repeat(10,1fr);}
+  .cmp-table{grid-template-columns:100px 1fr 1fr;font-size:11px;}
+  .nand-grid,.wear-grid{grid-template-columns:repeat(6,1fr);}
+  .calc-breakdown{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .switch-grid{grid-template-columns:repeat(8,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L16 Disk Geometry</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 27</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L16 · Overview" data-anim="hddcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L16 · Disk Geometry &amp; Physical Storage Realities</span>
+    <div class="split">
+      <div class="stack">
+        <h1>One byte of data lives <span class="grad-blue">a needle-swing away</span>. How much time does that cost?</h1>
+        <p class="lead">Calculate total disk read access times factoring in seek time, rotational latency, and transfer rates, and compare architectural wear-leveling traits between mechanical platters and flash memory grids.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L16</span>
+          <p>From L13, we know that a <strong>page fault costs 5–10 ms</strong> — vastly slower than a memory access. But <em>why</em>? What actually happens inside a hard drive when you ask for a sector? And why is an SSD so much faster?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated platter on the right. Ask the class: <em>"The arm just swung across the disk. How long did that take compared to a CPU cycle?"</em></div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Platter spinning, arm seeking</div>
+        <canvas id="hddCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Storage Gap">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — The Storage Gap</span>
+    <h2 style="margin-bottom:16px;">Memory is <span class="grad-emerald">nanoseconds</span>. Storage is <span class="grad-crimson">milliseconds</span>.</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What DRAM gives us</span>
+          <p>Main memory access: <strong>~100 ns</strong>. From a 3 GHz CPU's perspective, that's ~300 cycles of "hurry up and wait." Volatile — lost on power off. Expensive per gigabyte.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">What storage gives us</span>
+          <p>HDD: ~10 ms seek + read. That's <strong>100,000× slower than a DRAM access</strong>. Non-volatile — survives power off. Cheap per gigabyte.</p>
+          <p style="margin-top:8px">SSD: ~50–100 µs read. Still <strong>500–1000× slower than DRAM</strong> — but 100× faster than HDD.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The bridge — the OS</span>
+          <p>The operating system exists partly to <strong>hide this gap</strong>: page cache, write-back buffering, read-ahead prefetch, and the block device layer all exist to make storage feel faster than it is.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The design consequence:</b> every layer between application and disk — filesystems, page cache, block scheduler — is built around minimizing the number of physical seeks. That's why <em>sequential</em> I/O is 100× faster than <em>random</em> I/O on HDDs.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Log-scale latency ladder</div>
+        <div style="padding:12px 0;display:flex;flex-direction:column;gap:10px;font-family:var(--mono);font-size:11.5px">
+          <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:center;color:#b9d0ff">
+            <div style="height:26px;border-radius:6px;background:rgba(91,141,255,.20);border:1px solid rgba(91,141,255,.55);display:flex;align-items:center;padding-left:10px;font-weight:800">CPU cycle</div>
+            <div style="color:var(--blue-2);font-weight:900;text-align:right">~0.3 ns</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:center;color:#b9d0ff">
+            <div style="height:26px;border-radius:6px;background:rgba(91,141,255,.20);border:1px solid rgba(91,141,255,.55);display:flex;align-items:center;padding-left:10px;font-weight:800">DRAM access</div>
+            <div style="color:var(--blue-2);font-weight:900;text-align:right">~100 ns</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:center;color:#88ffd8">
+            <div style="height:26px;border-radius:6px;background:rgba(46,230,168,.20);border:1px solid rgba(46,230,168,.55);display:flex;align-items:center;padding-left:10px;font-weight:800">SSD page read</div>
+            <div style="color:var(--emerald);font-weight:900;text-align:right">~50 µs</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:center;color:#ffd18a">
+            <div style="height:26px;border-radius:6px;background:rgba(255,182,72,.20);border:1px solid rgba(255,182,72,.55);display:flex;align-items:center;padding-left:10px;font-weight:800">HDD seek + rotate</div>
+            <div style="color:var(--amber);font-weight:900;text-align:right">~8 ms</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:center;color:#ff9fb1">
+            <div style="height:26px;border-radius:6px;background:rgba(255,77,109,.20);border:1px solid rgba(255,77,109,.55);display:flex;align-items:center;padding-left:10px;font-weight:800">HDD random burst</div>
+            <div style="color:var(--crimson);font-weight:900;text-align:right">~15 ms</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Each step is ~10–100× the previous. From CPU cycle to HDD access: 25 million×</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Record Player">
+  <div class="slide-inner">
+    <span class="badge violet">🎵 Analogy 1 · The Record Player Needle</span>
+    <h2 style="margin-bottom:16px;">Getting to the song <span class="grad-violet">takes real time</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Imagine a classic vinyl record player. To play a specific song, you must <strong>physically lift the tonearm</strong>, move it to the correct track position (<strong>Seek Time</strong>), and wait for the vinyl record to spin around until the opening note passes right underneath the needle (<strong>Rotational Latency</strong>).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What's happening physically</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Seek</strong> = move the tonearm to the right groove<br>
+            <strong>Rotate</strong> = wait for the right part of the groove to pass under the needle<br>
+            <strong>Transfer</strong> = actually read the electrical signals as the groove scrolls past
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The critical cost</span>
+          <p>Moving metal takes real, physical time. The tonearm has <strong>momentum</strong>. It must decelerate to stop, change direction, and accelerate again. That's why even a "fast" drive has a baseline 4–15 ms penalty per seek.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The tonearm sweep</div>
+        <div class="vinyl-scene">
+          <div class="vinyl-wrap">
+            <div class="vinyl-disc"></div>
+            <div class="tonearm"></div>
+            <div class="vinyl-hub"></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55;text-align:center">The needle sweeps across the grooves. Every change of "song" = another seek.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · SSD">
+  <div class="slide-inner">
+    <span class="badge emerald">💡 Analogy 1 · The Grid of Light Switches</span>
+    <h2 style="margin-bottom:16px;">No moving parts. <span class="grad-emerald">But wear out with use.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The setup</span>
+          <p>A Solid-State Drive (SSD) is like a massive <strong>grid of millions of light switches on a wall</strong>. To read a sector, you don't move anything — you just read the electrical state of a switch instantly.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What's happening physically</span>
+          <p>Each NAND flash cell holds a charge (or doesn't) representing bits. Reading means measuring that charge with a sense amplifier — no mechanical motion, no waiting for rotation. <strong>Fast, silent, shock-resistant.</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The catch — wear</span>
+          <p>Flipping a switch too many times <strong>wears out the plastic</strong>. Similarly, NAND cells degrade after a limited number of program/erase cycles (P/E cycles) — typically 3,000–10,000 for MLC, 100,000 for enterprise SLC. Once worn out, the cell can't reliably hold a charge.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mitigation</span>
+          <p>Since some switches wear faster than others, the <strong>building manager rotates which switches are used</strong> over time. This is <strong>Wear Leveling</strong> — distribute writes evenly so no single cell dies early.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The NAND grid, wear spreading</div>
+        <div id="switchGrid" class="switch-grid"></div>
+        <div class="switch-legend">
+          <span><span class="dot" style="background:rgba(46,230,168,.55)"></span>fresh cell</span>
+          <span><span class="dot" style="background:rgba(255,77,109,.55)"></span>worn cell</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Sequential vs Random">
+  <div class="slide-inner">
+    <span class="badge amber">📼 Analogy 2 · Sequential Tape vs. Random Access</span>
+    <h2 style="margin-bottom:16px;">Reordering requests <span class="grad-amber">saves seek time</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Random order vs. elevator (SCAN) order</div>
+        <div class="elevator-vis" id="elevVis">
+          <div class="elev-track"></div>
+          <div class="elev-head" id="elevHead" style="left:15%">⇄</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.08);text-align:center">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:6px">RANDOM ORDER</div>
+            <div id="elevRandomCount" style="font-family:var(--mono);font-size:14px;font-weight:900;color:#ff9fb1">0 seeks</div>
+          </div>
+          <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);text-align:center">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:6px">SCAN ORDER</div>
+            <div id="elevScanCount" style="font-family:var(--mono);font-size:14px;font-weight:900;color:#88ffd8">0 seeks</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The analogy</span>
+          <p>Disk geometry optimization matches <strong>low-level audio buffer rendering arrays</strong>, sorting whether incoming block seek vectors are processed in <strong>raw arrival order</strong> or <strong>grouped using elevators</strong> to minimize sweeping the physical arm head.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The elevator (SCAN) algorithm</span>
+          <p>Like an elevator that keeps going up to the top floor before coming down, the disk head sweeps in one direction, servicing all requests in its path, then reverses. This dramatically reduces total head movement.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The win</span>
+          <p>Same number of requests. Same amount of data. But <strong>30–70% less head movement</strong> because requests are processed in physical proximity order, not arrival order.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Where this lives:</b> the Linux <code style="font-family:var(--mono);color:#c9a7ff">mq-deadline</code> and <code style="font-family:var(--mono);color:#c9a7ff">BFQ</code> block schedulers use variants of SCAN. SSDs don't need it — random access has the same cost as sequential.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L16 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">physical reality</span> under every filesystem</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 4 (Sync)</h4>
+            <p>Every disk operation must coordinate with concurrent processes — reads, writes, and seeks all contend for the same physical head. Locking patterns in filesystem code are the most deadlock-prone in the kernel.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L17 (File Abstractions)</h4>
+            <p>The extreme performance difference between <strong>sequential reads</strong> and <strong>random sweeps</strong> on mechanical drives directly explains why classic Unix file system layouts obsess over <strong>contiguous disk block groupings</strong>.</p>
+          </div>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The insight that drives everything else</span>
+          <p>Because random access is 100× slower than sequential on HDD, every storage layer above the disk — filesystem allocation, page cache eviction, block scheduler, read-ahead prefetch — is optimized to <strong>transform random I/O into sequential I/O</strong>.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Historical context:</b> the design of classic UNIX (inode block pointers, contiguous data runs, extents) dates from the 1970s, when "disk" meant a spinning platter. Modern SSDs break many of these assumptions — but the abstractions remain.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">Module 4</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">locks · sync</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">page faults</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L16 · DISK GEOMETRY</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">seek · rotate · wear</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(91,141,255,.08)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#b9d0ff" font-family="Inter" font-weight="700">L17 · Inodes</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">block pointers</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.08)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">L19 · Journaling</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">crash consistency</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(91,141,255,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · HDD Anatomy">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — HDD Anatomy</span>
+    <h2 style="margin-bottom:16px;">Platters. Tracks. Sectors. <span class="grad-crimson">Moving metal.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The components</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Platter</strong> — magnetic disk spinning at 5400–15000 RPM<br>
+            <strong>Spindle</strong> — center axle turning all platters together<br>
+            <strong>Track</strong> — concentric ring on a platter surface<br>
+            <strong>Sector</strong> — fixed-size arc segment (typically 512 B or 4 KB)<br>
+            <strong>Actuator arm</strong> — moves the read/write head across tracks
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The physical movement</span>
+          <p>Every read requires two physical motions: <strong>swinging the arm to the correct track</strong> (radial) and <strong>waiting for the correct sector to rotate under the head</strong> (angular). Neither is instantaneous — both consume milliseconds.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The heads are tiny</span>
+          <p>Read/write heads fly <strong>just nanometers above</strong> the platter surface. This is why HDDs are fragile — a shock can crash the head into the platter and destroy data. Also why HDDs have a parking mechanism.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Top-down view of a platter</div>
+        <div class="platter-view">
+          <svg class="platter-svg" viewBox="0 0 340 340">
+            <!-- Platter -->
+            <circle cx="170" cy="170" r="140" fill="rgba(30,40,60,.6)" stroke="rgba(255,255,255,.15)" stroke-width="2"/>
+            <circle cx="170" cy="170" r="135" fill="none" stroke="rgba(91,141,255,.20)" stroke-width="1"/>
+            <circle cx="170" cy="170" r="120" fill="none" stroke="rgba(91,141,255,.15)" stroke-width="1" stroke-dasharray="3 5"/>
+            <circle cx="170" cy="170" r="95" fill="none" stroke="rgba(91,141,255,.20)" stroke-width="1"/>
+            <circle cx="170" cy="170" r="70" fill="none" stroke="rgba(91,141,255,.15)" stroke-width="1" stroke-dasharray="3 5"/>
+            <circle cx="170" cy="170" r="45" fill="none" stroke="rgba(91,141,255,.20)" stroke-width="1"/>
+
+            <!-- Spindle -->
+            <circle cx="170" cy="170" r="18" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+            <circle cx="170" cy="170" r="5" fill="#eaf0fc"/>
+
+            <!-- Tracks (rotating radial lines showing sectors) -->
+            <g stroke="rgba(255,182,72,.15)" stroke-width="1">
+              <line x1="170" y1="30" x2="170" y2="310"/>
+              <line x1="30" y1="170" x2="310" y2="170"/>
+              <line x1="70" y1="70" x2="270" y2="270"/>
+              <line x1="270" y1="70" x2="70" y2="270"/>
+            </g>
+
+            <!-- Actuator arm -->
+            <line x1="320" y1="240" x2="230" y2="180" stroke="rgba(255,77,109,.75)" stroke-width="6" stroke-linecap="round"/>
+            <circle cx="320" cy="240" r="14" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.75)" stroke-width="2"/>
+            <!-- Head -->
+            <circle cx="230" cy="180" r="8" fill="#eaf0fc" stroke="rgba(255,77,109,.85)" stroke-width="2" class="svg-pulse"/>
+
+            <!-- Sector highlight -->
+            <path d="M 170 170 L 260 145 A 90 90 0 0 1 280 200 Z" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.65)" stroke-width="1.5"/>
+
+            <!-- Labels -->
+            <text x="170" y="325" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.85)" font-family="JetBrains Mono" font-weight="700">platter · top view</text>
+            <text x="300" y="275" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">arm</text>
+            <text x="245" y="165" text-anchor="middle" font-size="8" fill="#eaf0fc" font-family="JetBrains Mono" font-weight="700">head</text>
+            <text x="255" y="195" text-anchor="middle" font-size="8" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">sector</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Access Time">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — Access Time = Three Phases</span>
+    <h2 style="margin-bottom:16px;">Seek + Rotate + Transfer. <span class="grad-amber">Every read.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The three-phase cost</div>
+        <div class="latency-bars">
+          <div class="lat-row seek">
+            <div class="lat-head"><span class="lat-name">1 · SEEK TIME</span><span class="lat-val" style="color:#ff9fb1">4–15 ms</span></div>
+            <div class="lat-bar"><div class="lat-fill" style="width:45%">move arm</div></div>
+          </div>
+          <div class="lat-row rotate">
+            <div class="lat-head"><span class="lat-name">2 · ROTATIONAL LATENCY</span><span class="lat-val" style="color:#ffd18a">2–5.5 ms</span></div>
+            <div class="lat-bar"><div class="lat-fill" style="width:35%">wait for sector</div></div>
+          </div>
+          <div class="lat-row transfer">
+            <div class="lat-head"><span class="lat-name">3 · TRANSFER TIME</span><span class="lat-val" style="color:#88ffd8">0.005 ms</span></div>
+            <div class="lat-bar"><div class="lat-fill" style="width:3%">data</div></div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#88ffd8;text-align:center">
+          total = seek + rotate + transfer<br>
+          <strong style="font-size:14px">≈ 8–20 ms per random access</strong>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Seek dominates</span>
+          <p>The head has to physically move from its current track to the target track. <strong>Average seek = 1/3 of full stroke</strong> (assuming random target). On a 7200 RPM drive, that's typically 4–9 ms.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Rotate is next</span>
+          <p>Once on the right track, wait for the platter to rotate so the target sector is under the head. <strong>Average rotation delay = half a rotation</strong> — that's 4.17 ms at 7200 RPM.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Transfer is tiny</span>
+          <p>Once the head is in position, the actual data transfer is nearly free — tens of microseconds for a few KB. <strong>The physics of getting to the data dwarfs the cost of reading it.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The 100× rule of thumb:</b> 99.9% of the access time is spent moving the arm and waiting for rotation. Less than 0.1% is spent transferring data. That's why reducing seeks matters so much.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Seek Time">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — Seek Time</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-crimson">radial</span> motion of the arm</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What it is</span>
+          <p>The physical time required for the HDD's mechanical read/write head arm to <strong>sweep and lock onto a target track cylinder</strong>. It's the radial movement of the arm from its current position to the destination track.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it's slow</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Acceleration</strong> — the arm has mass; it must be accelerated by a voice coil<br>
+            <strong>Travel</strong> — moving across tracks takes time proportional to distance<br>
+            <strong>Deceleration</strong> — it must stop precisely on the target track<br>
+            <strong>Settling</strong> — the head vibrates slightly and must stabilize before reading
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The numbers</span>
+          <p>Desktop drives: 8–15 ms average seek. Enterprise 15K RPM drives: 2–4 ms. Typical HDD spec: <strong>"average seek time"</strong> assumes random target = 1/3 of full stroke. Full-stroke seek times are 3× higher.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> SSDs have <strong>no seek time</strong> — there's no arm, no radial distance. Any random address costs the same as any other. This is the single biggest architectural difference between HDD and SSD.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Seek motion animation</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <circle cx="170" cy="140" r="110" fill="rgba(30,40,60,.4)" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/>
+          <!-- Concentric tracks -->
+          <circle cx="170" cy="140" r="30" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+          <circle cx="170" cy="140" r="50" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+          <circle cx="170" cy="140" r="70" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+          <circle cx="170" cy="140" r="90" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+          <circle cx="170" cy="140" r="105" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+
+          <!-- Pivot -->
+          <circle cx="320" cy="230" r="10" fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.75)" stroke-width="1.5"/>
+
+          <!-- Arm current position (outer) -->
+          <line x1="320" y1="230" x2="230" y2="180" stroke="rgba(255,77,109,.75)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="230" cy="180" r="5" fill="#ff9fb1"/>
+
+          <!-- Arm target position -->
+          <line x1="320" y1="230" x2="180" y2="140" stroke="rgba(46,230,168,.45)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4"/>
+
+          <!-- Arc showing sweep -->
+          <path d="M 230 180 Q 220 160 180 140" fill="none" stroke="rgba(255,182,72,.85)" stroke-width="2" stroke-dasharray="5 4" class="svg-flow"/>
+
+          <text x="260" y="165" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">seek</text>
+          <text x="260" y="178" font-size="8" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">~4ms</text>
+
+          <text x="170" y="30" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">SEEK = RADIAL MOTION</text>
+          <text x="170" y="252" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">moving between concentric tracks</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Rotational Latency">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — Rotational Latency</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">angular</span> wait for the sector</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Geometry of rotational latency</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <!-- Circle representing platter -->
+          <circle cx="170" cy="130" r="100" fill="rgba(30,40,60,.5)" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/>
+          <circle cx="170" cy="130" r="8" fill="#eaf0fc"/>
+
+          <!-- Full rotation arc -->
+          <circle cx="170" cy="130" r="80" fill="none" stroke="rgba(91,141,255,.15)" stroke-width="14"/>
+          <!-- Half rotation average -->
+          <path d="M 90 130 A 80 80 0 0 1 250 130" fill="none" stroke="rgba(255,182,72,.85)" stroke-width="14" stroke-linecap="round"/>
+          <!-- Reference pointer (head position) -->
+          <line x1="170" y1="130" x2="250" y2="130" stroke="rgba(46,230,168,.85)" stroke-width="2.5"/>
+          <circle cx="250" cy="130" r="6" fill="#88ffd8" class="svg-pulse"/>
+
+          <!-- Sector pointer (rotating) -->
+          <line x1="170" y1="130" x2="90" y2="130" stroke="rgba(255,77,109,.85)" stroke-width="2.5"/>
+          <circle cx="90" cy="130" r="6" fill="#ff9fb1"/>
+
+          <text x="250" y="115" font-size="8.5" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">head</text>
+          <text x="60" y="115" font-size="8.5" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">sector</text>
+
+          <text x="170" y="215" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">AVERAGE = ½ ROTATION</text>
+          <text x="170" y="232" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">sector can be anywhere on the platter</text>
+          <text x="170" y="250" text-anchor="middle" font-size="9" fill="rgba(255,209,138,.6)" font-family="JetBrains Mono">so average wait = ½ × (1 rotation time)</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What it is</span>
+          <p>The duration a drive partition waits for a specific sector block to <strong>spin under the active magnetic head sensor</strong>. Once the arm is on the right track, the head must wait for the target sector to rotate into position.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The math</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px">
+            RPM ÷ 60 = rotations per second<br>
+            1 ÷ rotations/sec = seconds per rotation<br>
+            × 1000 = milliseconds per rotation<br>
+            ÷ 2 = <strong>average</strong> rotational latency
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The numbers by RPM</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px">
+            <strong>5400 RPM</strong> → 11.11 ms/rot → avg <strong>5.56 ms</strong><br>
+            <strong>7200 RPM</strong> → 8.33 ms/rot → avg <strong>4.17 ms</strong><br>
+            <strong>10000 RPM</strong> → 6.00 ms/rot → avg <strong>3.00 ms</strong><br>
+            <strong>15000 RPM</strong> → 4.00 ms/rot → avg <strong>2.00 ms</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Transfer Time">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — Transfer Time</span>
+    <h2 style="margin-bottom:16px;">The only <span class="grad-emerald">fast</span> part</h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What it is</span>
+          <p>The actual data flow rate from the platter, through the head, through the drive controller, over the bus, into memory. Expressed as <strong>megabytes per second</strong> (MB/s) or <strong>gigabytes per second</strong> (GB/s).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The math</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px">
+            transfer_time = bytes / transfer_rate<br>
+            <br>
+            Example: 512 bytes at 100 MB/s<br>
+            = 512 / 100,000,000<br>
+            = 0.00000512 s = <strong>0.00512 ms</strong>
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Typical rates</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px">
+            <strong>HDD (modern)</strong>: 100–250 MB/s<br>
+            <strong>SATA SSD</strong>: 500–550 MB/s<br>
+            <strong>NVMe SSD (PCIe 4)</strong>: 3–7 GB/s<br>
+            <strong>NVMe SSD (PCIe 5)</strong>: 10–14 GB/s
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why "small random reads" are catastrophic:</b> if you read 512 bytes at a time, transfer = 0.005 ms. But seek + rotate = 8 ms. <strong>You spend 99.9% of your time positioning the head and 0.1% doing useful work.</strong> That's why databases and filesystems love sequential access.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The 100× efficiency gap</div>
+        <div style="padding:14px 0;display:flex;flex-direction:column;gap:12px">
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.06)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:8px">RANDOM 512 B READS</div>
+            <div style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#ff9fb1">
+              4 KB/s effective throughput<br>
+              <span style="color:var(--muted)">8.175 ms per access · 99.9% waiting</span>
+            </div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:8px">SEQUENTIAL 128 KB READS</div>
+            <div style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#88ffd8">
+              100+ MB/s effective throughput<br>
+              <span style="color:var(--muted)">amortizes seek over larger transfer</span>
+            </div>
+          </div>
+          <div style="text-align:center;font-family:var(--mono);font-size:12px;font-weight:900;color:#ffd18a;padding:10px;border-radius:8px;border:1px solid rgba(255,182,72,.45);background:rgba(255,182,72,.06)">
+            25,000× throughput difference
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Worked Example">
+  <div class="slide-inner">
+    <span class="badge amber">🧮 Worked Example — The Canonical HDD Access</span>
+    <h2 style="margin-bottom:16px;">7200 RPM · 4 ms seek · 100 MB/s · read 512 bytes</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Step-by-step calculation</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px;font-family:var(--mono);font-size:12px;line-height:1.7">
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.06);color:#ff9fb1">
+            <strong style="color:#ff9fb1">STEP 1 · Seek time</strong><br>
+            Given: average seek = <strong style="color:#fff">4 ms</strong>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(255,182,72,.55);background:rgba(255,182,72,.06);color:#ffd18a">
+            <strong style="color:#ffd18a">STEP 2 · Rotational latency</strong><br>
+            7200 ÷ 60 = 120 rotations/sec<br>
+            1 ÷ 120 = 8.333 ms per rotation<br>
+            8.333 ÷ 2 = <strong style="color:#fff">4.167 ms avg</strong>
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);color:#88ffd8">
+            <strong style="color:#88ffd8">STEP 3 · Transfer time</strong><br>
+            512 ÷ 100,000,000 = 5.12 µs<br>
+            = <strong style="color:#fff">0.00512 ms</strong>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1.5px solid rgba(46,230,168,.85);background:rgba(46,230,168,.12);text-align:center">
+            <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:6px">TOTAL ACCESS TIME</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:900;color:#88ffd8">4 + 4.167 + 0.005 = 8.172 ms</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The breakdown</span>
+          <div class="wx-timeline">
+            <div class="wx-bar">
+              <div class="wx-seg seek" style="width:49%">seek 4 ms</div>
+              <div class="wx-seg rotate" style="width:51%">rotate 4.17 ms</div>
+              <div class="wx-seg transfer" style="width:0.5%;background:rgba(46,230,168,.6)"></div>
+            </div>
+            <div class="wx-legend">
+              <span><span class="dot" style="background:rgba(255,77,109,.55)"></span>seek</span>
+              <span><span class="dot" style="background:rgba(255,182,72,.55)"></span>rotate</span>
+              <span><span class="dot" style="background:rgba(46,230,168,.55)"></span>transfer</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The sobering truth</span>
+          <p style="font-family:var(--mono);font-size:13px;line-height:1.8;margin-top:6px">
+            seek + rotate = <strong style="color:#ff9fb1">8.167 ms</strong><br>
+            transfer = <strong style="color:#88ffd8">0.005 ms</strong><br>
+            positioning = <strong style="color:#ffd18a">99.94% of total</strong>
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The takeaway:</b> for 512-byte reads, the drive spends 99.94% of its time moving metal. The 100 MB/s transfer rate is almost irrelevant — that's <em>peak</em> speed, achieved only with large sequential reads. Random 512-byte reads effectively run at <strong>~63 KB/s</strong>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Live Demo · Calculator" data-anim="calc">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — Interactive Access Time Calculator</span>
+    <h2 style="margin-bottom:16px;">Change RPM. Change seek. <span class="grad-emerald">Watch the total.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="calc-rig" style="padding:16px;border-radius:12px;border:1px solid var(--stroke);background:rgba(0,0,0,.20)">
+          <div class="calc-row">
+            <div class="calc-head"><span>RPM</span><span class="val" id="rpmVal">7200</span></div>
+            <input type="range" class="calc-slider" id="rpmSlider" min="0" max="3" value="1" step="1">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">
+              <span>5400</span><span>7200</span><span>10k</span><span>15k</span>
+            </div>
+          </div>
+          <div class="calc-row">
+            <div class="calc-head"><span>AVG SEEK TIME</span><span class="val" id="seekVal">4 ms</span></div>
+            <input type="range" class="calc-slider" id="seekSlider" min="2" max="15" value="4" step="0.5">
+          </div>
+          <div class="calc-row">
+            <div class="calc-head"><span>TRANSFER RATE</span><span class="val" id="xferVal">100 MB/s</span></div>
+            <input type="range" class="calc-slider" id="xferSlider" min="50" max="500" value="100" step="10">
+          </div>
+          <div class="calc-row">
+            <div class="calc-head"><span>SECTOR SIZE</span><span class="val" id="sectVal">512 B</span></div>
+            <input type="range" class="calc-slider" id="sectSlider" min="0" max="2" value="0" step="1">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700">
+              <span>512 B</span><span>4 KB</span><span>128 KB</span>
+            </div>
+          </div>
+        </div>
+        <div class="calc-result">
+          <div class="cr-label">TOTAL ACCESS TIME</div>
+          <div class="cr-val" id="totalVal">8.17 ms</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Breakdown</div>
+        <div class="calc-breakdown">
+          <div class="calc-stat seek">
+            <div class="cs-l">SEEK</div>
+            <div class="cs-v" id="breakSeek">4.00 ms</div>
+          </div>
+          <div class="calc-stat rotate">
+            <div class="cs-l">ROTATE</div>
+            <div class="cs-v" id="breakRotate">4.17 ms</div>
+          </div>
+          <div class="calc-stat transfer">
+            <div class="cs-l">TRANSFER</div>
+            <div class="cs-v" id="breakTransfer">0.005 ms</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:14px;border-radius:10px;border:1px solid rgba(91,141,255,.4);background:rgba(91,141,255,.06);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink-2)" id="formulaBreakdown">
+          see the formula on the right →
+        </div>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;border:1px solid rgba(255,182,72,.45);background:rgba(255,182,72,.06);font-family:var(--mono);font-size:11px;line-height:1.6;color:#ffd18a" id="costObservation">
+          positioning dominates · transfer is negligible
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Core · SSD Anatomy">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — SSD Anatomy</span>
+    <h2 style="margin-bottom:16px;">NAND flash. <span class="grad-emerald">Pages and blocks.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">NAND flash layout</div>
+        <div style="padding:10px 0">
+          <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:10px">A FLASH BLOCK = 128–512 PAGES</div>
+          <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;padding:10px;border:1.5px solid rgba(46,230,168,.55);border-radius:10px;background:rgba(46,230,168,.04)">
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+            <div class="nand-page written"></div>
+          </div>
+          <div style="margin-top:12px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:8px">ERASING = WHOLE BLOCK ONLY</div>
+          <div style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.06);font-family:var(--mono);font-size:11px;color:#ff9fb1;line-height:1.7">
+            To rewrite one page, the whole block<br>
+            (128–512 pages) must be erased first<br>
+            → expensive: 2–5 ms per block erase
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The hierarchy</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Cell</strong> — holds 1–4 bits (SLC/MLC/TLC/QLC)<br>
+            <strong>Page</strong> — 4–16 KB, the smallest <em>read/write</em> unit<br>
+            <strong>Block</strong> — 128–512 pages, the smallest <em>erase</em> unit<br>
+            <strong>Plane/Die</strong> — multiple blocks operating in parallel
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The asymmetry</span>
+          <p>You can <strong>read</strong> a page independently, and <strong>write</strong> a page that hasn't been written since the last erase. But you cannot <strong>overwrite</strong> a page — you must first erase the entire block it lives in.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this matters</span>
+          <p>Every small overwrite forces the FTL (Flash Translation Layer) to do a <strong>read-modify-write of a whole block</strong>. That's why random small writes to SSDs are slower than sequential, and why SSDs have a "write amplification" factor.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Core · SSD Asymmetry">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — The Read/Write Asymmetry</span>
+    <h2 style="margin-bottom:16px;">Reads are fast. <span class="grad-crimson">Writes are slow. Erases are brutal.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Reads — cheap</span>
+          <p>To read a page, the controller measures the charge level of each cell. <strong>~50–100 µs</strong>. No modification, no wear. Reading is wear-free.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Writes (programs) — moderate</span>
+          <p>To write a fresh page, the controller sets the charge level. <strong>~200–500 µs</strong>. Writes consume one P/E cycle of the target cells.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Erases — expensive</span>
+          <p>To erase a whole block, the controller must clear every cell at once. <strong>2–5 ms per block</strong>. Every erase consumes one P/E cycle across the whole block.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The result:</b> SSDs are optimized for <strong>large sequential writes</strong> because that amortizes the block-erase cost. Small random writes trigger "write amplification" — the same physical byte gets rewritten many times as blocks are repeatedly erased and rewritten.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Read vs. Write vs. Erase latencies</div>
+        <div class="asym-grid">
+          <div class="asym-card read">
+            <h4>PAGE READ</h4>
+            <div class="asym-size">50–100 µs</div>
+            <p style="margin-top:8px">Just measure cell charge. Wear-free. Can happen at full random speed.</p>
+          </div>
+          <div class="asym-card write">
+            <h4>PAGE WRITE</h4>
+            <div class="asym-size">200–500 µs</div>
+            <p style="margin-top:8px">Set charge level. Consumes 1 P/E cycle. Only works on an already-erased page.</p>
+          </div>
+        </div>
+        <div class="asym-card write" style="margin-top:12px;border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.08)">
+          <h4>BLOCK ERASE</h4>
+          <div class="asym-size">2–5 ms</div>
+          <p style="margin-top:8px">Whole 128–512-page block at once. Consumes 1 P/E cycle per cell. The bottleneck.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Core · FTL &amp; Wear Leveling">
+  <div class="slide-inner">
+    <span class="badge violet">📖 Core Breakdown — FTL &amp; Wear Leveling</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-violet">hidden translator</span> that saves the drive</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The Flash Translation Layer (FTL)</span>
+          <p>The embedded controller software inside an SSD that <strong>translates virtual OS sector read commands into physical cell array electrical voltage updates</strong>. It's essentially the SSD's own tiny OS.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What it does</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Logical → Physical mapping</strong>: LBA 1024 might live at physical page 7 of block 3<br>
+            <strong>Garbage collection</strong>: consolidate valid pages, erase fully-dead blocks<br>
+            <strong>Wear leveling</strong>: spread P/E cycles evenly across all blocks<br>
+            <strong>Bad block management</strong>: mark cells that have failed and remap around them
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Wear leveling strategies</span>
+          <p><strong>Dynamic</strong>: only pick free blocks with low wear when writing<br>
+          <strong>Static</strong>: periodically move cold data (rarely-accessed) to higher-wear blocks to balance<br>
+          <strong>The goal</strong>: every block hits its P/E limit at roughly the same time, so the whole drive dies at once — not prematurely
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> modern SSDs typically last 5–10 years of normal use thanks to wear leveling. Without it, a heavily-rewritten block could fail in weeks while the rest of the drive is 99% healthy.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Wear leveling: writes spread across cells</div>
+        <div class="wear-vis">
+          <div class="wear-grid" id="wearGrid">
+            <!-- Cells generated by JS -->
+          </div>
+          <div class="wear-legend">
+            <span><span class="dot" style="background:rgba(46,230,168,.15)"></span>1–20 P/E</span>
+            <span><span class="dot" style="background:rgba(46,230,168,.30)"></span>21–100</span>
+            <span><span class="dot" style="background:rgba(255,182,72,.30)"></span>101–500</span>
+            <span><span class="dot" style="background:rgba(255,77,109,.30)"></span>501–1000</span>
+            <span><span class="dot" style="background:rgba(255,77,109,.55)"></span>&gt; 1000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Live Demo · Wear Leveling" data-anim="wear">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Live Demo — Wear Leveling in Action</span>
+    <h2 style="margin-bottom:16px;">Watch how the FTL spreads writes <span class="grad-amber">evenly</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're watching</span>
+          <p>Each cell is a NAND page with a wear counter. On every write, the FTL picks a cell with the <strong>lowest current wear</strong> to spread load. Watch the wear climb — but stay roughly balanced across all cells.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The comparison</span>
+          <p>Without wear leveling, the same 10 cells would get hammered while the other 54 stayed fresh. With wear leveling, all 64 cells accumulate wear at approximately the same rate — giving the drive many more total write cycles.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Real-world numbers</span>
+          <p>An MLC SSD rated for <strong>3000 P/E cycles</strong> can write 3000 × 500 GB = 1.5 PB before the first cells wear out. With wear leveling, the drive stays usable until <em>most</em> cells wear out — much longer than 1.5 PB in practice for most workloads.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The engineering insight:</b> the SSD's <em>raw</em> NAND has a much smaller capacity than its <em>advertised</em> capacity. The spare area (over-provisioning) gives the FTL room to do wear leveling and garbage collection without ever running out of free blocks.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Wear distribution over time</div>
+        <div class="wear-vis">
+          <div class="wear-grid" id="wearDemoGrid">
+            <!-- cells -->
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);text-align:center">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:4px">MAX WEAR</div>
+              <div style="font-family:var(--mono);font-size:16px;font-weight:900;color:#88ffd8" id="wearMax">0</div>
+            </div>
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.06);text-align:center">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:4px">TOTAL WRITES</div>
+              <div style="font-family:var(--mono);font-size:16px;font-weight:900;color:#b9d0ff" id="wearTotal">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="HDD vs SSD">
+  <div class="slide-inner">
+    <span class="badge">📊 HDD vs. SSD — Head to Head</span>
+    <h2 style="margin-bottom:16px;">Different physics. <span class="grad-blue">Different design constraints.</span></h2>
+    <div class="cmp-table">
+      <div class="cmp-cell cmp-corner">Property</div>
+      <div class="cmp-cell cmp-head hdd">HDD · mechanical</div>
+      <div class="cmp-cell cmp-head ssd">SSD · flash</div>
+
+      <div class="cmp-cell cmp-label">Moving parts</div>
+      <div class="cmp-cell cmp-val bad">Yes (platter, arm)</div>
+      <div class="cmp-cell cmp-val good">None (all silicon)</div>
+
+      <div class="cmp-cell cmp-label">Seek time</div>
+      <div class="cmp-cell cmp-val bad">4–15 ms</div>
+      <div class="cmp-cell cmp-val good">0 — no head to move</div>
+
+      <div class="cmp-cell cmp-label">Rotational latency</div>
+      <div class="cmp-cell cmp-val bad">2–5.5 ms</div>
+      <div class="cmp-cell cmp-val good">0 — no rotation</div>
+
+      <div class="cmp-cell cmp-label">Random 4 KB read</div>
+      <div class="cmp-cell cmp-val bad">~8 ms (~500 IOPS)</div>
+      <div class="cmp-cell cmp-val good">~100 µs (10,000+ IOPS)</div>
+
+      <div class="cmp-cell cmp-label">Sequential read</div>
+      <div class="cmp-cell cmp-val warn">100–250 MB/s</div>
+      <div class="cmp-cell cmp-val good">500 MB/s – 14 GB/s</div>
+
+      <div class="cmp-cell cmp-label">Random vs seq penalty</div>
+      <div class="cmp-cell cmp-val bad">100–1000×</div>
+      <div class="cmp-cell cmp-val warn">2–10×</div>
+
+      <div class="cmp-cell cmp-label">Wear mechanism</div>
+      <div class="cmp-cell cmp-val good">Mechanical wear on platter</div>
+      <div class="cmp-cell cmp-val bad">P/E cycle limit per cell</div>
+
+      <div class="cmp-cell cmp-label">Lifetime</div>
+      <div class="cmp-cell cmp-val warn">5–10 years · fails gradually</div>
+      <div class="cmp-cell cmp-val warn">5–10 years · fails suddenly</div>
+
+      <div class="cmp-cell cmp-label">Cost / GB</div>
+      <div class="cmp-cell cmp-val good">$0.02–0.05</div>
+      <div class="cmp-cell cmp-val bad">$0.05–0.15</div>
+
+      <div class="cmp-cell cmp-label">Best for</div>
+      <div class="cmp-cell cmp-val">Cold storage · bulk data</div>
+      <div class="cmp-cell cmp-val">Hot data · databases · boot drives</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real World · Sequential vs Random">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Real World — Why Sequential Beats Random</span>
+    <h2 style="margin-bottom:16px;">Access patterns <span class="grad-emerald">dominate performance</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Sequential vs random on HDD</div>
+        <svg viewBox="0 0 340 240" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="90" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">SEQUENTIAL · 1 seek, then read 100 KB</text>
+          <line x1="40" y1="70" x2="300" y2="70" stroke="rgba(46,230,168,.85)" stroke-width="8" stroke-linecap="round"/>
+          <circle cx="40" cy="70" r="8" fill="#ffd18a"/>
+          <text x="40" y="88" text-anchor="middle" font-size="8" fill="rgba(255,209,138,.75)" font-family="JetBrains Mono">1 seek</text>
+          <text x="300" y="88" text-anchor="middle" font-size="8" fill="rgba(136,255,216,.85)" font-family="JetBrains Mono">~1 ms total</text>
+
+          <rect x="14" y="118" width="312" height="110" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="170" y="138" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">RANDOM · 20 seeks, 20 × 4 KB</text>
+          <g stroke="#ff4d6d" stroke-width="2" fill="none">
+            <path d="M 40 165 L 80 175" class="svg-flow-slow"/>
+            <path d="M 80 175 L 120 165" class="svg-flow-slow"/>
+            <path d="M 120 165 L 160 180" class="svg-flow-slow"/>
+            <path d="M 160 180 L 200 168" class="svg-flow-slow"/>
+            <path d="M 200 168 L 240 182" class="svg-flow-slow"/>
+            <path d="M 240 182 L 300 175" class="svg-flow-slow"/>
+          </g>
+          <text x="170" y="215" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">20 separate head movements</text>
+          <text x="170" y="228" text-anchor="middle" font-size="8.5" fill="#ff9fb1" font-family="JetBrains Mono">~160 ms total</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Sequential I/O</span>
+          <p>Read 100 KB from one contiguous region. One seek, one rotation wait, then the head streams 100 KB directly. <strong>~1 ms total.</strong> Effective throughput ~100 MB/s.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Random I/O</span>
+          <p>Read 20 × 4 KB from scattered locations. Twenty seeks, twenty rotational waits. <strong>~160 ms total.</strong> Effective throughput ~0.5 MB/s — 200× slower.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why filesystems care</span>
+          <p>Classic Unix filesystems (ext2, ext3, ext4) allocate file data in <strong>contiguous extents</strong>. Reading a file sequentially is fast; reading it after fragmentation is slow. This is why <code style="font-family:var(--mono);color:#b9d0ff">defrag</code> existed and why filesystem design obsesses over locality.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>SSDs change this — partially:</b> random 4 KB reads on SSD cost ~100 µs, so 20 of them = 2 ms vs sequential 1 ms. Still 2× — but not 200×. That's why SSD-era filesystems (btrfs, zfs, f2fs) don't obsess over contiguous allocation the way older ones did.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Code · Access Time" data-anim="codestep">
+  <div class="slide-inner">
+    <span class="badge amber">💻 Code — Computing Access Time in C</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">formula</span>, in code</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head blue"><span>disk_access.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// Compute HDD access time for a random read</span></span><span class="code-line"><span class="c-type">double</span> <span class="c-name">compute_access_time</span>(</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">rpm</span>,                <span class="c-com">// e.g. 7200</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">avg_seek_ms</span>,        <span class="c-com">// e.g. 4.0</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">transfer_mbps</span>,      <span class="c-com">// e.g. 100 (MB/s)</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">bytes</span>                <span class="c-com">// e.g. 512</span></span><span class="code-line">) {</span><span class="code-line">    <span class="c-com">// Rotational latency = half of one rotation</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">rot_per_sec</span> = <span class="c-var">rpm</span> / <span class="c-num">60.0</span>;</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">ms_per_rot</span>  = <span class="c-num">1000.0</span> / <span class="c-var">rot_per_sec</span>;</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">avg_rot_ms</span>  = <span class="c-var">ms_per_rot</span> / <span class="c-num">2.0</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Transfer time = bytes / rate, converted to ms</span></span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">rate_bps</span>   = <span class="c-var">transfer_mbps</span> * <span class="c-num">1e6</span>;</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">xfer_ms</span>     = (<span class="c-var">bytes</span> / <span class="c-var">rate_bps</span>) * <span class="c-num">1000.0</span>;</span><span class="code-line"></span><span class="code-line">    <span class="c-kw">return</span> <span class="c-var">avg_seek_ms</span> + <span class="c-var">avg_rot_ms</span> + <span class="c-var">xfer_ms</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">double</span> <span class="c-var">t</span> = <span class="c-name">compute_access_time</span>(<span class="c-num">7200</span>, <span class="c-num">4.0</span>, <span class="c-num">100</span>, <span class="c-num">512</span>);</span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Access time: %.3f ms\n"</span>, <span class="c-var">t</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The output</span>
+          <p style="font-family:var(--mono);font-size:13px;line-height:1.9;margin-top:6px;color:#88ffd8">
+            $ ./disk_access<br>
+            Access time: <strong>8.172 ms</strong>
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What to notice</span>
+          <p>The <strong>bytes</strong> parameter barely matters. Changing it from 512 to 128 KB only adds ~1.3 ms of transfer — the seek + rotate cost stays the same. That's the fundamental lesson: positioning dominates.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Try it with SSD numbers</span>
+          <p>SSDs have no seek, no rotate. Access time ≈ 0.1 ms (100 µs) regardless of sector size. Run the same function with <code style="font-family:var(--mono);color:#88ffd8">seek=0</code> and <code style="font-family:var(--mono);color:#88ffd8">rpm=∞</code> (or just skip those terms).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Live Demo · fio" data-anim="fio">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — fio Benchmarking</span>
+    <h2 style="margin-bottom:16px;">Real numbers from <span class="grad-emerald">real drives</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · fio output for the same workload on different media</div>
+        <div class="terminal" id="fioTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — fio</span>
+          </div>
+          <div class="term-body" id="fioBody">
+            <span class="term-line dim">Running fio benchmarks...</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're seeing</span>
+          <p>Three workloads on three media types: <strong>HDD 7200 RPM</strong>, <strong>SATA SSD</strong>, <strong>NVMe SSD</strong>. Same 4 KB random reads, same 1 GB sequential reads.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The IOPS gap</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:12px">
+            <strong style="color:#ff9fb1">HDD:</strong> ~150 IOPS (4 KB random)<br>
+            <strong style="color:#ffd18a">SATA SSD:</strong> ~100,000 IOPS<br>
+            <strong style="color:#88ffd8">NVMe SSD:</strong> ~1,000,000+ IOPS
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Sequential is closer</span>
+          <p>All three media do sequential reads well: HDD ~180 MB/s, SATA SSD ~540 MB/s, NVMe ~7 GB/s. Random is where the gap becomes dramatic — HDDs fall off a cliff, SSDs don't.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Seek &amp; Rotate</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Seek Time</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The physical time required for an HDD's mechanical read/write head arm to sweep and lock onto a target track cylinder.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The radial distance the arm must travel. Moving metal — not instant. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Typical values</span>
+          <p>Desktop: 8–15 ms. Enterprise: 2–4 ms. SSDs have no seek time.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Rotational Latency</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The duration a drive partition waits for a specific sector block to spin under the active magnetic head sensor.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Waiting for the platter to rotate so the right sector is under the head. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The math</span>
+          <p>Average = half a rotation. At 7200 RPM: 8.33 ms per rotation → <strong>4.17 ms</strong> average latency.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Wear Leveling &amp; FTL</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Wear Leveling</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An internal SSD optimization algorithm that dynamically remaps logical write address blocks to distribute flash cell erasure stress evenly across the device matrix.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Don't hammer the same cells over and over — spread the wear. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why it matters</span>
+          <p>Without it, one heavily-written cell could die in weeks while the rest is 99% healthy. With it, the whole drive lasts years.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">FTL</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Flash Translation Layer — the embedded controller software inside an SSD that translates virtual OS sector read commands into physical cell array electrical voltage updates.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The SSD's internal operating system. It maps LBA → PPA and manages wear. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Why it's needed</span>
+          <p>NAND can't overwrite in place. The FTL hides this by doing read-modify-write of whole blocks and remapping logical addresses to fresh physical pages.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about disk physics</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"Transfer rate is what matters for disk speed"</div>
+        <div class="pc-desc">Transfer rate is the <em>peak</em> rate — achieved only for large sequential reads. For random 4 KB reads, transfer is <strong>less than 0.1% of the access time</strong>. Seek + rotate dominate. A 200 MB/s HDD doing random 4 KB reads achieves roughly <strong>500 KB/s</strong> — the transfer rate is meaningless for that workload.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"SSDs don't have seek time, so they're equally fast for all I/O"</div>
+        <div class="pc-desc">Not quite. SSDs have <strong>no mechanical seek</strong>, so random 4 KB reads cost the same as sequential 4 KB reads (both ~100 µs). But <strong>write workloads are different</strong>: random small writes cost much more than sequential writes, because each small write can trigger a block erase + read-modify-write. Random write amplification can make SSDs 5–10× slower for random vs sequential writes.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"More disks means more storage means faster"</div>
+        <div class="pc-desc">Adding disks (RAID, distributed storage) improves <strong>throughput</strong> (parallel reads across drives) but not <strong>latency</strong>. A single 4 KB read still costs ~8 ms on any one HDD. If your workload is latency-bound (databases, message queues), adding disks doesn't help — you need SSDs or caching.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Defragmentation Challenge</span>
+    <h2 style="margin-bottom:16px;">Count the seeks. <span class="grad-violet">Then defragment.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Below is a fragmented disk layout. The colored blocks are files; the empty blocks are free space. A large file (the red blocks) is scattered across the disk, with free blocks interspersed.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The task</span>
+          <p><strong>1.</strong> Count how many times the head must seek to read the file in order (left to right).<br>
+          <strong>2.</strong> Propose a defragmentation: move the free blocks to consolidate the file.<br>
+          <strong>3.</strong> Count again — how many seeks after defrag?</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The debrief</span>
+          <p>Before: 6 seeks (one per fragment). After: 1 seek (one contiguous read). Defragmentation <strong>reduces seek count by 6×</strong> — and reduces access time proportionally.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>SSDs change this calculus:</b> since SSDs have no seek time, fragmented files on SSDs cost almost nothing extra. This is why modern SSDs don't need defragmentation — and why running <code style="font-family:var(--mono);color:#c9a7ff">defrag</code> on an SSD only wastes its P/E cycles.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Fragmented disk layout</div>
+        <div class="defrag-vis">
+          <div class="defrag-grid">
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell file">A</div>
+            <div class="defrag-cell file">A</div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell file">B</div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell file">C</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell file">A</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell target">F</div>
+            <div class="defrag-cell file">B</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell file">C</div>
+            <div class="defrag-cell free"></div>
+            <div class="defrag-cell free"></div>
+          </div>
+          <div class="defrag-arrow">6 separate seek operations to read F</div>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.06);font-family:var(--mono);font-size:11px;line-height:1.6;color:#88ffd8;text-align:center">
+            <strong>AFTER DEFRAG:</strong> 6 fragments consolidated to 1 contiguous run<br>
+            1 seek instead of 6 · ~8 ms instead of ~48 ms
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Cohesion Full">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 Full Module 5 Arc — Where L16 Fits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">physics layer</span> under every file system</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Module 5 arc</span>
+          <p style="line-height:1.95;margin-top:4px;font-size:13.5px">
+            <strong style="color:#88ffd8">L16 · Disk Geometry</strong> — physical access costs (this lecture)<br>
+            <strong style="color:#b9d0ff">L17 · File Abstraction</strong> — paths, directories, descriptors<br>
+            <strong style="color:#ffd18a">L18 · Inode Architecture</strong> — metadata + block pointers<br>
+            <strong style="color:#c9a7ff">L19 · Crash Consistency</strong> — journaling, recovery
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The insight that shapes everything else</span>
+          <p>Because random I/O is dramatically more expensive than sequential on HDDs, filesystems are designed around <strong>contiguity</strong> — inode block pointers assume the file's blocks are adjacent; extents (ext4) allocate runs of blocks; the block allocator tries to keep a file's blocks clustered.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">What SSDs changed</span>
+          <p>SSDs remove the seek penalty, but introduce <strong>erase-block management</strong>. Modern filesystems (f2fs, btrfs, zfs) are designed for flash: they cluster writes, avoid overwrites when possible, and use TRIM to help the FTL reclaim blocks.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Full picture</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="30" y="16" width="280" height="52" rx="10" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="170" y="38" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">L16 · DISK GEOMETRY</text>
+          <text x="170" y="56" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">seek · rotate · wear</text>
+
+          <line x1="170" y1="68" x2="170" y2="88" stroke="rgba(46,230,168,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="88" width="280" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="106" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="700">L17 · FILE ABSTRACTION</text>
+          <text x="170" y="122" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">paths · dirs · fds</text>
+
+          <line x1="170" y1="134" x2="170" y2="154" stroke="rgba(91,141,255,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="154" width="280" height="46" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="170" y="172" text-anchor="middle" font-size="10.5" fill="#ffd18a" font-family="Inter" font-weight="700">L18 · INODE ARCHITECTURE</text>
+          <text x="170" y="188" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">metadata · block pointers</text>
+
+          <line x1="170" y1="200" x2="170" y2="220" stroke="rgba(255,182,72,.6)" stroke-width="1.5" class="svg-flow"/>
+
+          <rect x="30" y="220" width="280" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="170" y="238" text-anchor="middle" font-size="10.5" fill="#c9a7ff" font-family="Inter" font-weight="700">L19 · CRASH CONSISTENCY</text>
+          <text x="170" y="254" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">journaling · recovery</text>
+
+          <text x="170" y="296" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.7)" font-family="JetBrains Mono">each layer built on the physics below</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 27 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L16 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>HDD access time = <strong>seek + rotate + transfer</strong>. For small reads, seek and rotate dominate — <strong>99.9% of the time is moving metal</strong>, not transferring data.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><strong>Rotational latency = half a rotation</strong> on average. At 7200 RPM that's 4.17 ms; at 15000 RPM it's 2 ms. Seek time is 4–15 ms depending on drive class.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p>SSDs have <strong>no seek, no rotate</strong> — random 4 KB reads cost ~100 µs instead of ~8 ms. But NAND wear (P/E cycles) and erase-block asymmetry introduce their own constraints.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p><strong>Wear leveling and the FTL</strong> hide NAND's limitations: they map logical addresses to fresh physical pages, spread P/E cycles evenly, and enable garbage collection. Without them, SSDs would die quickly.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L17 — File Abstraction &amp; Directory Topology</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>We've now covered the <strong>physical reality</strong> of storage. L17 shifts to the <strong>logical abstraction</strong>: how does the OS present files, directories, and paths to applications? How does <code style="font-family:var(--mono);color:#b9d0ff">/home/user/resume.pdf</code> become a specific block on disk? The answers involve inodes, directory entries, and VFS — building directly on the block-level physics we just learned.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L17: File Abstraction &amp; Directory Topology &nbsp;|&nbsp; [L17.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad16" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad16)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad16)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : HDD platter canvas ---------- */
+reg('hddcanvas', function(){
+  const c = document.getElementById('hddCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const cx = W/2, cy = H/2 + 10;
+  const platterR = 170;
+  let active = true, raf = null, t = 0;
+
+  const tracks = [40, 60, 80, 100, 120, 140, 160];
+  let headTrack = 3;
+  let headAngle = 0;
+  let targetTrack = 3;
+
+  // Sector currently being read (rotates)
+  let sectorAngle = 0;
+
+  function frame(){
+    if(!active) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PLATTER SPINNING · ARM SEEKING · DATA READ', W/2, 16);
+
+    // platter
+    ctx.beginPath();
+    ctx.arc(cx, cy, platterR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(30,40,60,0.5)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // concentric tracks
+    tracks.forEach((r, i) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = i === headTrack ? 'rgba(255,182,72,0.6)' : 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = i === headTrack ? 2 : 1;
+      ctx.stroke();
+    });
+
+    // spindle
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#eaf0fc';
+    ctx.fill();
+
+    // rotating sector indicator (visualizes spinning platter)
+    sectorAngle += 0.08;
+    const sectorR = platterR - 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, sectorR, sectorAngle, sectorAngle + 0.25);
+    ctx.strokeStyle = 'rgba(46,230,168,0.55)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // rotating sector labels around the platter
+    for(let i = 0; i < 8; i++){
+      const a = sectorAngle * 0.3 + (i * Math.PI / 4);
+      const x = cx + Math.cos(a) * (platterR - 4);
+      const y = cy + Math.sin(a) * (platterR - 4);
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,182,72,0.7)';
+      ctx.fill();
+    }
+
+    // actuator arm — seeking animation between tracks
+    const targetR = tracks[headTrack];
+    headAngle += (targetR - headAngle) * 0.08;
+    const armAngle = -Math.PI/4 + (headAngle / platterR) * (Math.PI / 3);
+    const armLength = platterR + 50;
+    const pivotX = cx + Math.cos(armAngle + Math.PI/2) * (platterR + 60);
+    const pivotY = cy + Math.sin(armAngle + Math.PI/2) * (platterR + 60);
+
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(cx + Math.cos(armAngle) * headAngle, cy + Math.sin(armAngle) * headAngle);
+    ctx.strokeStyle = 'rgba(255,77,109,0.85)';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // pivot
+    ctx.beginPath();
+    ctx.arc(pivotX, pivotY, 12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,77,109,0.25)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,77,109,0.75)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // read head
+    const headX = cx + Math.cos(armAngle) * headAngle;
+    const headY = cy + Math.sin(armAngle) * headAngle;
+    ctx.beginPath();
+    ctx.arc(headX, headY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#eaf0fc';
+    ctx.fill();
+    ctx.strokeStyle = '#ff4d6d';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // periodically pick a new target track
+    if (t % 90 === 0) {
+      targetTrack = Math.floor(Math.random() * tracks.length);
+      headTrack = targetTrack;
+    }
+
+    // labels
+    ctx.fillStyle = 'rgba(132,148,180,0.7)';
+    ctx.font = '700 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SEEK', pivotX - 30, pivotY - 20);
+    ctx.fillText('HEAD', headX + 30, headY - 12);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 4 : switch grid ---------- */
+(function buildSwitchGrid(){
+  const grid = document.getElementById('switchGrid');
+  if(!grid) return;
+  const cols = 16, rows = 8;
+  const total = cols * rows;
+  const cells = [];
+  for(let i = 0; i < total; i++){
+    const cell = document.createElement('div');
+    cell.className = 'switch-cell';
+    grid.appendChild(cell);
+    cells.push(cell);
+  }
+
+  // Track "worn" counts
+  const wearCount = new Array(total).fill(0);
+  let writeCount = 0;
+
+  const timer = setInterval(() => {
+    // Pick a random cell weighted toward low wear (wear leveling)
+    const sorted = wearCount.map((w, i) => ({w, i})).sort((a, b) => a.w - b.w);
+    // Pick from the bottom 25% (least worn)
+    const bottom = sorted.slice(0, Math.floor(total * 0.25));
+    const pick = bottom[Math.floor(Math.random() * bottom.length)];
+    wearCount[pick.i]++;
+    writeCount++;
+
+    // Update display
+    cells.forEach((c, i) => {
+      c.classList.remove('lit', 'worn');
+      const w = wearCount[i];
+      if (w > 20) c.classList.add('worn');
+      else if (w > 0) c.classList.add('lit');
+    });
+
+    // Reset after many writes to show the pattern
+    if (writeCount > 200) {
+      // Show complete distribution for a bit
+      setTimeout(() => {
+        wearCount.fill(0);
+        writeCount = 0;
+        cells.forEach(c => { c.classList.remove('lit', 'worn'); });
+      }, 3000);
+      writeCount = -3000; // prevent re-triggering
+    }
+  }, 150);
+
+  // Store the timer so it can be cleared if needed (global though, so it runs forever)
+  window._switchTimer = timer;
+})();
+
+/* ---------- Slide 5 : elevator visualization ---------- */
+reg('elevator', function(){
+  const container = document.getElementById('elevVis');
+  const head = document.getElementById('elevHead');
+  if(!container || !head) return { stop(){} };
+
+  const requests = [15, 82, 45, 28, 91, 60, 35, 75, 20, 55];
+  const positions = requests.map(r => r);
+  let currentPos = 10;
+
+  // Build request nodes
+  const nodes = [];
+  positions.forEach((pos, i) => {
+    const node = document.createElement('div');
+    node.className = 'elev-req ungrouped';
+    node.style.left = pos + '%';
+    node.textContent = i + 1;
+    container.appendChild(node);
+    nodes.push({ el: node, pos, idx: i });
+  });
+
+  // Animate: first random order, then sorted (SCAN)
+  let mode = 'random';
+  let idx = 0;
+  let seekCount = 0;
+
+  const randomCount = document.getElementById('elevRandomCount');
+  const scanCount = document.getElementById('elevScanCount');
+
+  function randomSeek(){
+    if (idx >= nodes.length) {
+      // switch to scan mode
+      mode = 'scan';
+      idx = 0;
+      currentPos = 10;
+      seekCount = 0;
+      if (scanCount) scanCount.textContent = '0 seeks';
+      // mark nodes as grouped
+      nodes.forEach(n => { n.el.classList.remove('ungrouped'); n.el.classList.add('grouped'); });
+      return;
+    }
+    const target = nodes[idx];
+    const dist = Math.abs(target.pos - currentPos);
+    seekCount += dist;
+    currentPos = target.pos;
+    head.style.left = currentPos + '%';
+    if (randomCount) randomCount.textContent = Math.round(seekCount) + ' seeks';
+    target.el.style.opacity = '0.3';
+    idx++;
+  }
+
+  let sortedIdx = 0;
+  const sortedNodes = [...nodes].sort((a, b) => a.pos - b.pos);
+
+  function scanSeek(){
+    if (sortedIdx >= sortedNodes.length) {
+      // restart
+      setTimeout(() => {
+        mode = 'random';
+        idx = 0;
+        currentPos = 10;
+        seekCount = 0;
+        head.style.left = '10%';
+        nodes.forEach(n => { n.el.style.opacity = '1'; n.el.classList.add('ungrouped'); n.el.classList.remove('grouped'); });
+        if (randomCount) randomCount.textContent = '0 seeks';
+        if (scanCount) scanCount.textContent = '0 seeks';
+      }, 3000);
+      return;
+    }
+    const target = sortedNodes[sortedIdx];
+    const dist = Math.abs(target.pos - currentPos);
+    seekCount += dist;
+    currentPos = target.pos;
+    head.style.left = currentPos + '%';
+    if (scanCount) scanCount.textContent = Math.round(seekCount) + ' seeks';
+    target.el.style.opacity = '0.3';
+    sortedIdx++;
+  }
+
+  const timer = setInterval(() => {
+    if (mode === 'random') randomSeek();
+    else scanSeek();
+  }, 700);
+
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 13 : interactive calculator ---------- */
+reg('calc', function(){
+  const rpmSlider = document.getElementById('rpmSlider');
+  const seekSlider = document.getElementById('seekSlider');
+  const xferSlider = document.getElementById('xferSlider');
+  const sectSlider = document.getElementById('sectSlider');
+  if(!rpmSlider) return { stop(){} };
+
+  const rpms = [5400, 7200, 10000, 15000];
+  const sectors = [512, 4096, 131072]; // 512 B, 4 KB, 128 KB
+  const sectorLabels = ['512 B', '4 KB', '128 KB'];
+
+  function update(){
+    const rpm = rpms[parseInt(rpmSlider.value)];
+    const seek = parseFloat(seekSlider.value);
+    const xfer = parseFloat(xferSlider.value);
+    const bytes = sectors[parseInt(sectSlider.value)];
+
+    // Update labels
+    document.getElementById('rpmVal').textContent = rpm;
+    document.getElementById('seekVal').textContent = seek.toFixed(1) + ' ms';
+    document.getElementById('xferVal').textContent = xfer + ' MB/s';
+    document.getElementById('sectVal').textContent = sectorLabels[parseInt(sectSlider.value)];
+
+    // Compute
+    const rotPerSec = rpm / 60;
+    const msPerRot = 1000 / rotPerSec;
+    const rotLatency = msPerRot / 2;
+    const transferMs = (bytes / (xfer * 1e6)) * 1000;
+    const total = seek + rotLatency + transferMs;
+
+    // Display
+    document.getElementById('totalVal').textContent = total.toFixed(2) + ' ms';
+    document.getElementById('breakSeek').textContent = seek.toFixed(2) + ' ms';
+    document.getElementById('breakRotate').textContent = rotLatency.toFixed(2) + ' ms';
+    document.getElementById('breakTransfer').textContent = transferMs.toFixed(3) + ' ms';
+
+    // Formula breakdown
+    const formulaEl = document.getElementById('formulaBreakdown');
+    if (formulaEl) {
+      formulaEl.innerHTML = `
+        ${seek.toFixed(2)} (seek) +<br>
+        ${rotLatency.toFixed(2)} (rotate · ${rpm} RPM ÷ 2) +<br>
+        ${transferMs.toFixed(3)} (transfer) =<br>
+        <strong style="color:#88ffd8">${total.toFixed(2)} ms</strong>
+      `;
+    }
+
+    // Observation
+    const obsEl = document.getElementById('costObservation');
+    if (obsEl) {
+      const posPct = ((seek + rotLatency) / total * 100).toFixed(1);
+      obsEl.textContent = `positioning = ${posPct}% of total · transfer = ${(100 - posPct).toFixed(1)}%`;
+    }
+  }
+
+  rpmSlider.addEventListener('input', update);
+  seekSlider.addEventListener('input', update);
+  xferSlider.addEventListener('input', update);
+  sectSlider.addEventListener('input', update);
+  update();
+
+  return {
+    stop(){
+      rpmSlider.removeEventListener('input', update);
+      seekSlider.removeEventListener('input', update);
+      xferSlider.removeEventListener('input', update);
+      sectSlider.removeEventListener('input', update);
+    }
+  };
+});
+
+/* ---------- Slide 17 : wear leveling demo ---------- */
+reg('wear', function(){
+  const grid = document.getElementById('wearDemoGrid');
+  if(!grid) return { stop(){} };
+
+  const total = 32;
+  const wear = new Array(total).fill(0);
+  const cells = [];
+  for(let i = 0; i < total; i++){
+    const c = document.createElement('div');
+    c.className = 'wear-cell';
+    c.textContent = '0';
+    grid.appendChild(c);
+    cells.push(c);
+  }
+
+  let maxWearEl = document.getElementById('wearMax');
+  let totalWritesEl = document.getElementById('wearTotal');
+  let writeCount = 0;
+
+  const timer = setInterval(() => {
+    // Pick from the bottom 25% least-worn cells (wear leveling)
+    const sorted = wear.map((w, i) => ({w, i})).sort((a, b) => a.w - b.w);
+    const bottom = sorted.slice(0, Math.max(1, Math.floor(total * 0.25)));
+    const pick = bottom[Math.floor(Math.random() * bottom.length)];
+    wear[pick.i]++;
+    writeCount++;
+
+    // Update cells
+    cells.forEach((c, i) => {
+      const w = wear[i];
+      c.textContent = w;
+      c.className = 'wear-cell';
+      if (w === 0) continue;
+      if (w < 20) c.classList.add('lv1');
+      else if (w < 50) c.classList.add('lv2');
+      else if (w < 100) c.classList.add('lv3');
+      else if (w < 200) c.classList.add('lv4');
+      else c.classList.add('lv5');
+    });
+
+    const maxW = Math.max(...wear);
+    if (maxWearEl) maxWearEl.textContent = maxW;
+    if (totalWritesEl) totalWritesEl.textContent = writeCount;
+
+    // Reset after many writes
+    if (writeCount >= 500) {
+      setTimeout(() => {
+        wear.fill(0);
+        writeCount = 0;
+        cells.forEach(c => { c.textContent = '0'; c.className = 'wear-cell'; });
+        if (maxWearEl) maxWearEl.textContent = '0';
+        if (totalWritesEl) totalWritesEl.textContent = '0';
+      }, 2000);
+      writeCount = -2000;
+    }
+  }, 80);
+
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 20 : code stepper ---------- */
+reg('codestep', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17,19,20,22,23,24,25,26,27,28,29,30];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl'));
+    const t = seq[i % seq.length];
+    if(lines[t]) lines[t].classList.add('hl');
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 550);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl')); } };
+});
+
+/* ---------- Slide 21 : fio demo ---------- */
+reg('fio', function(){
+  const body = document.getElementById('fioBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    { cls:'term-line dim', text: 'fio 3.33 · benchmarking 3 media types' },
+    { cls:'term-line warn', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+    { cls:'term-line', text: 'JOB 1: hdd-7200rpm · 4 KB random read' },
+    { cls:'term-line err', text: '  read: IOPS=148, BW=594KiB/s (608kB/s)' },
+    { cls:'term-line err', text: '  lat (usec): avg=6732.15 · p99=12480' },
+    { cls:'term-line warn', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+    { cls:'term-line', text: 'JOB 2: sata-ssd · 4 KB random read' },
+    { cls:'term-line ok', text: '  read: IOPS=98,304, BW=384MiB/s' },
+    { cls:'term-line ok', text: '  lat (usec): avg=10.17 · p99=42' },
+    { cls:'term-line warn', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+    { cls:'term-line', text: 'JOB 3: nvme-ssd · 4 KB random read' },
+    { cls:'term-line ok', text: '  read: IOPS=1,048,576, BW=4GiB/s' },
+    { cls:'term-line ok', text: '  lat (usec): avg=0.95 · p99=8' },
+    { cls:'term-line warn', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+    { cls:'term-line hl', text: 'IOPS ratio HDD : SATA : NVMe = 1 : 664 : 7,085' },
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line dim">Running fio benchmarks...</span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if (idx < lines.length) {
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 5000);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 500);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
