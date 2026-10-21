@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Operating Systems · Master Syllabus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;
+  --panel:rgba(255,255,255,.04);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --cyan:#22d3ee;--pink:#f472b6;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --radius:20px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;scroll-padding-top:90px;}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-x:hidden;line-height:1.5;
+  padding-bottom:120px;
+}
+.bg-grid{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);
+}
+.bg-orb{
+  position:fixed;border-radius:50%;pointer-events:none;z-index:0;
+  filter:blur(120px);opacity:.55;will-change:transform;
+}
+.bg-orb-1{
+  width:640px;height:640px;top:-200px;left:-180px;
+  background:radial-gradient(circle,rgba(91,141,255,.55),transparent 70%);
+  animation:orbFloat1 22s ease-in-out infinite;
+}
+.bg-orb-2{
+  width:720px;height:720px;bottom:-320px;right:-220px;
+  background:radial-gradient(circle,rgba(160,107,255,.45),transparent 70%);
+  animation:orbFloat2 28s ease-in-out infinite;
+}
+.bg-orb-3{
+  width:520px;height:520px;top:40%;left:60%;
+  background:radial-gradient(circle,rgba(46,230,168,.30),transparent 70%);
+  animation:orbFloat3 24s ease-in-out infinite;
+}
+@keyframes orbFloat1{0%,100%{transform:translate(0,0)}50%{transform:translate(120px,80px)}}
+@keyframes orbFloat2{0%,100%{transform:translate(0,0)}50%{transform:translate(-100px,-80px)}}
+@keyframes orbFloat3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-60px,60px) scale(1.1)}}
+
+.hud{
+  position:fixed;top:0;left:0;right:0;height:60px;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;gap:20px;
+  background:rgba(6,9,15,.72);
+  border-bottom:1px solid var(--stroke);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+}
+.hud-brand{display:flex;align-items:center;gap:10px;color:var(--ink);flex-shrink:0;}
+.hud-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--emerald);
+  box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;
+}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-brand-title{font-weight:800;color:var(--ink);}
+.hud-brand-sub{color:var(--muted);font-weight:600;}
+.hud-nav{
+  display:flex;gap:6px;align-items:center;flex-wrap:nowrap;
+  overflow-x:auto;scrollbar-width:none;padding:4px;
+}
+.hud-nav::-webkit-scrollbar{display:none;}
+.hud-nav a{
+  padding:6px 10px;border-radius:8px;text-decoration:none;
+  color:var(--muted);font-size:10.5px;font-weight:800;
+  transition:.22s var(--ease);flex-shrink:0;letter-spacing:.08em;
+  border:1px solid transparent;
+}
+.hud-nav a:hover{color:var(--ink);background:rgba(255,255,255,.06);border-color:var(--stroke);}
+.hud-nav a.active{color:#fff;background:rgba(91,141,255,.15);border-color:rgba(91,141,255,.5);}
+.hud-right{color:var(--muted);font-size:10.5px;letter-spacing:.14em;display:flex;align-items:center;gap:14px;flex-shrink:0;}
+.hud-pill{
+  padding:4px 10px;border-radius:20px;border:1px solid var(--stroke);
+  color:var(--ink-2);font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+}
+@media(max-width:900px){
+  .hud-nav{display:none;}
+  .hud-right .hud-brand-sub{display:none;}
+}
+
+.hero{position:relative;z-index:2;max-width:1240px;margin:0 auto;padding:140px 32px 60px;text-align:center;}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;letter-spacing:.20em;text-transform:uppercase;font-weight:800;
+  color:#ffd18a;background:rgba(255,182,72,.10);
+  border:1px solid rgba(255,182,72,.34);
+  padding:9px 18px;border-radius:999px;margin-bottom:28px;
+  animation:fadeInUp .8s var(--ease) both;
+}
+.hero-title{
+  font-size:clamp(36px,5.5vw,76px);line-height:1.02;letter-spacing:-.04em;
+  font-weight:900;margin-bottom:22px;
+  animation:fadeInUp .8s .1s var(--ease) both;
+}
+.hero-title .grad{
+  background:linear-gradient(100deg,#9dc0ff,#5b8dff 30%,#a06bff 55%,#2ee6a8);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero-sub{
+  font-size:clamp(15px,1.3vw,19px);line-height:1.6;color:var(--ink-2);
+  max-width:760px;margin:0 auto 40px;
+  animation:fadeInUp .8s .2s var(--ease) both;
+}
+.hero-sub strong{color:var(--ink);font-weight:700;}
+.hero-cta{
+  display:flex;gap:12px;justify-content:center;flex-wrap:wrap;
+  margin-bottom:52px;
+  animation:fadeInUp .8s .3s var(--ease) both;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:14px 26px;border-radius:14px;
+  font-family:var(--font);font-size:13.5px;font-weight:800;
+  letter-spacing:.04em;text-decoration:none;cursor:pointer;
+  border:1.4px solid transparent;transition:.24s var(--ease);
+}
+.btn-primary{
+  background:linear-gradient(100deg,#5b8dff,#a06bff);
+  color:#fff;border-color:rgba(91,141,255,.5);
+  box-shadow:0 12px 40px -12px rgba(91,141,255,.6);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 50px -12px rgba(160,107,255,.75);}
+.btn-ghost{
+  background:rgba(255,255,255,.05);color:var(--ink-2);
+  border-color:var(--stroke-2);
+}
+.btn-ghost:hover{
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,182,72,.5);
+  color:#ffd18a;transform:translateY(-2px);
+}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+.stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:14px;max-width:900px;margin:0 auto 60px;
+  animation:fadeInUp .8s .4s var(--ease) both;
+}
+.stat{
+  padding:22px 16px;border-radius:16px;
+  background:var(--panel);border:1px solid var(--stroke);
+  text-align:center;transition:.28s var(--ease);
+  position:relative;overflow:hidden;
+}
+.stat::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(91,141,255,.06),transparent);
+  pointer-events:none;
+}
+.stat:hover{
+  border-color:rgba(91,141,255,.4);
+  transform:translateY(-3px);
+  box-shadow:0 18px 40px -20px rgba(91,141,255,.6);
+}
+.stat-num{
+  font-size:clamp(28px,3vw,40px);font-weight:900;letter-spacing:-.03em;
+  line-height:1;color:#fff;margin-bottom:8px;
+  font-family:var(--mono);
+}
+.stat-num.grad{
+  background:linear-gradient(100deg,#b9d0ff,#5b8dff 50%,#a06bff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.stat-label{
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:800;
+}
+
+.hero-progress{
+  max-width:760px;margin:0 auto;
+  padding:22px 26px;border-radius:18px;
+  background:var(--panel);border:1px solid var(--stroke);
+  animation:fadeInUp .8s .5s var(--ease) both;
+}
+.hp-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.hp-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:800;}
+.hp-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);font-weight:700;}
+.hp-meta strong{color:var(--emerald);font-weight:900;}
+.hp-track{
+  height:8px;border-radius:99px;overflow:hidden;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);
+}
+.hp-fill{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,#2ee6a8,#5b8dff,#a06bff);
+  border-radius:99px;transition:width 1.2s var(--ease);
+  box-shadow:0 0 16px rgba(46,230,168,.5);
+}
+
+.search-wrap{
+  position:relative;z-index:2;
+  max-width:600px;margin:50px auto 40px;
+  padding:0 32px;
+  animation:fadeInUp .8s .55s var(--ease) both;
+}
+.search{
+  width:100%;padding:14px 18px 14px 46px;
+  border-radius:14px;border:1.4px solid var(--stroke);
+  background:rgba(255,255,255,.04);color:var(--ink);
+  font-family:var(--font);font-size:14.5px;font-weight:500;
+  outline:none;transition:.24s var(--ease);
+}
+.search::placeholder{color:var(--muted);}
+.search:focus{
+  border-color:rgba(91,141,255,.6);
+  background:rgba(91,141,255,.05);
+  box-shadow:0 0 0 4px rgba(91,141,255,.10);
+}
+.search-icon{
+  position:absolute;left:52px;top:50%;transform:translateY(-50%);
+  color:var(--muted);pointer-events:none;font-size:16px;
+}
+.search-clear{
+  position:absolute;right:52px;top:50%;transform:translateY(-50%);
+  width:24px;height:24px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:none;color:var(--ink-2);
+  font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;
+  transition:.2s var(--ease);font-family:var(--font);font-weight:800;
+}
+.search-clear:hover{background:rgba(255,77,109,.2);color:#ff9fb1;}
+
+.modules{
+  position:relative;z-index:2;
+  max-width:1240px;margin:0 auto;
+  padding:0 32px;
+  display:flex;flex-direction:column;gap:36px;
+}
+.module{
+  position:relative;border-radius:22px;
+  background:var(--panel);border:1px solid var(--stroke);
+  overflow:hidden;transition:.32s var(--ease);
+  animation:fadeInUp .6s var(--ease) both;
+}
+.module:hover{border-color:var(--stroke-2);box-shadow:0 24px 60px -32px rgba(0,0,0,.8);}
+.module-accent{
+  position:absolute;left:0;top:0;bottom:0;width:5px;
+  border-radius:22px 0 0 22px;
+}
+.module-head{
+  display:grid;grid-template-columns:auto 1fr auto;
+  gap:24px;align-items:center;
+  padding:32px 34px 26px;
+  border-bottom:1px solid var(--stroke);
+  position:relative;
+}
+.module-num{
+  width:64px;height:64px;border-radius:16px;
+  display:grid;place-items:center;
+  font-family:var(--mono);font-size:20px;font-weight:900;
+  letter-spacing:.02em;flex-shrink:0;
+  border:1.6px solid;
+  transition:.28s var(--ease);
+}
+.module:hover .module-num{transform:scale(1.05) rotate(-3deg);}
+.module-title{min-width:0;}
+.module-title h2{
+  font-size:clamp(22px,2.2vw,30px);line-height:1.15;
+  letter-spacing:-.025em;font-weight:800;
+  margin-bottom:6px;color:#fff;
+}
+.module-meta{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.06em;color:var(--muted);
+  text-transform:uppercase;font-weight:800;
+}
+.module-meta span{display:inline-flex;align-items:center;gap:6px;}
+.module-meta .dot{width:4px;height:4px;border-radius:50%;background:currentColor;}
+.module-progress{text-align:right;flex-shrink:0;}
+.module-progress .mp-num{
+  font-family:var(--mono);font-size:22px;font-weight:900;
+  letter-spacing:-.02em;line-height:1;
+}
+.module-progress .mp-sub{
+  font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-top:6px;font-weight:800;
+}
+.module-asset{
+  grid-column:1 / -1;
+  margin-top:14px;padding-top:14px;
+  border-top:1px dashed rgba(255,255,255,.08);
+  font-size:13px;line-height:1.55;color:var(--ink-2);
+}
+.module-asset strong{
+  color:var(--ink);font-weight:800;
+  text-transform:uppercase;font-size:10px;letter-spacing:.14em;
+  margin-right:8px;
+}
+
+.lecture-list{padding:14px 20px 20px;display:flex;flex-direction:column;gap:8px;}
+.lecture{
+  display:grid;grid-template-columns:auto 1fr auto;
+  gap:16px;align-items:center;
+  padding:16px 20px;
+  border-radius:12px;
+  background:rgba(255,255,255,.02);
+  border:1px solid transparent;
+  text-decoration:none;color:var(--ink);
+  transition:.22s var(--ease);
+  cursor:pointer;position:relative;
+}
+.lecture:hover:not(.disabled){
+  background:rgba(255,255,255,.05);
+  border-color:var(--stroke-2);
+  transform:translateX(4px);
+}
+.lecture.disabled{opacity:.4;cursor:not-allowed;pointer-events:none;}
+.lecture-num{
+  font-family:var(--mono);font-size:13px;font-weight:900;
+  width:42px;height:42px;border-radius:10px;
+  display:grid;place-items:center;
+  letter-spacing:-.02em;flex-shrink:0;
+  border:1.3px solid;transition:.22s var(--ease);
+}
+.lecture:hover:not(.disabled) .lecture-num{transform:scale(1.06);}
+.lecture-body{min-width:0;}
+.lecture-title{
+  font-size:14.5px;font-weight:700;line-height:1.35;
+  color:var(--ink);letter-spacing:-.005em;
+  margin-bottom:3px;
+}
+.lecture:hover:not(.disabled) .lecture-title{color:#fff;}
+.lecture-sub{font-size:11.5px;line-height:1.45;color:var(--muted);font-weight:500;}
+.lecture-status{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px;border-radius:99px;
+  font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.10em;text-transform:uppercase;
+  font-weight:900;flex-shrink:0;border:1px solid;
+  transition:.22s var(--ease);
+}
+.lecture-status.ready{
+  background:rgba(46,230,168,.10);
+  border-color:rgba(46,230,168,.4);
+  color:#88ffd8;
+}
+.lecture-status.ready::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:#2ee6a8;box-shadow:0 0 10px #2ee6a8;
+  animation:statusPulse 2s ease-in-out infinite;
+}
+.lecture-status.soon{
+  background:rgba(132,148,180,.08);
+  border-color:rgba(132,148,180,.25);
+  color:var(--muted);
+}
+@keyframes statusPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.lecture:hover:not(.disabled) .lecture-status.ready{
+  background:rgba(46,230,168,.18);
+  border-color:rgba(46,230,168,.65);
+}
+.lecture:hover:not(.disabled) .lecture-status.ready::after{
+  content:'→';margin-left:4px;color:#88ffd8;
+  font-family:var(--mono);font-weight:900;
+}
+
+.module[data-color="blue"] .module-accent{background:var(--blue);box-shadow:0 0 20px rgba(91,141,255,.4);}
+.module[data-color="blue"] .module-num{border-color:rgba(91,141,255,.6);background:rgba(91,141,255,.10);color:#b9d0ff;}
+.module[data-color="blue"] .lecture-num{border-color:rgba(91,141,255,.5);background:rgba(91,141,255,.06);color:#b9d0ff;}
+
+.module[data-color="amber"] .module-accent{background:var(--amber);box-shadow:0 0 20px rgba(255,182,72,.4);}
+.module[data-color="amber"] .module-num{border-color:rgba(255,182,72,.6);background:rgba(255,182,72,.10);color:#ffd18a;}
+.module[data-color="amber"] .lecture-num{border-color:rgba(255,182,72,.5);background:rgba(255,182,72,.06);color:#ffd18a;}
+
+.module[data-color="emerald"] .module-accent{background:var(--emerald);box-shadow:0 0 20px rgba(46,230,168,.4);}
+.module[data-color="emerald"] .module-num{border-color:rgba(46,230,168,.6);background:rgba(46,230,168,.10);color:#88ffd8;}
+.module[data-color="emerald"] .lecture-num{border-color:rgba(46,230,168,.5);background:rgba(46,230,168,.06);color:#88ffd8;}
+
+.module[data-color="violet"] .module-accent{background:var(--violet);box-shadow:0 0 20px rgba(160,107,255,.4);}
+.module[data-color="violet"] .module-num{border-color:rgba(160,107,255,.6);background:rgba(160,107,255,.10);color:#c9a7ff;}
+.module[data-color="violet"] .lecture-num{border-color:rgba(160,107,255,.5);background:rgba(160,107,255,.06);color:#c9a7ff;}
+
+.module[data-color="crimson"] .module-accent{background:var(--crimson);box-shadow:0 0 20px rgba(255,77,109,.4);}
+.module[data-color="crimson"] .module-num{border-color:rgba(255,77,109,.6);background:rgba(255,77,109,.10);color:#ff9fb1;}
+.module[data-color="crimson"] .lecture-num{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.06);color:#ff9fb1;}
+
+.module[data-color="cyan"] .module-accent{background:var(--cyan);box-shadow:0 0 20px rgba(34,211,238,.4);}
+.module[data-color="cyan"] .module-num{border-color:rgba(34,211,238,.6);background:rgba(34,211,238,.10);color:#67e8f9;}
+.module[data-color="cyan"] .lecture-num{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.06);color:#67e8f9;}
+
+.module[data-color="pink"] .module-accent{background:var(--pink);box-shadow:0 0 20px rgba(244,114,182,.4);}
+.module[data-color="pink"] .module-num{border-color:rgba(244,114,182,.6);background:rgba(244,114,182,.10);color:#f9a8d4;}
+.module[data-color="pink"] .lecture-num{border-color:rgba(244,114,182,.5);background:rgba(244,114,182,.06);color:#f9a8d4;}
+
+.empty-state{text-align:center;padding:80px 20px;color:var(--muted);display:none;}
+.empty-state.visible{display:block;}
+.empty-state-icon{font-size:64px;margin-bottom:20px;display:block;opacity:.5;}
+.empty-state-title{font-size:20px;font-weight:800;color:var(--ink-2);margin-bottom:8px;}
+.empty-state-sub{font-size:14px;line-height:1.6;}
+
+.foot{
+  position:relative;z-index:2;
+  max-width:1240px;margin:80px auto 0;
+  padding:48px 32px 32px;
+  border-top:1px solid var(--stroke);
+  text-align:center;
+}
+.foot-title{
+  font-family:var(--mono);font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);font-weight:800;
+  margin-bottom:14px;
+}
+.foot-tagline{
+  font-size:15px;line-height:1.65;color:var(--ink-2);
+  max-width:640px;margin:0 auto 24px;
+}
+.foot-links{
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+  font-family:var(--mono);font-size:10.5px;
+  color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:700;
+}
+.foot-links span{
+  padding:4px 10px;border-radius:6px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.02);
+}
+
+.back-top{
+  position:fixed;bottom:24px;right:24px;z-index:90;
+  width:48px;height:48px;border-radius:14px;
+  background:rgba(6,9,15,.85);border:1px solid var(--stroke-2);
+  color:var(--ink);font-size:18px;cursor:pointer;
+  display:grid;place-items:center;
+  opacity:0;pointer-events:none;
+  transition:.3s var(--ease);
+  backdrop-filter:blur(12px);font-family:var(--font);
+}
+.back-top.visible{opacity:1;pointer-events:auto;}
+.back-top:hover{
+  background:rgba(91,141,255,.20);
+  border-color:rgba(91,141,255,.6);
+  transform:translateY(-2px);
+  box-shadow:0 12px 30px -10px rgba(91,141,255,.6);
+}
+
+@media(max-width:900px){
+  .hero{padding:120px 20px 40px;}
+  .stats{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .stat{padding:18px 12px;}
+  .modules{padding:0 16px;gap:24px;}
+  .module-head{padding:24px 20px 20px;grid-template-columns:auto 1fr;gap:16px;}
+  .module-progress{grid-column:1 / -1;text-align:left;margin-top:6px;}
+  .module-num{width:52px;height:52px;font-size:17px;}
+  .lecture-list{padding:12px 14px 14px;}
+  .lecture{padding:14px 16px;gap:12px;grid-template-columns:auto 1fr;}
+  .lecture-status{grid-column:2;justify-self:start;margin-top:6px;font-size:9px;}
+  .search-wrap{padding:0 16px;margin:32px auto 28px;}
+  .search-icon{left:34px;}
+  .search-clear{right:34px;}
+  .foot{padding:40px 20px 24px;margin-top:60px;}
+}
+@media(max-width:520px){
+  .hud{padding:0 16px;}
+  .hud-brand-title{font-size:10.5px;}
+  .hero-title{font-size:clamp(28px,8vw,44px);}
+  .hero-badge{font-size:9.5px;padding:7px 14px;}
+  .btn{padding:12px 20px;font-size:12.5px;}
+  .module-head{padding:20px 16px 18px;}
+  .module-title h2{font-size:19px;}
+  .lecture-num{width:38px;height:38px;font-size:12px;}
+  .lecture-title{font-size:13.5px;}
+  .lecture-sub{font-size:10.5px;}
+  .foot{padding:36px 16px 20px;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+  }
+  html{scroll-behavior:auto;}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span class="hud-brand-title">CS 301</span>
+    <span class="hud-brand-sub">· Operating Systems</span>
+  </div>
+  <nav class="hud-nav" id="hudNav">
+    <a href="#m1" data-mod="m1">M1</a>
+    <a href="#m2" data-mod="m2">M2</a>
+    <a href="#m3" data-mod="m3">M3</a>
+    <a href="#m4" data-mod="m4">M4</a>
+    <a href="#m5" data-mod="m5">M5</a>
+    <a href="#m6" data-mod="m6">M6</a>
+    <a href="#m7" data-mod="m7">M7</a>
+  </nav>
+  <div class="hud-right">
+    <span class="hud-pill">L000 – L028</span>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-badge">📚 Master Syllabus Matrix · 11-Point Framework</div>
+  <h1 class="hero-title">CS 301 · <span class="grad">Operating Systems</span></h1>
+  <p class="hero-sub">Seven modules. Twenty-nine lectures. Seven labs. One continuous story — <strong>from silicon to application</strong>.</p>
+  <div class="hero-cta">
+    <a href="#m1" class="btn btn-primary">→ Begin the Course</a>
+    <a href="L021.html" class="btn btn-ghost" id="startBtn">Start with L021</a>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num grad">07</div><div class="stat-label">Modules</div></div>
+    <div class="stat"><div class="stat-num grad">29</div><div class="stat-label">Lectures</div></div>
+    <div class="stat"><div class="stat-num grad">07</div><div class="stat-label">Labs</div></div>
+    <div class="stat"><div class="stat-num grad">11</div><div class="stat-label">Framework</div></div>
+  </div>
+
+  <div class="hero-progress">
+    <div class="hp-header">
+      <span class="hp-label">📊 Course Build Progress</span>
+      <span class="hp-meta"><strong id="hpBuilt">8</strong> / <span id="hpTotal">29</span> decks ready</span>
+    </div>
+    <div class="hp-track"><div class="hp-fill" id="hpFill"></div></div>
+  </div>
+</section>
+
+<div class="search-wrap">
+  <span class="search-icon">🔍</span>
+  <input type="text" class="search" id="search" placeholder="Search lectures by title or topic…" autocomplete="off">
+  <button class="search-clear" id="searchClear" aria-label="Clear search">✕</button>
+</div>
+
+<main class="modules" id="modulesRoot">
+
+  <!-- MODULE 1 -->
+  <section class="module" id="m1" data-color="blue" data-module="1">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M1</div>
+      <div class="module-title">
+        <h2>OS Structure &amp; Design</h2>
+        <div class="module-meta">
+          <span>Weeks 1–2</span>
+          <span class="dot"></span>
+          <span>5 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="1">0 / 5</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>The boundary layer between raw silicon hardware and user application software.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L000.html" data-lec="L000"><div class="lecture-num">000</div><div class="lecture-body"><div class="lecture-title">Course Introduction</div><div class="lecture-sub">The OS as a Resource Referee</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L001.html" data-lec="L001"><div class="lecture-num">001</div><div class="lecture-body"><div class="lecture-title">The Architecture Matrix</div><div class="lecture-sub">Monolithic · Microkernel · Hybrid · Layered · Modular</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L002.html" data-lec="L002"><div class="lecture-num">002</div><div class="lecture-body"><div class="lecture-title">The Dual-Mode Barrier</div><div class="lecture-sub">User Space vs. Kernel Space · Privilege Rings</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L003.html" data-lec="L003"><div class="lecture-num">003</div><div class="lecture-body"><div class="lecture-title">The Gatekeeper Mechanism</div><div class="lecture-sub">System Calls · Traps &amp; Vector Tables</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L004.html" data-lec="L004"><div class="lecture-num">004</div><div class="lecture-body"><div class="lecture-title">The Boot Process</div><div class="lecture-sub">UEFI → Bootloader → Kernel Init → PID 1</div></div><div class="lecture-status soon">Coming Soon</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 2 -->
+  <section class="module" id="m2" data-color="amber" data-module="2">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M2</div>
+      <div class="module-title">
+        <h2>Process Management</h2>
+        <div class="module-meta">
+          <span>Weeks 3–5</span>
+          <span class="dot"></span>
+          <span>5 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="2">0 / 5</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>Central Processing Unit (CPU) cores and thread execution time blocks.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L005.html" data-lec="L005"><div class="lecture-num">005</div><div class="lecture-body"><div class="lecture-title">Process Anatomy &amp; The PCB Ledger</div><div class="lecture-sub">Text · Data · Heap · Stack · Metadata</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L006.html" data-lec="L006"><div class="lecture-num">006</div><div class="lecture-body"><div class="lecture-title">Process Execution Mechanics</div><div class="lecture-sub">fork · exec · Context Switch</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L007.html" data-lec="L007"><div class="lecture-num">007</div><div class="lecture-body"><div class="lecture-title">CPU Scheduling I</div><div class="lecture-sub">FCFS · SJF · Round Robin</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L008.html" data-lec="L008"><div class="lecture-num">008</div><div class="lecture-body"><div class="lecture-title">CPU Scheduling II</div><div class="lecture-sub">MLFQ · Starvation · Priority Inversion</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L009.html" data-lec="L009"><div class="lecture-num">009</div><div class="lecture-body"><div class="lecture-title">Threads &amp; Concurrency Models</div><div class="lecture-sub">Many-to-One · One-to-One · Many-to-Many</div></div><div class="lecture-status soon">Coming Soon</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 3 -->
+  <section class="module" id="m3" data-color="emerald" data-module="3">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M3</div>
+      <div class="module-title">
+        <h2>Memory Management</h2>
+        <div class="module-meta">
+          <span>Weeks 8–10</span>
+          <span class="dot"></span>
+          <span>4 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="3">0 / 4</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>Physical Random Access Memory (RAM) chips and hardware translation registers.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L010.html" data-lec="L010"><div class="lecture-num">010</div><div class="lecture-body"><div class="lecture-title">Relocation Models &amp; Base-and-Bound Isolation</div><div class="lecture-sub">Logical vs. Physical Addresses</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L011.html" data-lec="L011"><div class="lecture-num">011</div><div class="lecture-body"><div class="lecture-title">The Paging Model</div><div class="lecture-sub">Pages · Frames · Multi-Level Translation</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L012.html" data-lec="L012"><div class="lecture-num">012</div><div class="lecture-body"><div class="lecture-title">TLB Acceleration &amp; Caching Math</div><div class="lecture-sub">Hit Rate · EAT · Address Translation Cache</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L013.html" data-lec="L013"><div class="lecture-num">013</div><div class="lecture-body"><div class="lecture-title">Virtual Memory &amp; Demand Paging</div><div class="lecture-sub">Page Faults · FIFO · LRU · Thrashing</div></div><div class="lecture-status soon">Coming Soon</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 4 -->
+  <section class="module" id="m4" data-color="violet" data-module="4">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M4</div>
+      <div class="module-title">
+        <h2>Process Synchronization</h2>
+        <div class="module-meta">
+          <span>Weeks 6–7</span>
+          <span class="dot"></span>
+          <span>2 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="4">0 / 2</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>Shared global states, heap variables, and cooperative thread intersection boundaries.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L014.html" data-lec="L014"><div class="lecture-num">014</div><div class="lecture-body"><div class="lecture-title">Race Conditions &amp; Mutual Exclusion</div><div class="lecture-sub">Critical Sections · Mutex · Atomic Ops</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L015.html" data-lec="L015"><div class="lecture-num">015</div><div class="lecture-body"><div class="lecture-title">Classic Synchronization Problems &amp; Deadlock</div><div class="lecture-sub">Dining Philosophers · Coffman Conditions</div></div><div class="lecture-status soon">Coming Soon</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 5 -->
+  <section class="module" id="m5" data-color="crimson" data-module="5">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M5</div>
+      <div class="module-title">
+        <h2>File &amp; Storage Management</h2>
+        <div class="module-meta">
+          <span>Weeks 11–12</span>
+          <span class="dot"></span>
+          <span>4 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="5">0 / 4</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>HDDs, SSDs, non-volatile persistent storage blocks, and file metadata structures.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L016.html" data-lec="L016"><div class="lecture-num">016</div><div class="lecture-body"><div class="lecture-title">Disk Geometry &amp; Physical Storage Realities</div><div class="lecture-sub">HDD vs. SSD · Seek Time · Wear Leveling</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L017.html" data-lec="L017"><div class="lecture-num">017</div><div class="lecture-body"><div class="lecture-title">File Abstraction &amp; Directory Topology</div><div class="lecture-sub">Path Resolution · FDs · Hard &amp; Soft Links</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L018.html" data-lec="L018"><div class="lecture-num">018</div><div class="lecture-body"><div class="lecture-title">Inode Architecture &amp; File System Layouts</div><div class="lecture-sub">Direct &amp; Indirect Pointers · Metadata</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L019.html" data-lec="L019"><div class="lecture-num">019</div><div class="lecture-body"><div class="lecture-title">Crash Consistency</div><div class="lecture-sub">Journaling · Write-Ahead Logging · Checkpoints</div></div><div class="lecture-status soon">Coming Soon</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 6 -->
+  <section class="module" id="m6" data-color="cyan" data-module="6">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M6</div>
+      <div class="module-title">
+        <h2>I/O Device Management</h2>
+        <div class="module-meta">
+          <span>Week 13</span>
+          <span class="dot"></span>
+          <span>2 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="6">1 / 2</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>The hardware device driver ecosystem, I/O controllers, interrupt handlers, and DMA controllers.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L020.html" data-lec="L020"><div class="lecture-num">020</div><div class="lecture-body"><div class="lecture-title">The I/O Communication Matrix</div><div class="lecture-sub">Polling · Interrupts · DMA</div></div><div class="lecture-status soon">Coming Soon</div></a>
+      <a class="lecture" href="L021.html" data-lec="L021"><div class="lecture-num">021</div><div class="lecture-body"><div class="lecture-title">Uniform Device Drivers &amp; /dev</div><div class="lecture-sub">Block · Character · Network · file_operations</div></div><div class="lecture-status ready">Ready</div></a>
+    </div>
+  </section>
+
+  <!-- MODULE 7 -->
+  <section class="module" id="m7" data-color="pink" data-module="7">
+    <div class="module-accent"></div>
+    <div class="module-head">
+      <div class="module-num">M7</div>
+      <div class="module-title">
+        <h2>Security &amp; Protection</h2>
+        <div class="module-meta">
+          <span>Final Unit</span>
+          <span class="dot"></span>
+          <span>7 lectures</span>
+        </div>
+      </div>
+      <div class="module-progress">
+        <div class="mp-num" data-mod-built="7">7 / 7</div>
+        <div class="mp-sub">Ready</div>
+      </div>
+      <div class="module-asset">
+        <strong>Asset Managed</strong>System access credentials, privilege boundaries, process isolation domains, and authentication parameters.
+      </div>
+    </div>
+    <div class="lecture-list">
+      <a class="lecture" href="L022.html" data-lec="L022"><div class="lecture-num">022</div><div class="lecture-body"><div class="lecture-title">Access Control</div><div class="lecture-sub">Matrices · ACLs · Capabilities</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L023.html" data-lec="L023"><div class="lecture-num">023</div><div class="lecture-body"><div class="lecture-title">Authentication</div><div class="lecture-sub">Factors · Salted Hashes · Biometrics</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L024.html" data-lec="L024"><div class="lecture-num">024</div><div class="lecture-body"><div class="lecture-title">Program Exploits</div><div class="lecture-sub">Stack Overflows · Canaries · ASLR</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L025.html" data-lec="L025"><div class="lecture-num">025</div><div class="lecture-body"><div class="lecture-title">Encryption Fundamentals</div><div class="lecture-sub">Symmetric · Asymmetric · Hybrid HTTPS</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L026.html" data-lec="L026"><div class="lecture-num">026</div><div class="lecture-body"><div class="lecture-title">Firewalls &amp; Intrusion Detection</div><div class="lecture-sub">Bouncer vs. Camera Guard · Signature vs. Anomaly</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L027.html" data-lec="L027"><div class="lecture-num">027</div><div class="lecture-body"><div class="lecture-title">Modern Isolation Paradigms</div><div class="lecture-sub">Sandboxes · Namespaces · Containers · Hypervisors</div></div><div class="lecture-status ready">Ready</div></a>
+      <a class="lecture" href="L028.html" data-lec="L028"><div class="lecture-num">028</div><div class="lecture-body"><div class="lecture-title">Grand Course Retrospective</div><div class="lecture-sub">One Click · Seven Subsystems · Full Pipeline</div></div><div class="lecture-status ready">Ready</div></a>
+    </div>
+  </section>
+
+  <div class="empty-state" id="emptyState">
+    <span class="empty-state-icon">🔍</span>
+    <div class="empty-state-title">No lectures found</div>
+    <div class="empty-state-sub">Try a different search term</div>
+  </div>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-title">CS 301 · Systems Architecture · Complete Course Index</div>
+  <p class="foot-tagline">"An operating system is a lie — a carefully maintained illusion that each program has the machine to itself."</p>
+  <div class="foot-links">
+    <span>7 Modules</span>
+    <span>29 Lectures</span>
+    <span>7 Labs</span>
+    <span>11-Point Framework</span>
+  </div>
+</footer>
+
+<button class="back-top" id="backTop" aria-label="Back to top">↑</button>
+
+<script>
+/* ============================================================
+   BUILT_LECTURES — 3-DIGIT NAMING
+   Add 'L020', 'L019', etc. as you finish each deck
+   ============================================================ */
+const BUILT_LECTURES = ['L021','L022','L023','L024','L025','L026','L027','L028'];
+
+const TOTAL_LECTURES = 29; // L000 through L028
+
+function initBuildStatus(){
+  const lectures = document.querySelectorAll('.lecture');
+  lectures.forEach(lec => {
+    const id = lec.dataset.lec;
+    const status = lec.querySelector('.lecture-status');
+    if(BUILT_LECTURES.includes(id)){
+      lec.classList.remove('disabled');
+      if(status){
+        status.classList.remove('soon');
+        status.classList.add('ready');
+        status.textContent = 'Ready';
+      }
+    } else {
+      lec.classList.add('disabled');
+      if(status){
+        status.classList.remove('ready');
+        status.classList.add('soon');
+        status.textContent = 'Coming Soon';
+      }
+    }
+  });
+
+  const built = BUILT_LECTURES.length;
+  document.getElementById('hpBuilt').textContent = built;
+  document.getElementById('hpTotal').textContent = TOTAL_LECTURES;
+  const pct = (built / TOTAL_LECTURES) * 100;
+  setTimeout(() => {
+    document.getElementById('hpFill').style.width = pct + '%';
+  }, 400);
+
+  for(let i = 1; i <= 7; i++){
+    const mod = document.querySelector(`.module[data-module="${i}"]`);
+    if(!mod) continue;
+    const total = mod.querySelectorAll('.lecture').length;
+    const builtCount = mod.querySelectorAll('.lecture:not(.disabled)').length;
+    const counter = mod.querySelector(`[data-mod-built="${i}"]`);
+    if(counter) counter.textContent = `${builtCount} / ${total}`;
+  }
+
+  const startBtn = document.getElementById('startBtn');
+  if(startBtn && built > 0){
+    const firstBuilt = BUILT_LECTURES[0];
+    startBtn.href = firstBuilt + '.html';
+    startBtn.textContent = `Start with ${firstBuilt}`;
+  }
+}
+
+function initSearch(){
+  const input = document.getElementById('search');
+  const clear = document.getElementById('searchClear');
+  const modules = document.querySelectorAll('.module');
+  const empty = document.getElementById('emptyState');
+
+  function filter(){
+    const q = input.value.trim().toLowerCase();
+    clear.style.display = q.length > 0 ? 'flex' : 'none';
+
+    let totalVisible = 0;
+    modules.forEach(mod => {
+      let visibleInMod = 0;
+      const lectures = mod.querySelectorAll('.lecture');
+      lectures.forEach(lec => {
+        const title = lec.querySelector('.lecture-title')?.textContent.toLowerCase() || '';
+        const sub = lec.querySelector('.lecture-sub')?.textContent.toLowerCase() || '';
+        const num = lec.dataset.lec?.toLowerCase() || '';
+        const match = !q || title.includes(q) || sub.includes(q) || num.includes(q);
+        lec.style.display = match ? '' : 'none';
+        if(match) visibleInMod++;
+      });
+      mod.style.display = visibleInMod > 0 ? '' : 'none';
+      totalVisible += visibleInMod;
+    });
+
+    empty.classList.toggle('visible', totalVisible === 0);
+  }
+
+  input.addEventListener('input', filter);
+  clear.addEventListener('click', () => {
+    input.value = '';
+    filter();
+    input.focus();
+  });
+}
+
+function initNavHighlight(){
+  const navLinks = document.querySelectorAll('#hudNav a');
+  const modules = document.querySelectorAll('.module');
+
+  function update(){
+    let active = null;
+    const scrollY = window.scrollY + 120;
+    modules.forEach(mod => {
+      const top = mod.offsetTop;
+      if(top <= scrollY) active = mod.id;
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.dataset.mod === active);
+    });
+  }
+  window.addEventListener('scroll', update, {passive:true});
+  update();
+}
+
+function initBackTop(){
+  const btn = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  }, {passive:true});
+  btn.addEventListener('click', () => {
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initBuildStatus();
+  initSearch();
+  initNavHighlight();
+  initBackTop();
+});
+</script>
+</body>
+</html>
