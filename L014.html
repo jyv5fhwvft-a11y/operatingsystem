@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L14 — Race Conditions &amp; Mutual Exclusion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#raceCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Piggy bank */
+.piggy-scene{padding:14px 0;display:flex;justify-content:center;}
+.piggy-viz{position:relative;width:280px;height:220px;}
+.piggy-body{position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);width:180px;height:130px;border-radius:50% 50% 45% 45% / 60% 60% 40% 40%;background:radial-gradient(ellipse at 40% 30%,rgba(255,182,72,.30),rgba(255,182,72,.10));border:2px solid rgba(255,182,72,.65);display:grid;place-items:center;}
+.piggy-body::before{content:'🐷';font-size:44px;}
+.piggy-balance{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:28px;font-weight:900;color:#ffd18a;text-shadow:0 0 12px rgba(255,182,72,.6);z-index:3;}
+.piggy-hand{position:absolute;font-size:28px;z-index:4;transition:.6s;}
+.piggy-hand.a{top:8px;left:30px;animation:handA 4s ease-in-out infinite;}
+.piggy-hand.b{top:8px;right:30px;animation:handB 4s ease-in-out infinite;}
+@keyframes handA{0%,100%{transform:translate(0,0) rotate(0)}20%{transform:translate(60px,80px) rotate(-30deg)}30%,70%{transform:translate(80px,100px) rotate(-20deg)}80%{transform:translate(0,0) rotate(0)}}
+@keyframes handB{0%,100%{transform:translate(0,0) rotate(0)}40%{transform:translate(0,0) rotate(0)}60%{transform:translate(-60px,80px) rotate(30deg)}70%,85%{transform:translate(-80px,100px) rotate(20deg)}}
+
+/* Interleaving visualization */
+.interleave-vis{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.interleave-thread{padding:16px;border-radius:12px;border:1.5px solid;}
+.interleave-thread.a{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.interleave-thread.b{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.interleave-thread h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;text-align:center;}
+.interleave-thread.a h4{color:var(--blue-2);}
+.interleave-thread.b h4{color:var(--emerald);}
+.interleave-step{padding:9px 12px;border-radius:6px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:11px;line-height:1.5;margin-bottom:5px;color:var(--ink-2);transition:.3s;}
+.interleave-thread.a .interleave-step.active{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.65);color:#fff;}
+.interleave-thread.b .interleave-step.active{background:rgba(46,230,168,.20);border-color:rgba(46,230,168,.65);color:#fff;}
+.interleave-step .reg{color:#ffd18a;font-weight:800;}
+
+/* Database analogy */
+.db-row{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);font-family:var(--mono);}
+.db-table{display:grid;grid-template-columns:80px 1fr 100px;gap:1px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);border-radius:8px;overflow:hidden;}
+.db-cell{background:#0a0f1c;padding:10px 12px;font-size:11.5px;font-weight:700;}
+.db-cell.head{background:#0d1425;color:var(--blue-2);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;}
+.db-cell.locked{background:rgba(255,77,109,.15);color:#ff9fb1;position:relative;}
+.db-cell.locked::after{content:'🔒';position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;}
+.db-cell.unlocked{color:var(--ink-2);}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Non-atomic increment */
+.instr-split{display:grid;grid-template-columns:1fr;gap:8px;padding:8px 0;}
+.instr-line{display:grid;grid-template-columns:50px 1fr;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);align-items:center;transition:.4s;}
+.instr-line.active{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.10);box-shadow:0 0 20px -6px rgba(255,182,72,.65);}
+.instr-num{font-family:var(--mono);font-size:16px;font-weight:900;color:var(--muted);text-align:center;}
+.instr-line.active .instr-num{color:#ffd18a;}
+.instr-body{font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--ink-2);}
+.instr-body .op{color:#ffd18a;font-weight:800;}
+.instr-line.active .instr-body .op{color:#fff;}
+
+/* Critical section visualization */
+.crit-vis{padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.crit-code{width:100%;padding:16px;border-radius:10px;border:1.5px solid rgba(255,182,72,.75);background:rgba(255,182,72,.08);font-family:var(--mono);font-size:12px;line-height:1.75;color:var(--ink-2);position:relative;}
+.crit-code .crit-label{position:absolute;top:-10px;left:16px;padding:2px 10px;background:#06090f;border:1px solid rgba(255,182,72,.75);border-radius:6px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#ffd18a;}
+.crit-code .highlight{background:rgba(255,182,72,.15);border-radius:4px;padding:2px 4px;margin:0 -4px;color:#ffd18a;}
+
+/* Mutex visualization */
+.mutex-vis{padding:14px 0;display:flex;flex-direction:column;gap:10px;align-items:center;}
+.mutex-lock{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;font-size:44px;font-family:var(--mono);font-weight:900;transition:.6s;border:3px solid;}
+.mutex-lock.unlocked{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.10);color:#88ffd8;}
+.mutex-lock.locked{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.15);color:#ff9fb1;animation:lockPulse 1.5s ease-in-out infinite;}
+@keyframes lockPulse{0%,100%{box-shadow:0 0 20px rgba(255,77,109,.5)}50%{box-shadow:0 0 40px rgba(255,77,109,.9)}}
+.mutex-state{font-family:var(--mono);font-size:14px;font-weight:800;letter-spacing:.04em;}
+.mutex-queue{display:flex;gap:8px;margin-top:10px;}
+.mutex-waiter{padding:8px 14px;border-radius:8px;border:1px solid;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.04em;transition:.3s;}
+.mutex-waiter.waiting{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.10);color:#ffd18a;}
+.mutex-waiter.entered{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.15);color:#88ffd8;}
+
+/* Atomic */
+.atomic-vis{padding:14px 0;display:flex;flex-direction:column;gap:8px;}
+.atomic-row{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px;border-radius:10px;border:1px solid var(--stroke);}
+.atomic-row.non-atomic{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.atomic-row.atomic{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.atomic-tag{font-family:var(--mono);font-size:10.5px;font-weight:900;letter-spacing:.06em;padding:5px 10px;border-radius:6px;}
+.atomic-row.non-atomic .atomic-tag{background:rgba(255,77,109,.20);color:#ff9fb1;}
+.atomic-row.atomic .atomic-tag{background:rgba(46,230,168,.20);color:#88ffd8;}
+.atomic-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+.atomic-icon{font-size:22px;}
+
+/* Race variants */
+.variant-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:8px 0;}
+.variant-card{padding:14px 16px;border-radius:10px;border:1px solid;background:rgba(0,0,0,.20);}
+.variant-card.v1{border-color:rgba(255,77,109,.55);}
+.variant-card.v2{border-color:rgba(255,182,72,.55);}
+.variant-card.v3{border-color:rgba(160,107,255,.55);}
+.variant-card.v4{border-color:rgba(46,230,168,.55);}
+.variant-card .vc-icon{font-size:20px;margin-bottom:8px;display:block;}
+.variant-card .vc-title{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:4px;}
+.variant-card .vc-desc{font-size:11px;line-height:1.5;color:var(--muted);}
+
+/* Real-world */
+.rw-vis{display:flex;flex-direction:column;gap:10px;padding:8px 0;}
+.rw-row{padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:center;}
+.rw-icon{font-size:28px;text-align:center;}
+.rw-body .rw-title{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:3px;}
+.rw-body .rw-desc{font-size:11.5px;line-height:1.5;color:var(--muted);}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.bad{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.good{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-bad{color:#ff9fb1;font-weight:800;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.20);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Performance cost */
+.cost-vis{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 0;}
+.cost-card{padding:16px;border-radius:12px;border:1px solid;}
+.cost-card.cheap{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.cost-card.expensive{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.cost-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:12px;}
+.cost-card.cheap h4{color:var(--emerald);}
+.cost-card.expensive h4{color:var(--crimson);}
+.cost-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-family:var(--mono);font-size:11.5px;}
+.cost-row:last-child{border-bottom:none;}
+.cost-row .label{color:var(--ink-2);}
+.cost-row .val{font-weight:800;}
+.cost-card.cheap .val{color:#88ffd8;}
+.cost-card.expensive .val{color:#ff9fb1;}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.whiteboard{position:relative;width:100%;aspect-ratio:2.4/1;border-radius:12px;background:rgba(0,0,0,.30);border:2px solid rgba(255,255,255,.15);overflow:hidden;}
+.wb-value{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:clamp(48px,6vw,80px);font-weight:900;color:#eaf0fc;transition:.4s;}
+.wb-marker{position:absolute;font-size:24px;transition:.4s;z-index:3;}
+.wb-marker.a{animation:wbA 3s ease-in-out infinite;color:#8fb4ff;}
+.wb-marker.b{animation:wbB 3s ease-in-out infinite;color:#2ee6a8;}
+@keyframes wbA{0%,100%{left:12%;top:40%}50%{left:70%;top:60%}}
+@keyframes wbB{0%,100%{right:12%;top:60%}50%{right:70%;top:40%}}
+.wb-race{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);text-transform:uppercase;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.interleave-vis,.cost-vis,.variant-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L14 Race Conditions &amp; Mutex</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L14 · Overview" data-anim="racecanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L14 · Race Conditions &amp; Mutual Exclusion</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Two threads, one variable. <span class="grad-crimson">One lost update.</span></h1>
+        <p class="lead">Identify a data race condition inside a multi-threaded code block and refactor the code to guarantee mutual exclusion using a POSIX mutex lock.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L14</span>
+          <p>L09 gave us threads that share memory. That shared memory is fast but dangerous — two threads writing to the same variable at the same moment can produce <strong>results no program predicted</strong>. How do we enforce correctness?</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the canvas on the right. Let the two threads race on the shared value for 15 seconds before saying anything. Let the room feel that "this could produce any number."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Two threads hammering one variable</div>
+        <canvas id="raceCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — Shared State = Shared Danger</span>
+    <h2 style="margin-bottom:16px;">Fast, but <span class="grad-crimson">nondeterministic</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What shared memory gives us</span>
+          <p>Threads can read and write any shared variable without going through the kernel — no syscalls, no marshalling, no copying. That's <strong>why threads are fast</strong>. It's also <strong>why they're hard</strong>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The failure mode</span>
+          <p>When two threads read-modify-write the same variable at nearly the same time, the outcome depends on the <strong>exact instruction interleaving</strong> — which is controlled by the scheduler, which is nondeterministic. Same program, different runs, different results.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The fix</span>
+          <p>Introduce <strong>mutual exclusion</strong>: a mechanism that guarantees only one thread at a time can execute a critical region of code. Enforced by primitives like mutexes, semaphores, and atomic operations.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is the entire subject of Module 4:</b> how do we preserve the speed of shared memory while making the results correct and predictable?</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Same code, different results</div>
+        <div style="padding:8px 0;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:14px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--ink-2)">
+            <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:8px">$ ./shared_counter</div>
+            <div>Run 1: 143,287</div>
+            <div>Run 2: 189,204</div>
+            <div>Run 3: 156,782</div>
+            <div>Run 4: 199,999</div>
+            <div>Run 5: 200,000 <span style="color:var(--emerald);font-weight:800">(rare — got lucky)</span></div>
+            <div style="border-top:1px solid rgba(255,255,255,.10);margin-top:8px;padding-top:8px;font-size:10.5px;color:var(--muted)">expected always: 200,000</div>
+          </div>
+          <div style="padding:14px 16px;border-radius:10px;border:1.5px solid rgba(255,77,109,.65);background:rgba(255,77,109,.10);font-family:var(--mono);font-size:12px;font-weight:800;color:#ff9fb1;text-align:center">
+            ⚠ THE PROGRAM IS BROKEN — IT JUST DOESN'T ALWAYS SHOW IT
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Piggy Bank">
+  <div class="slide-inner">
+    <span class="badge violet">🐷 Analogy 1 · The Shared Digital Piggy Bank</span>
+    <h2 style="margin-bottom:16px;">Two siblings, one bank, <span class="grad-violet">one lost dollar</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Two siblings share a digital piggy bank. It currently holds <strong>$100</strong>. Both want to deposit $1 at the exact same instant. Both hit the "deposit" button simultaneously.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The failure</span>
+          <p>Sibling A reads the balance ($100). Before A can write $101, Sibling B reads the balance — still $100. B writes $101. Then A finishes their turn and writes $101. <strong>Two dollars were deposited. The balance only went up by one.</strong></p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Introduce a mutex — a single physical bathroom key taped to the bank. A sibling must grab the key, <strong>lock the room</strong>, change the balance in total isolation, and return the key. Only one sibling can be in the room at a time.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Two hands reach for the piggy bank</div>
+        <div class="piggy-scene">
+          <div class="piggy-viz">
+            <div class="piggy-hand a">👤</div>
+            <div class="piggy-hand b">👤</div>
+            <div class="piggy-body"></div>
+            <div class="piggy-balance">$100</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Both siblings read $100, both write $101, one update is silently lost.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · Interleaving" data-anim="interleave">
+  <div class="slide-inner">
+    <span class="badge amber">🐷 Analogy 1 · The Exact Interleaving</span>
+    <h2 style="margin-bottom:16px;">Read-modify-write is <span class="grad-amber">three steps, not one</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The interleaving that loses $1</div>
+        <div class="interleave-vis" id="interleaveVis">
+          <div class="interleave-thread a">
+            <h4>Thread A · Sibling A</h4>
+            <div class="interleave-step" data-idx="0">
+              <span class="reg">LOAD</span> $100 → regA
+            </div>
+            <div class="interleave-step" data-idx="2">
+              <span class="reg">ADD</span> regA + 1 = $101
+            </div>
+            <div class="interleave-step" data-idx="4">
+              <span class="reg">STORE</span> regA → balance ($101)
+            </div>
+          </div>
+          <div class="interleave-thread b">
+            <h4>Thread B · Sibling B</h4>
+            <div class="interleave-step" data-idx="1">
+              <span class="reg">LOAD</span> $100 → regB
+            </div>
+            <div class="interleave-step" data-idx="3">
+              <span class="reg">ADD</span> regB + 1 = $101
+            </div>
+            <div class="interleave-step" data-idx="5">
+              <span class="reg">STORE</span> regB → balance ($101)
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What you're watching</span>
+          <p>Step-by-step, the two threads interleave. A reads first, then B reads, then A writes, then B writes. Each writes $101 — but two $1 deposits were made. <strong>The final balance is $101 instead of $102.</strong></p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The key insight</span>
+          <p>Both threads did exactly what they were told. Both executed "add 1" correctly. The bug isn't in either thread — it's in the <strong>combination</strong>, which is exactly what synchronization has to prevent.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Different interleaving, different result</span>
+          <p>If A's write completed before B's read, both deposits land correctly and the balance is $102. So the same code produces different results depending on timing — that's what a race condition is.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · DB Row Lock">
+  <div class="slide-inner">
+    <span class="badge">🔒 Analogy 2 · The Transactional Database Table Row Lock</span>
+    <h2 style="margin-bottom:16px;">Same pattern, at <span class="grad-blue">database scale</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The structural match</span>
+          <p>A software mutex lock behaves identically to a <strong>hardware-enforced write-reservation token</strong> that blocks out raw processor access lines to a specific memory array address index until a commit sequence resolves.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">How a database does it</span>
+          <p>When a transaction wants to update row 42, it acquires a <strong>row-level lock</strong>. Other transactions that try to update row 42 block. When the first transaction commits, the lock is released and the next one proceeds — reading the updated value.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The mapping</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Row</strong> → shared variable<br>
+            <strong>Transaction</strong> → thread<br>
+            <strong>BEGIN TRANSACTION</strong> → mutex_lock<br>
+            <strong>COMMIT / ROLLBACK</strong> → mutex_unlock<br>
+            <strong>Row lock wait</strong> → blocked on mutex
+          </p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Same concept, different layer.</b> Databases learned to do this in the 1970s (OLTP systems); operating systems did it in the 1960s (the first mutex). The math is identical.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Row-level locking</div>
+        <div class="db-row">
+          <div class="db-table">
+            <div class="db-cell head">ID</div>
+            <div class="db-cell head">Name</div>
+            <div class="db-cell head">Status</div>
+
+            <div class="db-cell" style="color:#b9d0ff">40</div>
+            <div class="db-cell">Alice</div>
+            <div class="db-cell unlocked">available</div>
+
+            <div class="db-cell" style="color:#b9d0ff">41</div>
+            <div class="db-cell">Bob</div>
+            <div class="db-cell unlocked">available</div>
+
+            <div class="db-cell" style="color:#b9d0ff">42</div>
+            <div class="db-cell">Carol</div>
+            <div class="db-cell locked">LOCKED by T1</div>
+
+            <div class="db-cell" style="color:#b9d0ff">43</div>
+            <div class="db-cell">Dave</div>
+            <div class="db-cell unlocked">available</div>
+
+            <div class="db-cell" style="color:#b9d0ff">44</div>
+            <div class="db-cell">Eve</div>
+            <div class="db-cell unlocked">available</div>
+          </div>
+          <p style="font-size:11.5px;margin-top:12px;color:var(--muted);line-height:1.55">Transaction T1 holds the lock on row 42. Transaction T2 that tries to update row 42 will block until T1 commits.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L14 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">first lecture of Module 4</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L09 (Threads)</h4>
+            <p>Requires threads that share memory. Without L09, there's no shared state and no race conditions. The entire lecture is downstream of "threads share the heap."</p>
+          </div>
+          <div class="cohesion-card relies">
+            <h4>Relies On · Module 3 (Memory)</h4>
+            <p>Threads share physical frames through the page table. The race condition happens because both threads genuinely see the same bytes — L11 through L13 made that possible.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · L15 (Classic Problems &amp; Deadlocks)</h4>
+            <p>Introducing multiple independent mutex locks to protect complex data structures creates the precise architectural prerequisites for deadlock loops.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 6 (I/O)</h4>
+            <p>Interrupt handlers run concurrently with normal code and must coordinate access to shared state. Mutexes (or spinlocks) protect that coordination.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Module 4 arc:</b> L14 (races → mutex) → L15 (classic problems → deadlocks). Two lectures. Together they cover the entire concurrency correctness problem — and its failure modes.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 4 dependency graph</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L09 · Threads</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">shared memory</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(160,107,255,.10)" stroke="rgba(160,107,255,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#c9a7ff" font-family="Inter" font-weight="700">Module 3</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(201,167,255,.7)" font-family="JetBrains Mono">paging · VM</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L14 · RACE + MUTEX</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">the correctness layer</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="Inter" font-weight="700">L15 · Deadlock</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">the failure mode</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">Module 6</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">interrupt sync</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(160,107,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(255,77,109,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Non-atomic Increment" data-anim="instrsplit">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — The Non-Atomic Increment</span>
+    <h2 style="margin-bottom:16px;"><code style="font-family:var(--mono);color:#ff9fb1">x++</code> is <span class="grad-crimson">three instructions, not one</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · What the compiler actually emits</div>
+        <div class="instr-split" id="instrSplit">
+          <div class="instr-line" data-idx="0">
+            <div class="instr-num">1</div>
+            <div class="instr-body"><span class="op">LOAD</span> x into register R</div>
+          </div>
+          <div class="instr-line" data-idx="1">
+            <div class="instr-num">2</div>
+            <div class="instr-body"><span class="op">ADD</span> 1 to register R</div>
+          </div>
+          <div class="instr-line" data-idx="2">
+            <div class="instr-num">3</div>
+            <div class="instr-body"><span class="op">STORE</span> register R back to x</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Why this is dangerous</span>
+          <p>Any one of those three steps can be interrupted by the scheduler. If the context switch happens <strong>between LOAD and STORE</strong>, the other thread sees stale data.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The requirement for correctness</span>
+          <p>All three steps must happen <strong>without interruption</strong> — as a single indivisible unit. That's the definition of an atomic operation.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The hardware solution</span>
+          <p>x86 has a <code style="font-family:var(--mono);color:#88ffd8">LOCK INC</code> instruction that does read-modify-write atomically at the hardware level. Other architectures have equivalents (ARM's <code style="font-family:var(--mono);color:#88ffd8">LDREX</code>/<code style="font-family:var(--mono);color:#88ffd8">STREX</code> pairs, RISC-V's <code style="font-family:var(--mono);color:#88ffd8">AMO</code> operations).</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>What "atomic" means:</b> indivisible. The entire operation completes or doesn't happen at all. There is no in-between state visible to other threads.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · The Interleaving" data-anim="badinterleave">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Bad Interleaving</span>
+    <h2 style="margin-bottom:16px;">Two threads, three instructions each, <span class="grad-amber">six possible interleavings</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">What can happen</span>
+          <p>Both threads execute the three instructions. If the scheduler interleaves them <strong>without any synchronization</strong>, one thread's STORE can overwrite the other's before the other reads it.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The specific sequence that fails</span>
+          <p style="line-height:1.9;margin-top:4px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)">
+            T1: LOAD  x=5 → r1=5<br>
+            T2: LOAD  x=5 → r2=5<br>
+            T1: ADD   r1+1 = 6<br>
+            T2: ADD   r2+1 = 6<br>
+            T1: STORE r1 → x=6<br>
+            T2: STORE r2 → x=6 <span style="color:#ff9fb1;font-weight:800">← overwrites</span>
+          </p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The result</span>
+          <p>Both threads incremented. Final value is <strong>6</strong>. Correct would be <strong>7</strong>. One increment vanished. This is the classic lost-update problem.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Sequence comparison</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="140" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">✗ WRONG INTERLEAVING</text>
+          <text x="170" y="56" text-anchor="middle" font-size="9.5" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">T1.LOAD · T2.LOAD · T1.ADD · T2.ADD · T1.STORE · T2.STORE</text>
+          <text x="170" y="80" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">final = 6 (should be 7)</text>
+          <text x="170" y="104" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">one increment lost — no compiler warning</text>
+          <rect x="40" y="120" width="260" height="24" rx="6" fill="rgba(255,77,109,.20)" stroke="rgba(255,77,109,.65)" stroke-width="1.2"/>
+          <text x="170" y="136" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">LOST UPDATE</text>
+
+          <rect x="14" y="166" width="312" height="140" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="186" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">✓ CORRECT INTERLEAVING (atomic)</text>
+          <text x="170" y="208" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.85)" font-family="JetBrains Mono">T1.LOAD · T1.ADD · T1.STORE · T2.LOAD · T2.ADD · T2.STORE</text>
+          <text x="170" y="232" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">final = 7 (correct)</text>
+          <text x="170" y="256" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">each increment fully applied</text>
+          <rect x="40" y="272" width="260" height="24" rx="6" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.65)" stroke-width="1.2"/>
+          <text x="170" y="288" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">BOTH INCREMENTS SAVED</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Core · Critical Section">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Core Breakdown — The Critical Section</span>
+    <h2 style="margin-bottom:16px;">The block of code that <span class="grad-blue">must not be interrupted</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">Formal definition</span>
+          <p>A <strong>Critical Section</strong> is a structural window of source code that reads or writes to a shared, mutable global or heap state resource. Only one thread may be inside the critical section at a time.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Identifying it</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            Any code that touches a <strong>shared variable</strong> is a critical section candidate.<br>
+            Read-only access — usually fine (no modification).<br>
+            Read-modify-write — always a critical section.<br>
+            Multiple writes to related state — must all be in one section.
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why "section" and not "line"</span>
+          <p>An increment is three lines. The critical section must cover <strong>all three</strong> — otherwise another thread can slip in between them. The boundaries must contain the entire read-modify-write.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">A critical section, marked</div>
+        <div class="crit-vis">
+          <div class="crit-code">
+            <span class="crit-label">NON-CRITICAL</span>
+            <div style="color:var(--muted)">int y = compute();</div>
+            <div style="color:var(--muted)">printf("starting");</div>
+          </div>
+          <div class="crit-code" style="border-color:rgba(255,182,72,.85);background:rgba(255,182,72,.10);box-shadow:0 0 24px -6px rgba(255,182,72,.75)">
+            <span class="crit-label" style="border-color:rgba(255,182,72,.85)">CRITICAL SECTION</span>
+            <div style="color:#ffd18a"><span class="highlight">shared_counter++;</span></div>
+            <div style="color:#ffd18a"><span class="highlight">shared_buffer[y] = x;</span></div>
+            <div style="color:#ffd18a"><span class="highlight">log_entry = y + 1;</span></div>
+          </div>
+          <div class="crit-code">
+            <span class="crit-label">NON-CRITICAL</span>
+            <div style="color:var(--muted)">return result;</div>
+            <div style="color:var(--muted)">printf("done");</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Core · Mutual Exclusion" data-anim="mutexvis">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 Core Breakdown — Mutual Exclusion</span>
+    <h2 style="margin-bottom:16px;">One thread in, <span class="grad-emerald">all others wait</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Formal definition</span>
+          <p><strong>Mutual Exclusion (Mutex)</strong> is a synchronization primitive that locks out concurrent access, ensuring only one execution thread can claim a resource slot. Other threads that try to enter block until the holder releases.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The three guarantees</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>1. Exclusivity</strong> — at most one thread inside<br>
+            <strong>2. Progress</strong> — if the section is free, some thread can enter<br>
+            <strong>3. Bounded wait</strong> — a thread won't wait forever (assuming fair acquisition)
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Cost</span>
+          <p>Locking and unlocking a mutex costs roughly <strong>10–100 ns</strong> in the uncontended case, and much more under contention (because the waiting thread must be suspended and later woken). That's the price of correctness.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The mutex lock</div>
+        <div class="mutex-vis">
+          <div class="mutex-lock unlocked" id="mutexLock">🔓</div>
+          <div class="mutex-state" id="mutexState" style="color:#88ffd8">UNLOCKED</div>
+          <div class="mutex-queue">
+            <div class="mutex-waiter waiting" id="mutexWaiter1">Thread B · waiting</div>
+            <div class="mutex-waiter waiting" id="mutexWaiter2">Thread C · waiting</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">When a thread acquires the lock, it becomes LOCKED and other threads block.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Core · Atomic Operation">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Atomic Operation</span>
+    <h2 style="margin-bottom:16px;">The <span class="grad-amber">hardware foundation</span> under every mutex</h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Atomic vs. non-atomic</div>
+        <div class="atomic-vis">
+          <div class="atomic-row non-atomic">
+            <span class="atomic-tag">NON-ATOMIC</span>
+            <div class="atomic-desc">x++ → LOAD, ADD, STORE. Any of the three can be interrupted.</div>
+            <span class="atomic-icon">❌</span>
+          </div>
+          <div class="atomic-row atomic">
+            <span class="atomic-tag">ATOMIC</span>
+            <div class="atomic-desc">LOCK INC [x] → single hardware instruction, cannot be interrupted mid-way.</div>
+            <span class="atomic-icon">✅</span>
+          </div>
+          <div class="atomic-row atomic">
+            <span class="atomic-tag">ATOMIC</span>
+            <div class="atomic-desc">CMPXCHG (compare-and-swap) → atomically compare and replace — foundation of mutexes.</div>
+            <span class="atomic-icon">✅</span>
+          </div>
+          <div class="atomic-row atomic">
+            <span class="atomic-tag">ATOMIC</span>
+            <div class="atomic-desc">TEST-AND-SET → atomically set a flag and return the old value.</div>
+            <span class="atomic-icon">✅</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">Formal definition</span>
+          <p>An <strong>Atomic Operation</strong> is a low-level processor instruction sequence that executes completely to completion as a single indivisible unit without any possibility of preemption. No other thread can observe an intermediate state.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why mutexes need this</span>
+          <p>A mutex's lock/unlock operation is <strong>itself built on an atomic instruction</strong>. Without atomics, no synchronization primitive could exist — because the lock acquisition itself would be a race condition.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The chicken-and-egg solution</span>
+          <p>Atomic instructions are guaranteed by the CPU hardware. Everything above — mutexes, semaphores, condition variables — is built on top of them. <strong>The CPU is the root of trust.</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Live Demo · Race" data-anim="racedemo">
+  <div class="slide-inner">
+    <span class="badge crimson">🧪 Live Demo — The Race in Action</span>
+    <h2 style="margin-bottom:16px;">Watch the counter <span class="grad-crimson">miss updates in real time</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Unsafe counter running</div>
+        <div style="padding:16px 0;display:flex;flex-direction:column;gap:12px">
+          <div style="padding:18px 20px;border-radius:12px;background:rgba(0,0,0,.30);border:1.5px solid rgba(255,77,109,.65);text-align:center">
+            <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--crimson);margin-bottom:8px">SHARED COUNTER · NO MUTEX</div>
+            <div id="raceValue" style="font-family:var(--mono);font-size:clamp(36px,4vw,52px);font-weight:900;color:#ff9fb1;letter-spacing:-.02em;line-height:1">0</div>
+            <div style="margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)">expected: <span id="raceExpected">0</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08)">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:4px">THREAD 1</div>
+              <div id="raceT1" style="font-family:var(--mono);font-size:14px;font-weight:800;color:#b9d0ff">0 updates</div>
+            </div>
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08)">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:4px">THREAD 2</div>
+              <div id="raceT2" style="font-family:var(--mono);font-size:14px;font-weight:800;color:#88ffd8">0 updates</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What you're seeing</span>
+          <p>Two threads each doing 20 increments. Without a mutex, updates occasionally get lost — the final value is <strong>less than 40</strong>. Sometimes much less, depending on scheduling.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The counter is refreshed</span>
+          <p>Each run shows a different final value. Press <kbd>R</kbd> or just watch — the demo auto-reruns. Notice the variance: sometimes 38, sometimes 32, sometimes 39. <strong>Never guaranteed to be 40.</strong></p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The lesson</span>
+          <p>The race isn't "rare" — it happens on most runs. It only looks rare when the increments are cheap, the scheduler cooperates, or the workload has some hidden serialization. Under contention, the bug shows constantly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="The Mutex Solution">
+  <div class="slide-inner">
+    <span class="badge emerald">📖 The Mutex Solution — Serialize the Critical Section</span>
+    <h2 style="margin-bottom:16px;">Force the good interleaving <span class="grad-emerald">every time</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The mechanism</span>
+          <p>Wrap the critical section in <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_lock()</code> and <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_unlock()</code>. Between these, only one thread executes at a time.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What this restores</span>
+          <p>All three instructions (LOAD, ADD, STORE) run <strong>atomically with respect to other threads</strong>. No interleaving is possible — the scheduler can still switch threads, but the next thread to enter the section sees the updated value.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The result</span>
+          <p>The final counter value is <strong>always 40</strong> — every run, every scheduler timing, every system. Deterministic. Correct. Predictable.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The key trade:</b> speed for correctness. With the mutex, threads spend some time waiting rather than computing. But the result is now correct — which is usually more important.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The same code, now protected</div>
+        <div style="padding:8px 0">
+          <div style="padding:14px 16px;border-radius:10px;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.10);font-family:var(--mono);font-size:11.5px;line-height:1.85;color:var(--ink-2)">
+            <div style="color:#a06bff;font-weight:700">pthread_mutex_lock</div>(&amp;lock);  <span style="color:#4e5f7d">// enter</span><br>
+            <div style="color:#ffd18a;padding-left:20px">shared_counter++;</div>    <span style="color:#4e5f7d">// critical</span><br>
+            <div style="color:#a06bff;font-weight:700">pthread_mutex_unlock</div>(&amp;lock);  <span style="color:#4e5f7d">// exit</span>
+          </div>
+          <div style="margin-top:14px;padding:12px 14px;border-radius:8px;background:rgba(46,230,168,.08);border:1px solid rgba(46,230,168,.55);font-family:var(--mono);font-size:11.5px;color:#88ffd8;text-align:center">
+            final counter = 40 always ✓
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="Live Demo · Fixed" data-anim="fixeddemo">
+  <div class="slide-inner">
+    <span class="badge emerald">🧪 Live Demo — The Mutex-Fixed Counter</span>
+    <h2 style="margin-bottom:16px;">Same code, <span class="grad-emerald">guaranteed answer</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Counter with mutex protection</div>
+        <div style="padding:16px 0;display:flex;flex-direction:column;gap:12px">
+          <div style="padding:18px 20px;border-radius:12px;background:rgba(0,0,0,.30);border:1.5px solid rgba(46,230,168,.65);text-align:center">
+            <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:8px">SHARED COUNTER · WITH MUTEX</div>
+            <div id="fixedValue" style="font-family:var(--mono);font-size:clamp(36px,4vw,52px);font-weight:900;color:#88ffd8;letter-spacing:-.02em;line-height:1">0</div>
+            <div style="margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)">expected: <span id="fixedExpected">0</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(91,141,255,.55);background:rgba(91,141,255,.08)">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--blue-2);margin-bottom:4px">THREAD 1</div>
+              <div id="fixedT1" style="font-family:var(--mono);font-size:14px;font-weight:800;color:#b9d0ff">0 updates</div>
+            </div>
+            <div style="padding:12px;border-radius:8px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08)">
+              <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:4px">THREAD 2</div>
+              <div id="fixedT2" style="font-family:var(--mono);font-size:14px;font-weight:800;color:#88ffd8">0 updates</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What's different</span>
+          <p>Same two threads, same workload. But each increment is now inside <code style="font-family:var(--mono);color:#88ffd8">mutex_lock/unlock</code>. Only one thread at a time enters the critical section.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The guarantee</span>
+          <p>Final value is <strong>always exactly 40</strong>. No matter which thread wins the race, no matter how the scheduler interleaves them, the counter is correct. Every run.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The cost</span>
+          <p>The mutex adds overhead — threads spend time waiting for the lock. If contention is high (many threads, tiny critical sections), <strong>the mutex can dominate the runtime</strong>. That's L15's problem.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Code · Broken" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="badge crimson">💻 Code — The Broken Version</span>
+    <h2 style="margin-bottom:16px;">No mutex. <span class="grad-crimson">Race condition guaranteed.</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head bad"><span>unsafe_counter.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-com">// SHARED — no mutex to protect it</span></span><span class="code-line"><span class="c-type">int</span> <span class="c-var">shared_counter</span> = <span class="c-num">0</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">bump_counter</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-num">20</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-bad">shared_counter++;</span>  <span class="c-com">// NOT atomic — 3 instructions</span></span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">pthread_t</span> <span class="c-var">t1</span>, <span class="c-var">t2</span>;</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t1</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t2</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t1</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t2</span>, <span class="c-num">NULL</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Expect 40. Often get 38, 35, 32...</span></span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Final: %d\n"</span>, <span class="c-var">shared_counter</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The bug, line by line</span>
+          <p><code style="font-family:var(--mono);color:#ff9fb1">shared_counter++</code> on line 10 is the entire problem. Both threads execute this line concurrently, and the compiler emits three instructions that can interleave badly.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why it's not caught</span>
+          <p>Compilers don't warn about this. Static analyzers sometimes flag obvious races, but plain C has no threading semantics the compiler tracks. The bug is invisible until it manifests at runtime.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why it's hard to debug</span>
+          <p>Attaching a debugger changes timing. Adding print statements changes timing. The bug often <strong>disappears under observation</strong> — the classic heisenbug. This is why race conditions are considered one of the hardest bug classes in software.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Code · Fixed" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="badge emerald">💻 Code — The Fixed Version</span>
+    <h2 style="margin-bottom:16px;">Wrap in a mutex. <span class="grad-emerald">Correctness restored.</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head good"><span>safe_counter.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;stdio.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-var">shared_counter</span> = <span class="c-num">0</span>;</span><span class="code-line"><span class="c-type">pthread_mutex_t</span> <span class="c-var">lock</span> = <span class="c-var">PTHREAD_MUTEX_INITIALIZER</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">bump_counter</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-kw">for</span> (<span class="c-type">int</span> <span class="c-var">i</span> = <span class="c-num">0</span>; <span class="c-var">i</span> &lt; <span class="c-num">20</span>; <span class="c-var">i</span>++) {</span><span class="code-line">        <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock</span>);   <span class="c-com">// ACQUIRE</span></span><span class="code-line">        <span class="c-kw">shared_counter++;</span>             <span class="c-com">// critical</span></span><span class="code-line">        <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock</span>); <span class="c-com">// RELEASE</span></span><span class="code-line">    }</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">int</span> <span class="c-name">main</span>() {</span><span class="code-line">    <span class="c-type">pthread_t</span> <span class="c-var">t1</span>, <span class="c-var">t2</span>;</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t1</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_create</span>(&amp;<span class="c-var">t2</span>, <span class="c-num">NULL</span>, <span class="c-var">bump_counter</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t1</span>, <span class="c-num">NULL</span>);</span><span class="code-line">    <span class="c-name">pthread_join</span>(<span class="c-var">t2</span>, <span class="c-num">NULL</span>);</span><span class="code-line"></span><span class="code-line">    <span class="c-com">// Always exactly 40</span></span><span class="code-line">    <span class="c-name">printf</span>(<span class="c-str">"Final: %d\n"</span>, <span class="c-var">shared_counter</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">0</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">The three added lines</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Line 5:</strong> declare the mutex<br>
+            <strong>Line 10:</strong> acquire before the critical section<br>
+            <strong>Line 12:</strong> release after
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The discipline</span>
+          <p>Every <code style="font-family:var(--mono);color:#ffd18a">lock</code> must have a matching <code style="font-family:var(--mono);color:#ffd18a">unlock</code> on every path — including early returns, exceptions, and error branches. Missing one leaks the lock; everyone else waits forever (deadlock).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The scope</span>
+          <p>Keep the critical section as <strong>small as possible</strong>. Only the increment needs the lock — not the loop overhead, not the computation. Smaller critical sections mean less contention and faster execution.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Live Demo · Nondeterminism">
+  <div class="slide-inner">
+    <span class="badge amber">🧪 Live Demo — Nondeterminism in Action</span>
+    <h2 style="margin-bottom:16px;">Run the same program <span class="grad-amber">eight times</span>. Count how many results you get.</h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The unsafe version, 8 consecutive runs</div>
+        <div class="terminal" id="nondetTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./unsafe_counter × 8</span>
+          </div>
+          <div class="term-body" id="nondetBody">
+            <span class="term-line dim">Expected: 40</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">What to notice</span>
+          <p>Same binary, same input, same machine. <strong>Different results every run</strong>. The nondeterminism comes from timing — where the scheduler decides to preempt.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why this is a nightmare</span>
+          <p>Reproducing a bug that happens 1-in-10 runs is already hard. Reproducing one that depends on <strong>exact microsecond scheduling</strong> is nearly impossible. This is why "it works on my machine" is a real cliché for race condition bugs.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix is simple</span>
+          <p>With the mutex, all 8 runs print <strong>40</strong>. Every time. The nondeterminism is entirely eliminated by the mutual exclusion.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Race Variants">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Race Conditions Beyond Simple Counters</span>
+    <h2 style="margin-bottom:16px;">Counters are just the <span class="grad-crimson">simplest case</span></h2>
+    <div class="variant-grid">
+      <div class="variant-card v1">
+        <span class="vc-icon">📝</span>
+        <div class="vc-title">Linked list insertion</div>
+        <div class="vc-desc">Two threads insert at the head simultaneously. One insertion gets lost, or the list corrupts. Requires locking the head pointer (or using atomic pointers with careful design).</div>
+      </div>
+      <div class="variant-card v2">
+        <span class="vc-icon">💾</span>
+        <div class="vc-title">Banking transactions</div>
+        <div class="vc-desc">Check balance, if sufficient then withdraw. Two threads can both see $100, both withdraw $100, account goes to -$100. Classic TOCTOU — time-of-check-to-time-of-use.</div>
+      </div>
+      <div class="variant-card v3">
+        <span class="vc-icon">🔍</span>
+        <div class="vc-title">Lazy initialization</div>
+        <div class="vc-desc">Two threads both see `instance == NULL`, both allocate new instances, one leaks. Requires double-checked locking (with memory barriers) or `pthread_once`.</div>
+      </div>
+      <div class="variant-card v4">
+        <span class="vc-icon">📊</span>
+        <div class="vc-title">Statistics aggregation</div>
+        <div class="vc-desc">Threads atomically updating a shared count and sum. Two threads can update one but not the other, leaving them inconsistent. Requires protecting both, or using atomic operations on both.</div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The general pattern:</b> anytime you have <strong>check-then-act</strong> or <strong>read-modify-write</strong> on shared state, you have a potential race. The mutex prevents the interleaving; the critical question is always "what's the smallest region that must be protected?"</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Real World">
+  <div class="slide-inner">
+    <span class="badge crimson">🌍 Real World — Famous Race Condition Bugs</span>
+    <h2 style="margin-bottom:16px;">Race conditions <span class="grad-crimson">have caused real damage</span></h2>
+    <div class="rw-vis">
+      <div class="rw-row" style="border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06)">
+        <span class="rw-icon">🏥</span>
+        <div class="rw-body">
+          <div class="rw-title">Therac-25 · 1985–1987</div>
+          <div class="rw-desc">A race condition in the radiation therapy machine's software allowed operators to administer massive overdose. Six patients injured, three died. The race involved editing parameters too fast for the UI to keep up.</div>
+        </div>
+      </div>
+      <div class="rw-row" style="border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06)">
+        <span class="rw-icon">💸</span>
+        <div class="rw-body">
+          <div class="rw-title">Knight Capital · 2012</div>
+          <div class="rw-desc">A deployment race condition caused a trading firm to execute $3.5 billion of unintended trades in 45 minutes. The firm lost $440 million and was acquired two days later. The bug: an old server was still running old code and joined the cluster mid-deploy.</div>
+        </div>
+      </div>
+      <div class="rw-row" style="border-color:rgba(160,107,255,.55);background:rgba(160,107,255,.06)">
+        <span class="rw-icon">🚀</span>
+        <div class="rw-body">
+          <div class="rw-title">Mars Pathfinder · 1997</div>
+          <div class="rw-desc">We covered this in L08 — priority inversion isn't exactly a race, but it's a related concurrency bug. A mutex-protected resource caused the high-priority task to miss deadlines, triggering watchdog reboots.</div>
+        </div>
+      </div>
+      <div class="rw-row" style="border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06)">
+        <span class="rw-icon">🔐</span>
+        <div class="rw-body">
+          <div class="rw-title">Therac-25 class of bugs · ongoing</div>
+          <div class="rw-desc">Race conditions in security-sensitive code are especially dangerous — TOCTOU attacks (time-of-check-to-time-of-use) exploit the gap between "I verified you have permission" and "I perform the operation."</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>The lesson:</b> mutexes aren't theoretical — they're the difference between "the program works" and "the program causes a national financial incident." The next time you write concurrent code, take this lecture seriously.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="badge">🏷️ System Lexicon — Race &amp; Critical Section</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Race Condition</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A concurrency bug where the system output shifts nondeterministically based on the precise timing and execution order of overlapping threads.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The same code produces different results because the threads happen to interleave differently. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Classic symptom</span>
+          <p>Bug disappears under a debugger or when you add print statements. That's because the debugger slows execution and changes the interleaving.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Critical Section</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A structural window of source code that reads or writes to a shared, mutable global or heap state resource.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( The lines of code that must not run concurrently with another thread's version of the same lines. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Rule of thumb</span>
+          <p>Any read-modify-write of a shared variable is a critical section. Any check-then-act on shared state is a critical section. If you can't decide, assume it is.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="badge emerald">🏷️ System Lexicon — Mutex &amp; Atomic</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Mutex</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>Mutual Exclusion (Mutex) — a synchronization primitive that locks out concurrent access, ensuring only one execution thread can claim a resource slot.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A lock. Only one thread can hold it at a time. Others wait. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">POSIX API</span>
+          <p><code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_init</code> · <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_lock</code> · <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_unlock</code> · <code style="font-family:var(--mono);color:#88ffd8">pthread_mutex_destroy</code></p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(91,141,255,.4);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Atomic</div>
+        <div class="lex-sub" style="color:#b9d0ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A low-level processor instruction sequence that executes completely to completion as a single indivisible unit without any possibility of preemption.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( It happens all at once, or it doesn't happen at all. No in-between state. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Examples</span>
+          <p>x86 <code style="font-family:var(--mono);color:#b9d0ff">LOCK INC</code> · <code style="font-family:var(--mono);color:#b9d0ff">CMPXCHG</code> · <code style="font-family:var(--mono);color:#b9d0ff">XCHG</code> · ARM <code style="font-family:var(--mono);color:#b9d0ff">LDREX/STREX</code> · RISC-V <code style="font-family:var(--mono);color:#b9d0ff">AMO</code></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Cost">
+  <div class="slide-inner">
+    <span class="badge amber">⚖️ The Cost of Synchronization</span>
+    <h2 style="margin-bottom:16px;">Mutexes aren't free — <span class="grad-amber">here's the actual price</span></h2>
+    <div class="cost-vis">
+      <div class="cost-card cheap">
+        <h4>✓ Correctness guarantees</h4>
+        <div class="cost-row"><span class="label">Deterministic result</span><span class="val">guaranteed</span></div>
+        <div class="cost-row"><span class="label">Lost updates</span><span class="val">eliminated</span></div>
+        <div class="cost-row"><span class="label">Data corruption</span><span class="val">prevented</span></div>
+        <div class="cost-row"><span class="label">Debug time saved</span><span class="val">hours to days</span></div>
+      </div>
+      <div class="cost-card expensive">
+        <h4>⚠ Performance overhead</h4>
+        <div class="cost-row"><span class="label">Uncontended lock</span><span class="val">~10–20 ns</span></div>
+        <div class="cost-row"><span class="label">Contended lock</span><span class="val">~100–1000 ns</span></div>
+        <div class="cost-row"><span class="label">Context switch (wait)</span><span class="val">~2–20 µs</span></div>
+        <div class="cost-row"><span class="label">Lost parallelism</span><span class="val">significant</span></div>
+      </div>
+    </div>
+    <div class="panel blue" style="margin-top:16px;padding:18px">
+      <span class="panel-label">The design rule</span>
+      <p>Use the <strong>smallest possible critical section</strong>. Lock only what you have to. If you have one shared counter, protect only the increment — not the surrounding loop, not the computation, not the print statement. Smaller section = shorter lock hold time = less contention = more parallelism.</p>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <span class="ic">💡</span>
+      <div><b>An anti-pattern:</b> "coarse-grained locking." A single global mutex for everything is easy to reason about but kills parallelism — threads queue up on the lock and effectively run serially. Sometimes that's fine (e.g., Python's GIL). Often it isn't.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Pitfalls">
+  <div class="slide-inner">
+    <span class="badge crimson">🛑 Three Student Pitfalls</span>
+    <h2 style="margin-bottom:20px;">What beginners get wrong about race conditions</h2>
+    <div class="pitfall-stack">
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 01</div>
+        <div class="pc-title">"The race condition only happens sometimes, so it's not a real bug"</div>
+        <div class="pc-desc">A race condition that "only happens sometimes" is a <strong>worse</strong> bug, not a lesser one. It hides in testing, ships to production, and causes catastrophic failures at 3 AM on a full moon. The correct response to "it works on my machine" for concurrent code is: "then test it on <em>mine</em>."</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 02</div>
+        <div class="pc-title">"Adding a mutex is always the right fix"</div>
+        <div class="pc-desc">Sometimes it is. Sometimes the right fix is to <strong>not share state</strong> — restructure the code so each thread has its own copy, then merge at the end. Sometimes atomic operations are enough and cheaper. Sometimes a lock-free data structure is appropriate. The mutex is a hammer; not every shared-state problem is a nail.</div>
+      </div>
+      <div class="pitfall-card">
+        <div class="pc-num">PITFALL 03</div>
+        <div class="pc-title">"Locking everywhere makes the code safe"</div>
+        <div class="pc-desc">Over-locking causes its own problems: <strong>deadlocks</strong> (L15), <strong>convoy effects</strong>, and <strong>priority inversion</strong> (L08). Fine-grained locking is safer if done carefully, but harder to get right. The real art is knowing <em>what</em> to lock and <em>when</em>, not just adding locks everywhere.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="badge violet">🎭 Interactive Activity — The Shared Whiteboard Disruption</span>
+    <h2 style="margin-bottom:16px;">Two markers. One number. <span class="grad-violet">Who wins?</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Draw a large single number "0" on the center of the classroom whiteboard. Appoint two students to act as <strong>Threads</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The rule</span>
+          <p>Instruct them: their only loop is to <strong>read the board number, add 1 in their head, and write the new value over the old one</strong>. Have them both try to do this simultaneously, as fast as possible, with different colored markers.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The observation</span>
+          <p>Watch how their writing overrides each other. If Thread A writes "5" while Thread B is still reading "4", B will write "5" as well. The final number is <strong>less than it should be</strong>. That's the race in action — physically, visibly, in real time.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Introduce the "mutex" — a single physical object (say, a sticky note) that only one student can hold. To write on the board, a student must <strong>hold the sticky note</strong>. The other student waits until it's returned. Now the number is always correct.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief question:</b> ask the class <em>"Why doesn't the count come out right without the mutex?"</em> The answer — interleaved read-modify-write — should now feel obvious and physical, not abstract.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The whiteboard race</div>
+        <div class="whiteboard">
+          <div class="wb-race">RACE CONDITION</div>
+          <div class="wb-marker a">✏️</div>
+          <div class="wb-marker b">✏️</div>
+          <div class="wb-value" id="wbValue">0</div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Both markers try to write over the number. The final value depends on which one wins the race last.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Mindmap">
+  <div class="slide-inner">
+    <span class="badge violet">🌿 Mindmap — Where L14 Sits</span>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Curriculum branch</div>
+        <div class="mindmap">
+          <div class="mm-row"><span class="mm-node root">CS 301: Operating Systems</span></div>
+          <div class="mm-row"><span class="mm-prefix">└── </span><span class="mm-node">Module 4: Process Synchronization</span></div>
+          <div class="mm-row"><span class="mm-prefix">    └── </span><span class="mm-node active">L14: Race Conditions &amp; Mutual Exclusion 🌟 (ACTIVE)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf amber">Race Condition</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf blue">Critical Section</span></div>
+          <div class="mm-row"><span class="mm-prefix">        ├── </span><span class="mm-node leaf emerald">Mutual Exclusion (Mutex)</span></div>
+          <div class="mm-row"><span class="mm-prefix">        └── </span><span class="mm-node leaf">Atomic Operation</span></div>
+        </div>
+      </div>
+      <div class="stack">
+        <h2>Where this leads</h2>
+        <div class="panel blue">
+          <span class="panel-label">L15 — Classic Problems &amp; Deadlocks</span>
+          <p>Introducing multiple locks creates the possibility of <strong>deadlock</strong>. The Dining Philosophers, the four Coffman conditions, priority inversion, and the classic synchronization problems. L14 shows how to prevent races; L15 shows what goes wrong when you overdo it.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The bigger picture</span>
+          <p>Race conditions are the hidden tax on concurrency. Every multi-threaded program that has ever been written has had race conditions in it. Most have been fixed. Some haven't. Some are still lurking, waiting for the wrong schedule.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Module 4 in two lectures</span>
+          <p>L14 = how to prevent races (mutex). L15 = what happens when prevention goes wrong (deadlock). The full picture of concurrency correctness.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="badge emerald">🏆 Grand Summary — L14 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>A <strong>race condition</strong> occurs when two threads read-modify-write shared state concurrently, and the result depends on the exact interleaving. Same code, different results, unpredictable timing.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p><code style="font-family:var(--mono);color:#88ffd8">x++</code> is <strong>three instructions</strong> (LOAD, ADD, STORE), not one atomic operation. The critical section must encompass all three to guarantee correctness.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Mutual exclusion</strong> — implemented via mutex — ensures only one thread enters the critical section at a time. It eliminates the race at the cost of some parallelism.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>All synchronization primitives are <strong>built on atomic hardware instructions</strong>. Without CPU-level atomics, no software mutex could exist.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next lecture</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">L15 — Classic Synchronization Problems &amp; Deadlocks</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Mutexes solve races but introduce a new failure mode: <strong>deadlock</strong>. When two threads each hold one lock and wait for the other's lock, both block forever. L15 covers the Dining Philosophers, the four Coffman conditions, the Mars Pathfinder priority inversion, and the classic strategies for prevention.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L15: Deadlocks &amp; Classic Problems &nbsp;|&nbsp; [L15.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad14" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad14)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad14)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : race canvas ---------- */
+reg('racecanvas', function(){
+  const c = document.getElementById('raceCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  let sharedVal = 0;
+  let expectedVal = 0;
+  let t1Count = 0;
+  let t2Count = 0;
+  let t1Reg = 0;
+  let t2Reg = 0;
+  let t1Done = false;
+  let t2Done = false;
+  let steps = [];
+
+  function scheduleNext(){
+    const options = [];
+    if (!t1Done) options.push('t1');
+    if (!t2Done) options.push('t2');
+    if (options.length === 0) return;
+    const pick = options[Math.floor(Math.random() * options.length)];
+    const phase = t1Count < 3 ? (pick === 't1' ? t1Count : t2Count) : 0;
+    if (pick === 't1') {
+      if (t1Count === 0) { t1Reg = sharedVal; steps.push({who:'t1', op:'LOAD', val:t1Reg}); t1Count = 1; }
+      else if (t1Count === 1) { t1Reg++; steps.push({who:'t1', op:'ADD', val:t1Reg}); t1Count = 2; }
+      else if (t1Count === 2) { sharedVal = t1Reg; steps.push({who:'t1', op:'STORE', val:t1Reg}); t1Count = 3; t1Done = true; }
+    } else {
+      if (t2Count === 0) { t2Reg = sharedVal; steps.push({who:'t2', op:'LOAD', val:t2Reg}); t2Count = 1; }
+      else if (t2Count === 1) { t2Reg++; steps.push({who:'t2', op:'ADD', val:t2Reg}); t2Count = 2; }
+      else if (t2Count === 2) { sharedVal = t2Reg; steps.push({who:'t2', op:'STORE', val:t2Reg}); t2Count = 3; t2Done = true; }
+    }
+    if (steps.length > 12) {
+      // Reset for next cycle
+      sharedVal = 0; t1Count = 0; t2Count = 0; t1Done = false; t2Done = false;
+      t1Reg = 0; t2Reg = 0; steps = [];
+    }
+    void phase;
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    if (t % 18 === 0) scheduleNext();
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('TWO THREADS · ONE SHARED VARIABLE', W/2, 16);
+
+    // shared variable in center
+    const cx = W / 2, cy = H / 2;
+    const pulse = 0.3 + 0.3 * Math.sin(t / 20);
+    ctx.fillStyle = `rgba(255,182,72,${0.10 + pulse * 0.10})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 90, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255,182,72,${0.5 + pulse * 0.4})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffd18a';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('SHARED', cx, cy - 55);
+    ctx.fillStyle = '#fff';
+    ctx.font = '900 36px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('x = ' + sharedVal, cx, cy);
+
+    // Thread 1 (left)
+    const t1X = 110, t1Y = cy;
+    ctx.fillStyle = 'rgba(91,141,255,0.15)';
+    ctx.fillRect(t1X - 60, t1Y - 60, 120, 120);
+    ctx.strokeStyle = 'rgba(91,141,255,0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(t1X - 60, t1Y - 60, 120, 120);
+    ctx.fillStyle = '#b9d0ff';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('THREAD 1', t1X, t1Y - 45);
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 14px JetBrains Mono, monospace';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('reg = ' + t1Reg, t1X, t1Y - 10);
+    ctx.fillStyle = 'rgba(185,208,255,0.7)';
+    ctx.font = '600 10px JetBrains Mono, monospace';
+    ctx.fillText(t1Done ? 'DONE' : 'active', t1X, t1Y + 18);
+
+    // Thread 2 (right)
+    const t2X = W - 110, t2Y = cy;
+    ctx.fillStyle = 'rgba(46,230,168,0.15)';
+    ctx.fillRect(t2X - 60, t2Y - 60, 120, 120);
+    ctx.strokeStyle = 'rgba(46,230,168,0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(t2X - 60, t2Y - 60, 120, 120);
+    ctx.fillStyle = '#88ffd8';
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('THREAD 2', t2X, t2Y - 45);
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 14px JetBrains Mono, monospace';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('reg = ' + t2Reg, t2X, t2Y - 10);
+    ctx.fillStyle = 'rgba(136,255,216,0.7)';
+    ctx.font = '600 10px JetBrains Mono, monospace';
+    ctx.fillText(t2Done ? 'DONE' : 'active', t2X, t2Y + 18);
+
+    // Recent steps log at bottom
+    const logY = H - 100;
+    ctx.fillStyle = 'rgba(132,148,180,0.5)';
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const recent = steps.slice(-5);
+    recent.forEach((s, i) => {
+      const color = s.who === 't1' ? '#8fb4ff' : '#2ee6a8';
+      ctx.fillStyle = color;
+      const line = `${s.who.toUpperCase()}: ${s.op} → ${s.val}`;
+      ctx.fillText(line, 40, logY + i * 14);
+    });
+
+    ctx.fillStyle = 'rgba(255,77,109,0.7)';
+    ctx.font = '700 10px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('expected: 2 · actual: ' + sharedVal, W - 40, logY);
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 4 : interleave highlight ---------- */
+reg('interleave', function(){
+  const steps = document.querySelectorAll('#interleaveVis .interleave-step');
+  if(!steps.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    steps.forEach(s => s.classList.remove('active'));
+    const stepIdx = [0, 1, 2, 3, 4, 5][idx % 6];
+    const target = document.querySelector(`#interleaveVis [data-idx="${stepIdx}"]`);
+    if(target) target.classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 800);
+  return { stop(){ clearInterval(timer); steps.forEach(s => s.classList.remove('active')); } };
+});
+
+/* ---------- Slide 7 : instruction splitter ---------- */
+reg('instrsplit', function(){
+  const lines = document.querySelectorAll('#instrSplit .instr-line');
+  if(!lines.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('active'));
+    if(lines[idx % lines.length]) lines[idx % lines.length].classList.add('active');
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 900);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('active')); } };
+});
+
+/* ---------- Slide 8 : bad interleave (static SVG, no anim) ---------- */
+reg('badinterleave', function(){ return { stop(){} }; });
+
+/* ---------- Slide 10 : mutex visual ---------- */
+reg('mutexvis', function(){
+  const lock = document.getElementById('mutexLock');
+  const state = document.getElementById('mutexState');
+  const waiter1 = document.getElementById('mutexWaiter1');
+  const waiter2 = document.getElementById('mutexWaiter2');
+  if(!lock || !state) return { stop(){} };
+  let locked = false;
+  function tick(){
+    locked = !locked;
+    if(locked){
+      lock.className = 'mutex-lock locked';
+      lock.textContent = '🔒';
+      state.textContent = 'LOCKED';
+      state.style.color = '#ff9fb1';
+      if(waiter1){ waiter1.className = 'mutex-waiter waiting'; waiter1.textContent = 'Thread B · waiting'; }
+      if(waiter2){ waiter2.className = 'mutex-waiter waiting'; waiter2.textContent = 'Thread C · waiting'; }
+    } else {
+      lock.className = 'mutex-lock unlocked';
+      lock.textContent = '🔓';
+      state.textContent = 'UNLOCKED';
+      state.style.color = '#88ffd8';
+      if(waiter1){ waiter1.className = 'mutex-waiter entered'; waiter1.textContent = 'Thread B · enters'; }
+      if(waiter2){ waiter2.className = 'mutex-waiter waiting'; waiter2.textContent = 'Thread C · waiting'; }
+    }
+  }
+  tick();
+  const timer = setInterval(tick, 2000);
+  return { stop(){ clearInterval(timer); } };
+});
+
+/* ---------- Slide 12 : race demo ---------- */
+reg('racedemo', function(){
+  const valEl = document.getElementById('raceValue');
+  const expEl = document.getElementById('raceExpected');
+  const t1El = document.getElementById('raceT1');
+  const t2El = document.getElementById('raceT2');
+  if(!valEl || !t1El || !t2El) return { stop(){} };
+
+  function run(){
+    let shared = 0;
+    let t1 = 0, t2 = 0;
+    const target = 20;
+    // Simulate racing increments
+    const steps = [];
+    for(let i = 0; i < target; i++){
+      steps.push({thread: 't1'});
+      steps.push({thread: 't2'});
+    }
+    // Shuffle steps randomly to simulate scheduler
+    for(let i = steps.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [steps[i], steps[j]] = [steps[j], steps[i]];
+    }
+    // Each increment is load, add, store with possible race
+    // Simplified: with 30% chance, lose an update
+    let sharedExpected = 0;
+    steps.forEach(s => {
+      const lost = Math.random() < 0.15;
+      if(!lost){
+        shared++;
+        sharedExpected++;
+        // Even when "successful" the count increments
+      } else {
+        // Lost update — thread ran but shared didn't increment
+      }
+      if(s.thread === 't1') t1++;
+      else t2++;
+    });
+
+    valEl.textContent = shared;
+    expEl.textContent = 40;
+    t1El.textContent = t1 + ' updates';
+    t2El.textContent = t2 + ' updates';
+    void sharedExpected;
+  }
+
+  // Animate the counter growing
+  let currentVal = 0;
+  let targetVal = 0;
+  let t1Count = 0;
+  let t2Count = 0;
+
+  function reset(){
+    currentVal = 0;
+    // Random loss pattern
+    let updates = 0;
+    for(let i = 0; i < 40; i++){
+      if(Math.random() > 0.15) updates++;
+    }
+    targetVal = updates;
+    t1Count = 0;
+    t2Count = 0;
+    valEl.textContent = '0';
+    expEl.textContent = '40';
+    t1El.textContent = '0 updates';
+    t2El.textContent = '0 updates';
+  }
+
+  reset();
+
+  const timer = setInterval(() => {
+    if(currentVal < targetVal){
+      currentVal++;
+      valEl.textContent = currentVal;
+      if(t1Count < 20 && Math.random() < 0.5){ t1Count++; t1El.textContent = t1Count + ' updates'; }
+      else if(t2Count < 20){ t2Count++; t2El.textContent = t2Count + ' updates'; }
+    } else {
+      setTimeout(() => { if(!valEl.isConnected) return; reset(); }, 2000);
+    }
+  }, 80);
+
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 14 : fixed demo ---------- */
+reg('fixeddemo', function(){
+  const valEl = document.getElementById('fixedValue');
+  const expEl = document.getElementById('fixedExpected');
+  const t1El = document.getElementById('fixedT1');
+  const t2El = document.getElementById('fixedT2');
+  if(!valEl) return { stop(){} };
+
+  let currentVal = 0;
+  let t1Count = 0;
+  let t2Count = 0;
+
+  function reset(){
+    currentVal = 0;
+    t1Count = 0;
+    t2Count = 0;
+    valEl.textContent = '0';
+    expEl.textContent = '0';
+    t1El.textContent = '0 updates';
+    t2El.textContent = '0 updates';
+  }
+
+  reset();
+
+  const timer = setInterval(() => {
+    if(currentVal < 40){
+      currentVal++;
+      valEl.textContent = currentVal;
+      expEl.textContent = currentVal;
+      if(t1Count < 20 && Math.random() < 0.5){ t1Count++; t1El.textContent = t1Count + ' updates'; }
+      else if(t2Count < 20){ t2Count++; t2El.textContent = t2Count + ' updates'; }
+    } else {
+      setTimeout(() => { if(!valEl.isConnected) return; reset(); }, 2400);
+    }
+  }, 80);
+
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 15 : code stepper 1 ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,6,7,8,9,10,11,13,14,15,16,17,19,20,21,22];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t === 8) lines[t].classList.add('hl-bad');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 16 : code stepper 2 ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,6,7,8,9,10,11,12,14,15,16,17,18,20,21,22,23];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t === 9 || t === 11) lines[t].classList.add('hl-good');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 17 : nondeterminism terminal ---------- */
+reg('nondetterminal', function(){
+  const body = document.getElementById('nondetBody');
+  if(!body) return { stop(){} };
+  const base = '<span class="term-line dim">Expected: 40</span>';
+  const results = [];
+
+  function reset(){
+    body.innerHTML = base;
+    results.length = 0;
+  }
+
+  function addRun(){
+    if(results.length >= 8){
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 3000);
+      return;
+    }
+    const result = 30 + Math.floor(Math.random() * 11); // 30-40
+    results.push(result);
+    const isCorrect = result === 40;
+    const cls = isCorrect ? 'ok' : 'err';
+    const note = isCorrect ? '(correct)' : '(lost ' + (40 - result) + ')';
+    body.insertAdjacentHTML('beforeend',
+      `<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./unsafe_counter</span></span>` +
+      `<span class="term-line ${cls}">Final: ${result} ${note}</span>`
+    );
+  }
+
+  addRun();
+  const timer = setInterval(addRun, 800);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Auto-register dynamic anims ---------- */
+(function registerDynamicAnims(){
+  const allSlides = document.querySelectorAll('.slide');
+  allSlides.forEach((s) => {
+    if(s.querySelector('#nondetBody') && !s.dataset.anim) s.dataset.anim = 'nondetterminal';
+  });
+})();
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
