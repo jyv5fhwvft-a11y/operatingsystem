@@ -1,0 +1,2094 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · L15 — Classic Synchronization Problems &amp; Deadlocks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--bg-2:#0b1120;--panel:rgba(255,255,255,.038);--panel-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--blue-2:#8fb4ff;--blue-soft:rgba(91,141,255,.14);
+  --emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --radius:22px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.16),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.13),transparent 60%),radial-gradient(700px 500px at 82% 4%,rgba(46,230,168,.07),transparent 58%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+.hud{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:60;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;pointer-events:none;}
+.hud-brand{display:flex;align-items:center;gap:10px;}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);animation:pulseDot 2.4s infinite;}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.hud-right{display:flex;align-items:center;gap:16px;}
+#slideCounter{color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.hud-chapter{color:rgba(132,148,180,.6);}
+
+.progress{position:fixed;top:54px;left:0;right:0;height:2px;background:rgba(255,255,255,.06);z-index:60;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--violet),var(--emerald));transition:width .45s var(--ease);box-shadow:0 0 14px rgba(91,141,255,.7);}
+.controls{position:fixed;bottom:22px;right:26px;display:flex;gap:10px;z-index:60;}
+.controls button{width:44px;height:44px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--ink);font-size:17px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(12px);transition:.22s var(--ease);font-family:var(--font);}
+.controls button:hover{background:rgba(91,141,255,.20);border-color:rgba(91,141,255,.55);transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,141,255,.22);}
+.controls button:active{transform:translateY(0) scale(.95);}
+.controls button:disabled{opacity:.28;cursor:default;transform:none;box-shadow:none;background:rgba(255,255,255,.04);}
+.hint{position:fixed;bottom:28px;left:26px;z-index:60;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(132,148,180,.55);font-weight:600;transition:opacity .6s ease;}
+.hint.hide{opacity:0;}
+kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(--stroke-2);background:rgba(255,255,255,.06);font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+.stage{position:fixed;inset:0;z-index:10;}
+.slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 60px 92px;opacity:0;visibility:hidden;transform:translateY(22px) scale(.988);transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+.slide::-webkit-scrollbar{display:none;}
+.slide.active{opacity:1;visibility:visible;transform:none;}
+.slide-inner{width:min(1320px,100%);}
+
+h1{font-size:clamp(30px,3.5vw,54px);line-height:1.05;letter-spacing:-.035em;font-weight:800;}
+h2{font-size:clamp(24px,2.35vw,38px);line-height:1.1;letter-spacing:-.028em;font-weight:800;}
+h3{font-size:clamp(17px,1.35vw,21px);line-height:1.25;letter-spacing:-.015em;font-weight:700;}
+p{font-size:clamp(14.5px,1.05vw,17px);line-height:1.62;color:var(--ink-2);}
+strong{color:var(--ink);font-weight:700;}
+em{font-style:normal;}
+
+.grad-blue{background:linear-gradient(100deg,#9dc0ff,#5b8dff 45%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-emerald{background:linear-gradient(100deg,#8affd6,#2ee6a8 55%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-amber{background:linear-gradient(100deg,#ffd894,#ffb648 55%,#ff7a59);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-crimson{background:linear-gradient(100deg,#ffa3b5,#ff4d6d 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.grad-violet{background:linear-gradient(100deg,#c9a7ff,#a06bff 60%,#5b8dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.17em;text-transform:uppercase;font-weight:800;color:var(--blue-2);background:var(--blue-soft);border:1px solid rgba(91,141,255,.32);padding:8px 15px;border-radius:999px;margin-bottom:22px;line-height:1.4;}
+.badge.amber{color:#ffd18a;background:rgba(255,182,72,.10);border-color:rgba(255,182,72,.34);}
+.badge.crimson{color:#ff9fb1;background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.34);}
+.badge.emerald{color:#88ffd8;background:rgba(46,230,168,.10);border-color:rgba(46,230,168,.34);}
+.badge.violet{color:#c9a7ff;background:rgba(160,107,255,.10);border-color:rgba(160,107,255,.34);}
+
+.lead{font-size:clamp(16px,1.22vw,19px);line-height:1.6;color:var(--ink-2);}
+.split{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(24px,3vw,48px);align-items:center;}
+.split.wide-left{grid-template-columns:1.2fr .8fr;}
+.split.wide-right{grid-template-columns:.8fr 1.2fr;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+
+.panel{border:1px solid var(--stroke);background:var(--panel);border-radius:16px;padding:16px 18px;backdrop-filter:blur(8px);}
+.panel.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.055);}
+.panel.crimson{border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.055);}
+.panel.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.055);}
+.panel.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.055);}
+.panel.violet{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.055);}
+.panel-label{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--muted);margin-bottom:9px;display:block;}
+.panel.amber .panel-label{color:var(--amber);}
+.panel.crimson .panel-label{color:var(--crimson);}
+.panel.emerald .panel-label{color:var(--emerald);}
+.panel.blue .panel-label{color:var(--blue-2);}
+.panel.violet .panel-label{color:var(--violet);}
+
+.note{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border-left:3px solid var(--violet);background:rgba(160,107,255,.07);font-size:13.5px;line-height:1.55;color:#bcc8e0;}
+.note .ic{font-size:15px;line-height:1.2;flex:none;}
+.note b{color:#d8c8ff;}
+.note.blue{border-left-color:var(--blue);background:rgba(91,141,255,.07);}
+.note.blue b{color:#b9d0ff;}
+
+.vis-frame{position:relative;border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(158deg,rgba(255,255,255,.055),rgba(255,255,255,.012));padding:18px;overflow:hidden;box-shadow:0 22px 60px -24px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.06);}
+.vis-frame::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(600px 220px at 50% -10%,rgba(91,141,255,.13),transparent 70%);}
+.vis-cap{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(132,148,180,.75);font-weight:700;margin-bottom:12px;}
+canvas{display:block;width:100%;height:auto;border-radius:14px;}
+svg{overflow:visible;}
+
+#diningCanvas{display:block;width:100%;height:auto;border-radius:14px;}
+
+/* Dining table SVG */
+.dining-wrap{padding:8px 0;display:grid;place-items:center;}
+.dining-svg{width:100%;max-width:420px;height:auto;}
+
+/* Bank transfer */
+.bank-flow{padding:14px 0;display:flex;flex-direction:column;gap:10px;}
+.bank-db{padding:14px;border-radius:10px;border:1.5px solid;}
+.bank-db.a{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.bank-db.b{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.06);}
+.bank-db h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.bank-db.a h4{color:var(--blue-2);}
+.bank-db.b h4{color:var(--emerald);}
+.bank-row{display:flex;justify-content:space-between;padding:8px 12px;border-radius:6px;font-family:var(--mono);font-size:11.5px;font-weight:700;margin-bottom:4px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);color:var(--ink-2);}
+.bank-row.locked-a{color:#ff9fb1;border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.10);}
+.bank-row.locked-b{color:#ff9fb1;border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.10);}
+.bank-row.waiting{color:#ffd18a;border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);}
+.bank-arrow{text-align:center;font-family:var(--mono);font-size:22px;color:var(--crimson);animation:pulseArrow 1.4s ease-in-out infinite;}
+@keyframes pulseArrow{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* Resource allocation graph */
+.rag-wrap{padding:8px 0;display:grid;place-items:center;}
+.rag-svg{width:100%;max-width:420px;height:auto;}
+
+/* Coffman conditions */
+.coffman-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:8px 0;}
+.coffman-card{padding:16px;border-radius:12px;border:1.5px solid;background:rgba(0,0,0,.20);}
+.coffman-card.c1{border-color:rgba(91,141,255,.65);background:rgba(91,141,255,.06);}
+.coffman-card.c2{border-color:rgba(255,182,72,.65);background:rgba(255,182,72,.06);}
+.coffman-card.c3{border-color:rgba(160,107,255,.65);background:rgba(160,107,255,.06);}
+.coffman-card.c4{border-color:rgba(255,77,109,.65);background:rgba(255,77,109,.06);}
+.coffman-card .cf-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;margin-bottom:6px;}
+.coffman-card.c1 .cf-num{color:var(--blue-2);}
+.coffman-card.c2 .cf-num{color:var(--amber);}
+.coffman-card.c3 .cf-num{color:var(--violet);}
+.coffman-card.c4 .cf-num{color:var(--crimson);}
+.coffman-card .cf-title{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--ink);}
+.coffman-card .cf-desc{font-size:11.5px;line-height:1.55;color:var(--ink-2);}
+
+/* Break-condition visualization */
+.break-vis{padding:8px 0;display:flex;flex-direction:column;gap:10px;}
+.break-row{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.break-row.tested{border-color:rgba(46,230,168,.65);background:rgba(46,230,168,.08);}
+.break-badge{padding:6px 12px;border-radius:6px;font-family:var(--mono);font-size:10.5px;font-weight:900;letter-spacing:.04em;white-space:nowrap;}
+.break-badge.bad{background:rgba(255,77,109,.20);color:#ff9fb1;border:1px solid rgba(255,77,109,.55);}
+.break-badge.good{background:rgba(46,230,168,.20);color:#88ffd8;border:1px solid rgba(46,230,168,.55);}
+.break-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+.break-icon{font-size:22px;}
+
+/* Prevention strategies table */
+.prev-table{display:grid;grid-template-columns:140px 1fr 1fr;gap:1px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.09);border-radius:14px;overflow:hidden;font-size:12px;}
+.prev-cell{background:#0a0f1c;padding:12px 14px;line-height:1.5;}
+.prev-corner{background:#0d1425;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--muted);display:flex;align-items:center;}
+.prev-head{background:#0d1425;font-size:11px;font-weight:800;text-align:center;}
+.prev-head.h1{color:var(--blue-2);}
+.prev-head.h2{color:var(--emerald);}
+.prev-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:900;display:flex;align-items:center;}
+.prev-label.c1{color:#b9d0ff;}
+.prev-label.c2{color:#ffd18a;}
+.prev-label.c3{color:#c9a7ff;}
+.prev-label.c4{color:#ff9fb1;}
+.prev-val{color:var(--ink-2);}
+.prev-val.bad{color:#ff9fb1;}
+.prev-val.good{color:#88ffd8;}
+
+/* Detection / avoidance comparison */
+.approach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:8px 0;}
+.approach-card{padding:16px;border-radius:12px;border:1px solid;background:rgba(0,0,0,.20);}
+.approach-card.prev{border-color:rgba(46,230,168,.55);}
+.approach-card.avoid{border-color:rgba(255,182,72,.55);}
+.approach-card.detect{border-color:rgba(91,141,255,.55);}
+.approach-card h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.approach-card.prev h4{color:var(--emerald);}
+.approach-card.avoid h4{color:var(--amber);}
+.approach-card.detect h4{color:var(--blue-2);}
+.approach-card p{font-size:11.5px;line-height:1.55;color:var(--ink-2);}
+.approach-card .cost{font-family:var(--mono);font-size:10px;margin-top:8px;font-weight:700;}
+.approach-card.prev .cost{color:#ff9fb1;}
+.approach-card.avoid .cost{color:#ffd18a;}
+.approach-card.detect .cost{color:#b9d0ff;}
+
+/* Semaphore */
+.sema-vis{padding:12px 0;display:flex;flex-direction:column;gap:10px;}
+.sema-bar{display:flex;gap:6px;justify-content:center;margin:10px 0;}
+.sema-slot{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font-family:var(--mono);font-size:14px;font-weight:900;border:1.5px solid;transition:.4s;}
+.sema-slot.full{border-color:rgba(46,230,168,.75);background:rgba(46,230,168,.20);color:#88ffd8;}
+.sema-slot.empty{border-color:rgba(255,255,255,.15);background:rgba(255,255,255,.03);color:var(--muted);}
+.sema-count{text-align:center;font-family:var(--mono);font-size:24px;font-weight:900;color:#ffd18a;letter-spacing:-.02em;}
+.sema-label{text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:6px;}
+.sema-ops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+.sema-op{padding:12px;border-radius:8px;border:1px solid;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;}
+.sema-op.wait{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.06);color:#ffd18a;}
+.sema-op.signal{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);color:#88ffd8;}
+
+/* Code */
+.code-block{border-radius:16px;overflow:hidden;border:1px solid var(--stroke);background:#080d17;}
+.code-head{padding:9px 15px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;align-items:center;}
+.code-head.bad{color:#ff9fb1;background:rgba(255,77,109,.08);}
+.code-head.good{color:#88ffd8;background:rgba(46,230,168,.08);}
+.code-head .dots{display:flex;gap:5px;}
+.code-head .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);display:block;}
+pre{font-family:var(--mono);font-size:clamp(11px,.92vw,13.5px);line-height:1.85;padding:15px 16px;overflow-x:auto;color:#c6d3ea;}
+.c-fn{color:#a06bff;font-weight:700;}
+.c-name{color:#8fb4ff;}
+.c-com{color:#4e5f7d;font-style:italic;}
+.c-var{color:#ffb648;}
+.c-type{color:#2ee6a8;}
+.c-str{color:#88ffd8;}
+.c-kw{color:#ff4d6d;font-weight:700;}
+.c-num{color:#ffb648;font-weight:700;}
+.c-bad{color:#ff9fb1;font-weight:800;}
+.c-good{color:#88ffd8;font-weight:800;}
+.code-line{display:block;padding:0 6px;border-radius:5px;transition:background .25s;}
+.code-line.hl{background:rgba(255,182,72,.16);}
+.code-line.hl-bad{background:rgba(255,77,109,.20);}
+.code-line.hl-good{background:rgba(46,230,168,.16);}
+
+/* Terminal */
+.terminal{border-radius:16px;border:1px solid var(--stroke);overflow:hidden;background:#05080f;font-family:var(--mono);box-shadow:0 24px 70px -30px rgba(0,0,0,.95);}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.045);border-bottom:1px solid var(--stroke);}
+.term-bar .dots{display:flex;gap:6px;}
+.term-bar .dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.term-bar .dots i:nth-child(1){background:#ff5f57}
+.term-bar .dots i:nth-child(2){background:#febc2e}
+.term-bar .dots i:nth-child(3){background:#28c840}
+.term-bar .title{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-left:8px;}
+.term-body{padding:14px 16px;font-size:clamp(10.5px,.88vw,12.5px);line-height:1.75;min-height:220px;}
+.term-line{display:block;}
+.term-line.dim{color:var(--muted);}
+.term-line.err{color:#ff9fb1;}
+.term-line.ok{color:#88ffd8;}
+.term-line.warn{color:#ffd18a;}
+.term-line.hl{color:#fff;font-weight:700;}
+.term-prompt{color:var(--emerald);}
+.term-cmd{color:var(--ink);}
+
+/* Lexicon */
+.lex-card{border-radius:24px;padding:clamp(22px,2.8vw,40px);border:1px solid rgba(91,141,255,.34);background:linear-gradient(150deg,rgba(91,141,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(91,141,255,.85),inset 0 1px 0 rgba(255,255,255,.07);}
+.lex-term{font-size:clamp(28px,3.8vw,54px);font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:8px;background:linear-gradient(100deg,#ffffff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.lex-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--blue-2);font-weight:800;margin-bottom:22px;}
+.lex-row{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:14px;}
+.lex-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+.lex-key{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--muted);display:block;margin-bottom:7px;}
+.lex-row p{font-size:clamp(14px,1.05vw,16.5px);line-height:1.6;}
+.bracket{color:#c9a7ff;font-style:italic;}
+.two-lex{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Cohesion */
+.cohesion-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cohesion-card{padding:16px;border-radius:14px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.cohesion-card.relies{border-color:rgba(91,141,255,.4);background:rgba(91,141,255,.055);}
+.cohesion-card.feeds{border-color:rgba(46,230,168,.4);background:rgba(46,230,168,.055);}
+.cohesion-card h4{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;margin-bottom:10px;}
+.cohesion-card.relies h4{color:var(--blue-2);}
+.cohesion-card.feeds h4{color:var(--emerald);}
+.cohesion-card p{font-size:13.5px;line-height:1.6;}
+
+/* Mindmap */
+.mindmap{font-family:var(--mono);font-size:clamp(11px,.92vw,14px);line-height:2;}
+.mm-row{display:flex;align-items:center;white-space:nowrap;}
+.mm-prefix{color:rgba(132,148,180,.45);white-space:pre;}
+.mm-node{padding:4px 12px;border-radius:9px;border:1px solid var(--stroke);background:rgba(255,255,255,.045);color:var(--ink-2);transition:.3s;}
+.mm-node.root{border-color:rgba(91,141,255,.45);background:rgba(91,141,255,.10);color:#b9d0ff;font-weight:700;}
+.mm-node.active{border-color:rgba(91,141,255,.85);background:rgba(91,141,255,.20);color:#fff;font-weight:700;box-shadow:0 0 26px -4px rgba(91,141,255,.85);animation:nodeActive 2.4s ease-in-out infinite;}
+@keyframes nodeActive{0%,100%{box-shadow:0 0 22px -6px rgba(91,141,255,.8)}50%{box-shadow:0 0 40px -2px rgba(91,141,255,1)}}
+.mm-node.leaf{border-color:rgba(160,107,255,.32);background:rgba(160,107,255,.08);color:#c9a7ff;}
+.mm-node.leaf.blue{border-color:rgba(91,141,255,.32);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.mm-node.leaf.emerald{border-color:rgba(46,230,168,.32);background:rgba(46,230,168,.08);color:#88ffd8;}
+.mm-node.leaf.amber{border-color:rgba(255,182,72,.32);background:rgba(255,182,72,.08);color:#ffd18a;}
+
+/* Summary */
+.takeaway-list{display:flex;flex-direction:column;gap:14px;}
+.takeaway{display:flex;gap:20px;align-items:flex-start;padding:20px 22px;border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);}
+.tk-num{flex:none;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:15px;font-weight:900;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.36);color:#b9d0ff;}
+.takeaway:nth-child(2) .tk-num{background:rgba(46,230,168,.14);border-color:rgba(46,230,168,.36);color:#88ffd8;}
+.takeaway:nth-child(3) .tk-num{background:rgba(160,107,255,.14);border-color:rgba(160,107,255,.36);color:#c9a7ff;}
+.takeaway:nth-child(4) .tk-num{background:rgba(255,182,72,.14);border-color:rgba(255,182,72,.36);color:#ffd18a;}
+.takeaway p{font-size:clamp(14.5px,1.12vw,17px);line-height:1.58;}
+
+/* Gateway */
+.gateway{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;}
+.arrow-asset{position:relative;display:grid;place-items:center;}
+.arrow-asset svg{width:100%;max-width:340px;}
+.arrow-glow{animation:arrowPulse 2.4s ease-in-out infinite;}
+@keyframes arrowPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(46,230,168,.5))}50%{filter:drop-shadow(0 0 28px rgba(46,230,168,.95))}}
+.arrow-dash{stroke-dasharray:8 10;animation:dashMove 1.2s linear infinite;}
+.next-file{display:inline-flex;align-items:center;gap:10px;margin-top:18px;font-family:var(--mono);font-size:13px;font-weight:700;padding:11px 18px;border-radius:12px;border:1px solid rgba(46,230,168,.42);background:rgba(46,230,168,.09);color:#88ffd8;}
+
+.svg-flow{stroke-dasharray:6 7;animation:dashMove 1.4s linear infinite;}
+.svg-flow-slow{stroke-dasharray:5 9;animation:dashMove 2.6s linear infinite;}
+.svg-pulse{animation:nodeGlow 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes nodeGlow{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes dashMove{to{stroke-dashoffset:-26;}}
+
+/* Pitfalls */
+.pitfall-stack{display:flex;flex-direction:column;gap:12px;}
+.pitfall-card{padding:14px 18px;border-radius:12px;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.06);}
+.pitfall-card .pc-num{font-family:var(--mono);font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--crimson);margin-bottom:4px;}
+.pitfall-card .pc-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.pitfall-card .pc-desc{font-size:12px;line-height:1.55;color:var(--ink-2);}
+
+/* Activity */
+.activity-scene{padding:14px 0;display:flex;flex-direction:column;gap:12px;}
+.role-list{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.role-item{padding:12px 8px;border-radius:8px;border:1px solid;text-align:center;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.04em;transition:.4s;}
+.role-item.p{border-color:rgba(91,141,255,.55);background:rgba(91,141,255,.08);color:#b9d0ff;}
+.role-item.f{border-color:rgba(255,182,72,.55);background:rgba(255,182,72,.08);color:#ffd18a;}
+.role-item .ri-icon{font-size:22px;display:block;margin-bottom:4px;}
+.role-item.deadlock{animation:deadlockPulse 1.2s ease-in-out infinite;}
+@keyframes deadlockPulse{0%,100%{box-shadow:0 0 12px rgba(255,77,109,.3)}50%{box-shadow:0 0 24px rgba(255,77,109,.8);border-color:#ff4d6d}}
+
+/* Real world lockdep */
+.lockdep-vis{padding:8px 0;display:flex;flex-direction:column;gap:10px;}
+.lockdep-row{padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink-2);}
+.lockdep-row.detect{border-color:rgba(255,77,109,.55);background:rgba(255,77,109,.06);}
+.lockdep-row.ok{border-color:rgba(46,230,168,.55);background:rgba(46,230,168,.06);}
+.lockdep-row .ld-icon{color:#ff9fb1;font-weight:900;margin-right:6px;}
+
+@media (max-width:1080px){
+  .split,.split.wide-left,.split.wide-right{grid-template-columns:1fr;gap:24px;}
+  .gateway,.cohesion-grid,.two-lex,.coffman-grid,.approach-grid{grid-template-columns:1fr;}
+  .slide{padding:76px 26px 96px;}
+  .role-list{grid-template-columns:repeat(3,1fr);}
+  .prev-table{grid-template-columns:100px 1fr 1fr;font-size:11px;}
+}
+@media (max-width:720px){
+  .hud{font-size:9.5px;padding:0 14px;letter-spacing:.1em;}
+  .hud-chapter{display:none;}
+  .slide{padding:70px 16px 100px;}
+  .controls{bottom:14px;right:14px;}
+  .hint{display:none;}
+  .role-list{grid-template-columns:repeat(2,1fr);}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+}
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="hud-brand">
+    <span class="hud-dot"></span>
+    <span>CS 301 · Systems Architecture</span>
+    <span class="hud-chapter">/ L15 Deadlocks</span>
+  </div>
+  <div class="hud-right">
+    <span id="chapterLabel">Overview</span>
+    <span id="slideCounter">01 / 26</span>
+  </div>
+</header>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main class="stage" id="stage">
+
+<!-- SLIDE 01 -->
+<section class="slide" data-chapter="L15 · Overview" data-anim="diningcanvas">
+  <div class="slide-inner">
+    <span class="badge">🔰 🏛️ L15 · Classic Synchronization Problems &amp; Deadlock Topologies</span>
+    <div class="split">
+      <div class="stack">
+        <h1>Five philosophers, five forks. <span class="grad-crimson">Everyone holds one, no one can eat.</span></h1>
+        <p class="lead">Diagram resource dependency graphs to locate a circular wait condition and eliminate a deadlock trap by stripping out one of the four Coffman parameters.</p>
+        <div class="panel blue">
+          <span class="panel-label">The Core Question of L15</span>
+          <p>L14 gave us mutexes to protect shared state. But what happens when a program needs <strong>multiple locks at once</strong>? The very tool that prevents races introduces a new failure mode — one where everything is blocked and nothing can proceed.</p>
+        </div>
+        <div class="note">
+          <span class="ic">🎤</span>
+          <div><b>Delivery:</b> Open with the animated dining table on the right. Let it cycle through the deadlock 2–3 times before speaking. The pattern is the whole lecture.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Five philosophers, five forks, total gridlock</div>
+        <canvas id="diningCanvas" width="600" height="460"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 02 -->
+<section class="slide" data-chapter="The Core Problem">
+  <div class="slide-inner">
+    <span class="badge crimson">🎯 The Core Problem — When Mutexes Fight Each Other</span>
+    <h2 style="margin-bottom:16px;">Preventing races <span class="grad-crimson">can create deadlock</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The trap</span>
+          <p>L14 said "wrap shared state in a mutex." But if a thread needs to update <strong>two</strong> shared variables, it must hold two locks. If another thread grabs them in the opposite order, both block forever. Each waits for the other.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why this is catastrophic</span>
+          <p>The system doesn't crash. It doesn't throw an error. It just... stops. Two threads are now permanently blocked, holding resources nobody else can use. If those threads are the only ones that can free those resources, the entire system is frozen.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The requirement</span>
+          <p>We need a way to reason about concurrency that catches this failure mode — and a strategy to prevent it. That's what this lecture delivers: the four conditions that must be true for deadlock, and how to break any one of them.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The stakes:</b> deadlock isn't a theoretical concern. Real production incidents involve deadlocked databases, frozen audio servers, and systems that need to be force-rebooted because no thread can make progress.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The canonical two-thread deadlock</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="40" width="130" height="70" rx="10" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.75)" stroke-width="1.5"/>
+          <text x="85" y="62" text-anchor="middle" font-size="10.5" fill="#b9d0ff" font-family="Inter" font-weight="800">THREAD 1</text>
+          <text x="85" y="80" text-anchor="middle" font-size="9.5" fill="rgba(185,208,255,.75)" font-family="JetBrains Mono">holds lock A</text>
+          <text x="85" y="98" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">wants lock B</text>
+
+          <rect x="190" y="40" width="130" height="70" rx="10" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.75)" stroke-width="1.5"/>
+          <text x="255" y="62" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">THREAD 2</text>
+          <text x="255" y="80" text-anchor="middle" font-size="9.5" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">holds lock B</text>
+          <text x="255" y="98" text-anchor="middle" font-size="9.5" fill="#ff9fb1" font-family="JetBrains Mono">wants lock A</text>
+
+          <path d="M 150 75 Q 170 45 190 75" fill="none" stroke="#ff4d6d" stroke-width="2.5" class="svg-flow"/>
+          <path d="M 190 105 Q 170 135 150 105" fill="none" stroke="#ff4d6d" stroke-width="2.5" class="svg-flow"/>
+
+          <text x="170" y="58" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">waits for</text>
+          <text x="170" y="128" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">waits for</text>
+
+          <rect x="60" y="180" width="220" height="60" rx="10" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.55)" stroke-width="1.5"/>
+          <text x="170" y="204" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">DEADLOCK</text>
+          <text x="170" y="222" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">both wait forever</text>
+
+          <text x="170" y="280" text-anchor="middle" font-size="9" fill="rgba(132,148,180,.75)" font-family="JetBrains Mono">no thread can proceed</text>
+          <text x="170" y="298" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono" font-weight="700">system is frozen</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 03 -->
+<section class="slide" data-chapter="Analogy 1 · Dining Philosophers">
+  <div class="slide-inner">
+    <span class="badge violet">🍽️ Analogy 1 · The Dining Philosophers Dilemma</span>
+    <h2 style="margin-bottom:16px;">Five philosophers. Five forks. <span class="grad-violet">Everyone starves.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Five philosophers sit around a circular dinner table with exactly <strong>five forks total</strong>, placed between them. To eat a bowl of noodles, a philosopher must pick up <strong>both</strong> their left fork and their right fork.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The failure</span>
+          <p>All five philosophers reach out and grab their <strong>left fork</strong> at the exact same millisecond (<em>Hold and Wait</em>). Now everyone holds one fork, and nobody can grab their second because the neighbor holds it (<em>No Preemption</em>). Everyone sits frozen staring at their food forever.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Break the loop condition (<em>Circular Wait</em>) by forcing just one philosopher to grab their <strong>right fork first</strong> instead. The lock cycle is shattered, and progress resumes.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The whole lecture in one image:</b> shared resources (forks) + multiple acquisitions (two per philosopher) + no preemption = potential deadlock. Every strategy in this lecture is a variation on "how do we prevent this exact scenario?"</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The dining table</div>
+        <div class="dining-wrap">
+          <svg class="dining-svg" viewBox="0 0 340 340">
+            <!-- Table -->
+            <circle cx="170" cy="170" r="110" fill="rgba(160,107,255,.04)" stroke="rgba(160,107,255,.55)" stroke-width="2"/>
+            <circle cx="170" cy="170" r="60" fill="none" stroke="rgba(160,107,255,.20)" stroke-width="1" stroke-dasharray="3 4"/>
+
+            <!-- Forks (5) -->
+            <g fill="rgba(255,182,72,.20)" stroke="rgba(255,182,72,.75)" stroke-width="1.5">
+              <circle cx="170" cy="70" r="12"/>
+              <circle cx="265" cy="140" r="12"/>
+              <circle cx="225" cy="252" r="12"/>
+              <circle cx="115" cy="252" r="12"/>
+              <circle cx="75" cy="140" r="12"/>
+            </g>
+            <text x="170" y="75" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">🍴</text>
+            <text x="265" y="145" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">🍴</text>
+            <text x="225" y="257" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">🍴</text>
+            <text x="115" y="257" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">🍴</text>
+            <text x="75" y="145" text-anchor="middle" font-size="12" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">🍴</text>
+
+            <!-- Philosophers -->
+            <g fill="rgba(91,141,255,.20)" stroke="rgba(91,141,255,.75)" stroke-width="1.5">
+              <circle cx="170" cy="35" r="18"/>
+              <circle cx="300" cy="140" r="18"/>
+              <circle cx="245" cy="290" r="18"/>
+              <circle cx="95" cy="290" r="18"/>
+              <circle cx="40" cy="140" r="18"/>
+            </g>
+            <text x="170" y="41" text-anchor="middle" font-size="16">🧘</text>
+            <text x="300" y="146" text-anchor="middle" font-size="16">🧘</text>
+            <text x="245" y="296" text-anchor="middle" font-size="16">🧘</text>
+            <text x="95" y="296" text-anchor="middle" font-size="16">🧘</text>
+            <text x="40" y="146" text-anchor="middle" font-size="16">🧘</text>
+
+            <!-- Deadlock arrows (circular) -->
+            <path d="M 200 50 Q 250 60 275 110" fill="none" stroke="#ff4d6d" stroke-width="1.8" class="svg-flow-slow"/>
+            <path d="M 305 170 Q 305 230 260 270" fill="none" stroke="#ff4d6d" stroke-width="1.8" class="svg-flow-slow"/>
+            <path d="M 220 300 Q 170 320 120 300" fill="none" stroke="#ff4d6d" stroke-width="1.8" class="svg-flow-slow"/>
+            <path d="M 80 270 Q 35 230 35 170" fill="none" stroke="#ff4d6d" stroke-width="1.8" class="svg-flow-slow"/>
+            <path d="M 65 110 Q 90 60 140 50" fill="none" stroke="#ff4d6d" stroke-width="1.8" class="svg-flow-slow"/>
+
+            <text x="170" y="180" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">CIRCULAR WAIT</text>
+            <text x="170" y="198" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">each waits for the next</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 04 -->
+<section class="slide" data-chapter="Analogy 1 · The Deadlock Moment" data-anim="diningphase">
+  <div class="slide-inner">
+    <span class="badge amber">🍽️ Analogy 1 · The Deadlock Moment, Step by Step</span>
+    <h2 style="margin-bottom:16px;">Every philosopher grabs left. <span class="grad-amber">Nobody gets right.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The sequence</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Step 1:</strong> All 5 philosophers reach left simultaneously<br>
+            <strong>Step 2:</strong> Each grabs their left fork<br>
+            <strong>Step 3:</strong> Each reaches right for their second fork<br>
+            <strong>Step 4:</strong> The right fork is held by the left neighbor<br>
+            <strong>Step 5:</strong> Everyone waits forever
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The three deadlock conditions visible here</span>
+          <p><strong>Mutual Exclusion</strong> — a fork can only be held by one philosopher at a time<br>
+          <strong>Hold and Wait</strong> — each holds their left fork while waiting for their right<br>
+          <strong>Circular Wait</strong> — philosopher N waits for a fork held by philosopher N+1</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">Why "politeness" doesn't help</span>
+          <p>Even if every philosopher is perfectly well-behaved — no one grabs a fork out of turn, everyone follows the rules — deadlock still occurs. The problem is the <strong>rules themselves</strong>, not the behavior.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · All five grab left simultaneously</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <circle cx="170" cy="170" r="110" fill="rgba(160,107,255,.04)" stroke="rgba(160,107,255,.55)" stroke-width="2"/>
+
+          <!-- Forks all lit (all held) -->
+          <g fill="rgba(255,77,109,.30)" stroke="rgba(255,77,109,.85)" stroke-width="2" class="svg-pulse">
+            <circle cx="170" cy="70" r="14"/>
+            <circle cx="265" cy="140" r="14"/>
+            <circle cx="225" cy="252" r="14"/>
+            <circle cx="115" cy="252" r="14"/>
+            <circle cx="75" cy="140" r="14"/>
+          </g>
+          <text x="170" y="76" text-anchor="middle" font-size="14">🔒</text>
+          <text x="265" y="146" text-anchor="middle" font-size="14">🔒</text>
+          <text x="225" y="258" text-anchor="middle" font-size="14">🔒</text>
+          <text x="115" y="258" text-anchor="middle" font-size="14">🔒</text>
+          <text x="75" y="146" text-anchor="middle" font-size="14">🔒</text>
+
+          <!-- Philosophers all frozen -->
+          <g fill="rgba(91,141,255,.30)" stroke="rgba(91,141,255,.85)" stroke-width="2" class="svg-pulse">
+            <circle cx="170" cy="35" r="18"/>
+            <circle cx="300" cy="140" r="18"/>
+            <circle cx="245" cy="290" r="18"/>
+            <circle cx="95" cy="290" r="18"/>
+            <circle cx="40" cy="140" r="18"/>
+          </g>
+          <text x="170" y="41" text-anchor="middle" font-size="16">😵</text>
+          <text x="300" y="146" text-anchor="middle" font-size="16">😵</text>
+          <text x="245" y="296" text-anchor="middle" font-size="16">😵</text>
+          <text x="95" y="296" text-anchor="middle" font-size="16">😵</text>
+          <text x="40" y="146" text-anchor="middle" font-size="16">😵</text>
+
+          <text x="170" y="180" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="800">ALL FORKS LOCKED</text>
+          <text x="170" y="200" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">everyone waits for the neighbor</text>
+          <text x="170" y="220" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">DEADLOCKED</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 05 -->
+<section class="slide" data-chapter="Analogy 2 · Bank Databases">
+  <div class="slide-inner">
+    <span class="badge">🏦 Analogy 2 · Two Bank Databases in Recursive Cross-Transfer</span>
+    <h2 style="margin-bottom:16px;">Two rows. Two locks. <span class="grad-blue">Zero progress.</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Two transactions, opposite lock order</div>
+        <div class="bank-flow">
+          <div class="bank-db a">
+            <h4>TRANSACTION A · transfer 1→2</h4>
+            <div class="bank-row locked-a">
+              <span>Row 1</span>
+              <span>🔒 LOCKED by T-A</span>
+            </div>
+            <div class="bank-row waiting">
+              <span>Row 2</span>
+              <span>⏳ WAITING</span>
+            </div>
+          </div>
+          <div class="bank-arrow">⇅ DEADLOCK ⇅</div>
+          <div class="bank-db b">
+            <h4>TRANSACTION B · transfer 2→1</h4>
+            <div class="bank-row waiting">
+              <span>Row 1</span>
+              <span>⏳ WAITING</span>
+            </div>
+            <div class="bank-row locked-b">
+              <span>Row 2</span>
+              <span>🔒 LOCKED by T-B</span>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">A locks row 1, wants row 2. B locks row 2, wants row 1. Neither can proceed.</p>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The setup</span>
+          <p>A classic banking deadlock: two transactions transferring money in opposite directions. Each <strong>locks the source row</strong>, then tries to lock the destination row — which is held by the other transaction.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The parallel to L14</span>
+          <p>This is the two-mutex deadlock from slide 2, dressed in banking clothes. Same pattern: <strong>acquire A → acquire B</strong> in one thread, <strong>acquire B → acquire A</strong> in another. The circular wait is the culprit.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Enforce a <strong>global lock ordering</strong>: always acquire row 1 before row 2, regardless of transfer direction. Both transactions now compete for row 1 first — one wins, one waits. The winner completes, releases, the loser proceeds.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>This is how real databases work:</b> lock ordering is enforced at the storage engine level. Every transaction that touches multiple rows must acquire them in a consistent order (typically by row ID).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 06 -->
+<section class="slide" data-chapter="Cohesion">
+  <div class="slide-inner">
+    <span class="badge violet">🧭 System Cohesion — Where L15 Sits</span>
+    <h2 style="margin-bottom:20px;">The <span class="grad-violet">second lecture of Module 4</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="cohesion-grid">
+          <div class="cohesion-card relies">
+            <h4>Relies On · L14 (Mutex)</h4>
+            <p>Deadlock only exists because of mutexes. Without mutual exclusion (one of the Coffman conditions), there can't be a deadlock. L14 built the tool; L15 shows its failure mode.</p>
+          </div>
+          <div class="cohesion-card relies">
+            <h4>Relies On · L08 (Priority Inversion)</h4>
+            <p>Same family of concurrency bugs — a lock held by a low-priority task blocks a high-priority one. L08 showed the fix (priority inheritance); L15 shows the broader deadlock taxonomy.</p>
+          </div>
+        </div>
+        <div class="cohesion-grid" style="margin-top:16px">
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 5 (File Systems)</h4>
+            <p>Concurrent read/write systems inside virtual file systems rely heavily on <strong>nested lock trees</strong>, which can crash the entire OS via kernel deadlocks if paths cross. Filesystem code is one of the most deadlock-prone areas in the kernel.</p>
+          </div>
+          <div class="cohesion-card feeds">
+            <h4>Feeds Into · Module 6 (I/O)</h4>
+            <p>Interrupt handler routines must be written to avoid locking resources held by preempted threads, preventing deadlocks inside Ring 0. I/O code often disables interrupts as an alternative to spinning on a lock.</p>
+          </div>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Module 4 completes here.</b> L14 (races) + L15 (deadlocks) = the two failure modes of concurrency. Every other sync primitive — semaphores, condition variables, monitors, message passing — is a variation on these themes.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Module 4 + downstream</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <rect x="20" y="30" width="140" height="46" rx="9" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.55)" stroke-width="1.3"/>
+          <text x="90" y="48" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="700">L14 · Mutex</text>
+          <text x="90" y="64" text-anchor="middle" font-size="8.5" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">races fixed</text>
+
+          <rect x="180" y="30" width="140" height="46" rx="9" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="48" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="700">L08 · Priority</text>
+          <text x="250" y="64" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">inversion</text>
+
+          <rect x="90" y="130" width="160" height="60" rx="12" fill="rgba(46,230,168,.14)" stroke="rgba(46,230,168,.75)" stroke-width="1.8"/>
+          <text x="170" y="156" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="800">L15 · DEADLOCK</text>
+          <text x="170" y="174" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">the frozen state</text>
+
+          <rect x="20" y="240" width="140" height="54" rx="9" fill="rgba(46,230,168,.08)" stroke="rgba(46,230,168,.55)" stroke-width="1.3"/>
+          <text x="90" y="260" text-anchor="middle" font-size="9.5" fill="#88ffd8" font-family="Inter" font-weight="700">Module 5</text>
+          <text x="90" y="276" text-anchor="middle" font-size="8.5" fill="rgba(136,255,216,.7)" font-family="JetBrains Mono">FS lock trees</text>
+
+          <rect x="180" y="240" width="140" height="54" rx="9" fill="rgba(255,182,72,.08)" stroke="rgba(255,182,72,.55)" stroke-width="1.3"/>
+          <text x="250" y="260" text-anchor="middle" font-size="9.5" fill="#ffd18a" font-family="Inter" font-weight="700">Module 6</text>
+          <text x="250" y="276" text-anchor="middle" font-size="8.5" fill="rgba(255,209,138,.7)" font-family="JetBrains Mono">interrupt handlers</text>
+
+          <line x1="90" y1="76" x2="130" y2="130" stroke="rgba(91,141,255,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="250" y1="76" x2="210" y2="130" stroke="rgba(255,182,72,.7)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="130" y1="190" x2="90" y2="240" stroke="rgba(46,230,168,.75)" stroke-width="1.4" class="svg-flow"/>
+          <line x1="210" y1="190" x2="250" y2="240" stroke="rgba(255,182,72,.75)" stroke-width="1.4" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 07 -->
+<section class="slide" data-chapter="Core · Definition">
+  <div class="slide-inner">
+    <span class="badge crimson">📖 Core Breakdown — What Is a Deadlock?</span>
+    <h2 style="margin-bottom:16px;">A set of processes <span class="grad-crimson">permanently blocked</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">Formal definition</span>
+          <p>A <strong>deadlock</strong> is a critical gridlock error state where multiple competing threads are paralyzed permanently while waiting for a closed loop of dependencies to clear. Every thread in the set is waiting for a resource held by another thread in the same set.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Key characteristics</span>
+          <p style="line-height:1.9;margin-top:4px;font-size:13px">
+            <strong>Permanent</strong> — no thread can break the cycle<br>
+            <strong>Silent</strong> — no error, no crash, just frozen<br>
+            <strong>Total</strong> — every thread in the cycle is stuck<br>
+            <strong>Unrecoverable</strong> — from the program's perspective
+          </p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">What "unrecoverable" means</span>
+          <p>The kernel doesn't detect this — as far as it's concerned, the threads are just blocked waiting for a mutex. The kernel happily schedules other runnable threads. It's the application that's frozen, not the whole system — unless all threads are in the cycle.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The tricky part:</b> a deadlock is a bug in your logic, not a bug in the OS. The kernel just follows instructions. Preventing deadlock is the programmer's responsibility — which is why knowing the four conditions matters.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The essential picture</div>
+        <svg viewBox="0 0 340 320" style="width:100%;height:auto">
+          <text x="170" y="24" text-anchor="middle" font-size="10.5" fill="rgba(255,255,255,.6)" font-family="Inter" font-weight="800">DEADLOCK = CLOSED DEPENDENCY LOOP</text>
+
+          <circle cx="100" cy="120" r="40" fill="rgba(91,141,255,.10)" stroke="rgba(91,141,255,.65)" stroke-width="1.6"/>
+          <text x="100" y="118" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">THREAD</text>
+          <text x="100" y="132" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">T1</text>
+
+          <circle cx="240" cy="120" r="40" fill="rgba(46,230,168,.10)" stroke="rgba(46,230,168,.65)" stroke-width="1.6"/>
+          <text x="240" y="118" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">THREAD</text>
+          <text x="240" y="132" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">T2</text>
+
+          <circle cx="100" cy="230" r="40" fill="rgba(255,182,72,.10)" stroke="rgba(255,182,72,.65)" stroke-width="1.6"/>
+          <text x="100" y="228" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">RESOURCE</text>
+          <text x="100" y="242" text-anchor="middle" font-size="10" fill="#ffd18a" font-family="Inter" font-weight="800">R1</text>
+
+          <circle cx="240" cy="230" r="40" fill="rgba(255,77,109,.10)" stroke="rgba(255,77,109,.65)" stroke-width="1.6"/>
+          <text x="240" y="228" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">RESOURCE</text>
+          <text x="240" y="242" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">R2</text>
+
+          <line x1="140" y1="120" x2="200" y2="120" stroke="rgba(46,230,168,.75)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="240" y1="160" x2="240" y2="190" stroke="rgba(255,77,109,.75)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="200" y1="230" x2="140" y2="230" stroke="rgba(255,182,72,.75)" stroke-width="1.8" class="svg-flow"/>
+          <line x1="100" y1="190" x2="100" y2="160" stroke="rgba(91,141,255,.75)" stroke-width="1.8" class="svg-flow"/>
+
+          <text x="170" y="112" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">holds</text>
+          <text x="255" y="178" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">wants</text>
+          <text x="170" y="222" text-anchor="middle" font-size="9" fill="#ffd18a" font-family="JetBrains Mono" font-weight="700">held by</text>
+          <text x="85" y="178" text-anchor="middle" font-size="9" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">wants</text>
+
+          <text x="170" y="298" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">circular dependency = deadlock</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 08 -->
+<section class="slide" data-chapter="Core · Resource Allocation Graph" data-anim="rag">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Core Breakdown — The Resource Allocation Graph</span>
+    <h2 style="margin-bottom:16px;">Graph the cycles. <span class="grad-amber">Find the deadlock.</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The model</span>
+          <p>A <strong>Resource Allocation Graph</strong> has two node types and two edge types:</p>
+          <p style="line-height:1.85;margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--ink-2)">
+            ◯ circle = process<br>
+            ▢ square = resource<br>
+            → (solid) = process holds resource<br>
+            → (dashed) = process waits for resource
+          </p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The rule</span>
+          <p>A <strong>cycle in the graph means deadlock is possible</strong>. If every resource has only one instance (mutexes typically do), a cycle means deadlock is <strong>guaranteed</strong> — the threads will remain frozen forever.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why this matters</span>
+          <p>Drawing the graph by hand for a real program is impractical, but the mental model is invaluable. When you suspect deadlock, ask: "Can I trace a cycle of waits?" If yes, that's the bug.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Automated detection:</b> the kernel can maintain this graph and periodically check for cycles. Linux's <code style="font-family:var(--mono);color:#c9a7ff">lockdep</code> does exactly this (see slide 23).</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The resource allocation graph for a deadlock</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <!-- Processes -->
+          <g fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.85)" stroke-width="1.8">
+            <circle cx="70" cy="90" r="26"/>
+            <circle cx="270" cy="90" r="26"/>
+            <circle cx="70" cy="250" r="26"/>
+            <circle cx="270" cy="250" r="26"/>
+          </g>
+          <text x="70" y="94" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P1</text>
+          <text x="270" y="94" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P2</text>
+          <text x="70" y="254" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P3</text>
+          <text x="270" y="254" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">P4</text>
+
+          <!-- Resources -->
+          <g fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.85)" stroke-width="1.8">
+            <rect x="145" y="65" width="50" height="50" rx="6"/>
+            <rect x="145" y="225" width="50" height="50" rx="6"/>
+            <rect x="145" y="145" width="50" height="50" rx="6"/>
+          </g>
+          <text x="170" y="94" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">R1</text>
+          <text x="170" y="254" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">R2</text>
+          <text x="170" y="174" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">R3</text>
+
+          <!-- Holds: P1 → R1 (solid) -->
+          <line x1="96" y1="90" x2="145" y2="90" stroke="rgba(46,230,168,.85)" stroke-width="2"/>
+          <!-- Holds: P2 → R2 (solid) -->
+          <line x1="244" y1="250" x2="195" y2="250" stroke="rgba(46,230,168,.85)" stroke-width="2"/>
+          <!-- Holds: P3 → R3 (solid) -->
+          <line x1="96" y1="240" x2="145" y2="180" stroke="rgba(46,230,168,.85)" stroke-width="2"/>
+          <!-- Holds: P4 → R3 (solid) -->
+          <line x1="244" y1="240" x2="195" y2="180" stroke="rgba(46,230,168,.85)" stroke-width="2"/>
+
+          <!-- Waits: P1 wants R3 (dashed) -->
+          <line x1="70" y1="116" x2="155" y2="165" stroke="rgba(255,77,109,.85)" stroke-width="2" stroke-dasharray="4 3" class="svg-flow"/>
+          <!-- Waits: P2 wants R1 (dashed) -->
+          <line x1="270" y1="116" x2="185" y2="80" stroke="rgba(255,77,109,.85)" stroke-width="2" stroke-dasharray="4 3" class="svg-flow"/>
+
+          <text x="170" y="320" text-anchor="middle" font-size="9.5" fill="rgba(132,148,180,.85)" font-family="JetBrains Mono">solid = holds · dashed = waits</text>
+          <text x="170" y="16" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">cycle P1→R1? no · cycle P1→R3→P3→R3? yes</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 09 -->
+<section class="slide" data-chapter="Four Coffman Conditions">
+  <div class="slide-inner">
+    <span class="badge violet">📖 The Four Coffman Conditions</span>
+    <h2 style="margin-bottom:16px;">All four must hold. <span class="grad-violet">Break any one — no deadlock.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The mathematical requirement</span>
+          <p>The <strong>Coffman Conditions</strong> are the definitive mathematical requirements that must all hold true simultaneously for a deadlock to manifest. If even one fails, deadlock is <strong>impossible</strong>.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Why this is powerful</span>
+          <p>Instead of trying to prove your code is deadlock-free (impossible in general), you can prove that <strong>one specific condition can never hold</strong>. That's a much more tractable problem, and it's how real systems prevent deadlocks.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The order in the name</span>
+          <p>Edward Coffman identified these in 1971. The order matters only historically — they're a set. The next four slides cover each one.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Memory aid:</b> <strong>M</strong>utual · <strong>H</strong>old · <strong>N</strong>o-Preemption · <strong>C</strong>ircular. MHNC. Or: "My House Never Collapses."</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The four conditions</div>
+        <div class="coffman-grid">
+          <div class="coffman-card c1">
+            <div class="cf-num">CONDITION 1</div>
+            <div class="cf-title">Mutual Exclusion</div>
+            <div class="cf-desc">At least one resource must be held in a non-shareable mode. Only one process can use it at a time.</div>
+          </div>
+          <div class="coffman-card c2">
+            <div class="cf-num">CONDITION 2</div>
+            <div class="cf-title">Hold and Wait</div>
+            <div class="cf-desc">A process must be holding one resource and waiting to acquire additional resources held by other processes.</div>
+          </div>
+          <div class="coffman-card c3">
+            <div class="cf-num">CONDITION 3</div>
+            <div class="cf-title">No Preemption</div>
+            <div class="cf-desc">Resources cannot be forcibly taken from a process. They must be released voluntarily by the holder.</div>
+          </div>
+          <div class="coffman-card c4">
+            <div class="cf-num">CONDITION 4</div>
+            <div class="cf-title">Circular Wait</div>
+            <div class="cf-desc">A closed ring of processes exists where each waits for a resource held by the next process in the loop.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide" data-chapter="Coffman 1 · Mutual Exclusion">
+  <div class="slide-inner">
+    <span class="badge blue">📖 Coffman 1 — Mutual Exclusion</span>
+    <h2 style="margin-bottom:16px;">A resource that <span class="grad-blue">only one can hold</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">The condition</div>
+        <svg viewBox="0 0 340 220" style="width:100%;height:auto">
+          <rect x="120" y="60" width="100" height="100" rx="12" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.85)" stroke-width="2"/>
+          <text x="170" y="115" text-anchor="middle" font-size="14" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">MUTEX</text>
+          <text x="170" y="135" text-anchor="middle" font-size="10" fill="rgba(185,208,255,.7)" font-family="JetBrains Mono">LOCKED</text>
+
+          <circle cx="60" cy="110" r="22" fill="rgba(46,230,168,.20)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="60" y="114" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">T1</text>
+
+          <circle cx="280" cy="110" r="22" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.55)" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="280" y="114" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="800">T2</text>
+
+          <line x1="82" y1="110" x2="120" y2="110" stroke="rgba(46,230,168,.85)" stroke-width="2.5"/>
+          <line x1="220" y1="110" x2="258" y2="110" stroke="rgba(255,77,109,.65)" stroke-width="2.5" stroke-dasharray="4 3"/>
+
+          <text x="170" y="30" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="Inter" font-weight="700">T1 holds</text>
+          <text x="170" y="185" text-anchor="middle" font-size="11" fill="#ff9fb1" font-family="Inter" font-weight="700">T2 wants · but can't share</text>
+        </svg>
+      </div>
+      <div class="stack">
+        <div class="panel blue">
+          <span class="panel-label">The condition</span>
+          <p><strong>Mutual Exclusion</strong>: at least one resource must be held in a non-shareable mode. Only one process can use it at a time. The mutex you studied in L14 is exactly this — a lock that one thread holds at a time.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Can we break it?</span>
+          <p><strong>Rarely.</strong> Some resources genuinely can't be shared — a printer can only print one job at a time. But some can: read-only files, immutable data, atomic counters. Breaking this condition means <strong>redesigning the resource to be shareable</strong> — which isn't always possible.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The practical takeaway</span>
+          <p>This is the hardest condition to break. Most deadlock prevention focuses on the other three. Accept mutual exclusion as a given and design around it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide" data-chapter="Coffman 2 · Hold and Wait">
+  <div class="slide-inner">
+    <span class="badge amber">📖 Coffman 2 — Hold and Wait</span>
+    <h2 style="margin-bottom:16px;">Holding one, <span class="grad-amber">waiting for another</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The condition</span>
+          <p>A process must be <strong>holding at least one resource</strong> while waiting to acquire additional resources held by other processes. This is the "I'm not done, but I need more" situation.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Can we break it?</span>
+          <p><strong>Yes — with a trade-off.</strong> Two strategies:<br>
+          <strong>1. Acquire all at once</strong>: request every lock at the start. If any is unavailable, release everything and retry.<br>
+          <strong>2. Release before wait</strong>: release all held locks before acquiring new ones.</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Both strategies reduce <strong>resource utilization</strong> — you hold locks you don't need yet (blocking others) or release and re-acquire (losing progress). The classic tradeoff: less deadlock, less parallelism.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Practical example:</b> database transactions that need to update 10 rows could acquire all 10 locks upfront (safe but slow) or update one row at a time (fast but deadlock-prone). Most databases choose a middle ground: acquire in a consistent order.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Hold and wait in action</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <rect x="30" y="30" width="90" height="60" rx="8" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.85)" stroke-width="1.8"/>
+          <text x="75" y="55" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">THREAD T1</text>
+          <text x="75" y="72" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">holds A ✓</text>
+
+          <rect x="220" y="30" width="90" height="60" rx="8" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.85)" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="265" y="55" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">WANTS B</text>
+          <text x="265" y="72" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">waiting...</text>
+
+          <line x1="120" y1="60" x2="220" y2="60" stroke="rgba(255,77,109,.75)" stroke-width="2" stroke-dasharray="4 3" class="svg-flow"/>
+          <text x="170" y="48" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">tries to acquire</text>
+
+          <rect x="30" y="140" width="90" height="60" rx="8" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.85)" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="75" y="165" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="Inter" font-weight="800">WANTS A</text>
+          <text x="75" y="182" text-anchor="middle" font-size="9" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">waiting...</text>
+
+          <rect x="220" y="140" width="90" height="60" rx="8" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <text x="265" y="165" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">THREAD T2</text>
+          <text x="265" y="182" text-anchor="middle" font-size="9" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">holds B ✓</text>
+
+          <line x1="220" y1="170" x2="120" y2="170" stroke="rgba(255,77,109,.75)" stroke-width="2" stroke-dasharray="4 3" class="svg-flow"/>
+          <text x="170" y="220" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">both hold one · both want the other</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide" data-chapter="Coffman 3 · No Preemption">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Coffman 3 — No Preemption</span>
+    <h2 style="margin-bottom:16px;">Resources can't be <span class="grad-violet">forcibly taken</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The condition</span>
+          <p><strong>No Preemption</strong>: resources cannot be forcibly taken from a process. They must be released voluntarily by the holder. If T1 holds lock A, no one can just "snatch" it — T1 must call unlock.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Can we break it?</span>
+          <p><strong>Sometimes.</strong> If a process requests a resource that's unavailable, we can <strong>preempt</strong> — forcibly release all resources it currently holds, forcing it to restart. This is what happens when you kill a process that holds locks (the locks get released).</p>
+        </div>
+        <div class="panel crimson">
+          <span class="panel-label">The cost</span>
+          <p>Preemption means <strong>losing work</strong>. If a thread is midway through a multi-step transaction and gets preempted, its partial changes may need to be rolled back. This is fine for databases (which have transaction rollback), but disastrous for many other kinds of code.</p>
+        </div>
+        <div class="note">
+          <span class="ic">♿</span>
+          <div><b>Micro-Accessibility Context:</b> most mutexes are <strong>non-preemptible</strong> by design — that's the whole point. Some specialized locks (like read-write locks) allow preemption of readers, but the general case is: if you hold it, you hold it until you release.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">The preemption dilemma</div>
+        <svg viewBox="0 0 340 260" style="width:100%;height:auto">
+          <rect x="14" y="14" width="312" height="110" rx="10" fill="rgba(255,77,109,.06)" stroke="rgba(255,77,109,.55)" stroke-width="1.4"/>
+          <text x="170" y="34" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">NO PREEMPTION</text>
+          <rect x="40" y="52" width="80" height="50" rx="6" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="80" y="80" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">T1 holds</text>
+          <rect x="220" y="52" width="80" height="50" rx="6" fill="rgba(255,77,109,.15)" stroke="rgba(255,77,109,.65)" stroke-width="1.3"/>
+          <text x="260" y="80" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono" font-weight="700">T2 wants</text>
+          <text x="170" y="80" text-anchor="middle" font-size="24" fill="#ff4d6d" font-family="Inter" font-weight="900">✕</text>
+          <text x="170" y="112" text-anchor="middle" font-size="9" fill="rgba(255,159,177,.75)" font-family="JetBrains Mono">T2 must wait — forever if necessary</text>
+
+          <rect x="14" y="140" width="312" height="110" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="160" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">WITH PREEMPTION</text>
+          <rect x="40" y="178" width="80" height="50" rx="6" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.65)" stroke-width="1.3"/>
+          <text x="80" y="206" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="700">T1 loses</text>
+          <rect x="220" y="178" width="80" height="50" rx="6" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.65)" stroke-width="1.3"/>
+          <text x="260" y="206" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono" font-weight="700">T2 gets</text>
+          <text x="170" y="206" text-anchor="middle" font-size="20" fill="#2ee6a8" font-family="Inter" font-weight="900">→</text>
+          <text x="170" y="236" text-anchor="middle" font-size="9" fill="rgba(136,255,216,.75)" font-family="JetBrains Mono">but T1 must restart — work lost</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide" data-chapter="Coffman 4 · Circular Wait">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">📖 Coffman 4 — Circular Wait</span>
+    <h2 style="margin-bottom:16px;">A closed loop of <span class="grad-crimson">"you first"</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The condition</span>
+          <p>A <strong>closed ring of processes</strong> exists such that each process waits for a resource held by the next process in the loop. Thread A waits for B's lock, B waits for C's, C waits for A's — the ring closes and everyone is stuck.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Can we break it?</span>
+          <p><strong>Yes — and this is the most practical fix.</strong> Impose a <strong>global ordering</strong> on all locks. Every thread must acquire them in ascending order (e.g., by lock ID). A circular wait becomes mathematically impossible — you can't have A&lt;B and B&lt;A.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The discipline</span>
+          <p>If you need lock B (ID 2), you must have already acquired lock A (ID 1). If you hold lock A and need lock C, that's fine (1&lt;3). If you hold lock C and need lock A — not allowed. Release C, re-acquire A, then C.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Real-world usage:</b> the Linux kernel uses strict lock ordering. Filesystem code acquires locks in a documented order; breaking the order triggers a <code style="font-family:var(--mono);color:#c9a7ff">lockdep</code> warning (see slide 23). This is the single most effective anti-deadlock strategy.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Breaking the circle</div>
+        <svg viewBox="0 0 340 340" style="width:100%;height:auto">
+          <text x="170" y="22" text-anchor="middle" font-size="10.5" fill="#ff9fb1" font-family="Inter" font-weight="800">✗ CIRCULAR · deadlock</text>
+
+          <circle cx="90" cy="90" r="26" fill="rgba(91,141,255,.15)" stroke="rgba(91,141,255,.85)" stroke-width="1.8"/>
+          <circle cx="250" cy="90" r="26" fill="rgba(46,230,168,.15)" stroke="rgba(46,230,168,.85)" stroke-width="1.8"/>
+          <circle cx="250" cy="250" r="26" fill="rgba(255,182,72,.15)" stroke="rgba(255,182,72,.85)" stroke-width="1.8"/>
+          <circle cx="90" cy="250" r="26" fill="rgba(160,107,255,.15)" stroke="rgba(160,107,255,.85)" stroke-width="1.8"/>
+          <text x="90" y="94" text-anchor="middle" font-size="11" fill="#b9d0ff" font-family="JetBrains Mono" font-weight="800">T1</text>
+          <text x="250" y="94" text-anchor="middle" font-size="11" fill="#88ffd8" font-family="JetBrains Mono" font-weight="800">T2</text>
+          <text x="250" y="254" text-anchor="middle" font-size="11" fill="#ffd18a" font-family="JetBrains Mono" font-weight="800">T3</text>
+          <text x="90" y="254" text-anchor="middle" font-size="11" fill="#c9a7ff" font-family="JetBrains Mono" font-weight="800">T4</text>
+
+          <line x1="116" y1="90" x2="224" y2="90" stroke="#ff4d6d" stroke-width="2" class="svg-flow"/>
+          <line x1="250" y1="116" x2="250" y2="224" stroke="#ff4d6d" stroke-width="2" class="svg-flow"/>
+          <line x1="224" y1="250" x2="116" y2="250" stroke="#ff4d6d" stroke-width="2" class="svg-flow"/>
+          <line x1="90" y1="224" x2="90" y2="116" stroke="#ff4d6d" stroke-width="2" class="svg-flow"/>
+
+          <text x="170" y="298" text-anchor="middle" font-size="10" fill="rgba(255,159,177,.85)" font-family="JetBrains Mono">A waits B · B waits C · C waits D · D waits A</text>
+
+          <text x="170" y="325" text-anchor="middle" font-size="10.5" fill="#88ffd8" font-family="Inter" font-weight="800">✓ WITH LOCK ORDER · no cycle possible</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide" data-chapter="The Key Insight">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 The Key Insight — All Four Must Hold</span>
+    <h2 style="margin-bottom:16px;">Remove <span class="grad-amber">any one</span> — deadlock is impossible</h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The logical structure</span>
+          <p>The four Coffman conditions form a <strong>necessary and sufficient</strong> set: deadlock happens if and only if all four hold. This means we don't need to prevent all four — preventing <strong>just one</strong> is enough to prevent deadlock entirely.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Which one to break?</span>
+          <p style="line-height:1.85;margin-top:4px;font-size:13px">
+            <strong>Mutual Exclusion</strong> — rarely possible (resources genuinely shared)<br>
+            <strong>Hold and Wait</strong> — possible but costly (reduces utilization)<br>
+            <strong>No Preemption</strong> — possible but loses work<br>
+            <strong>Circular Wait</strong> — <span style="color:#88ffd8;font-weight:700">easiest and most common choice</span>
+          </p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Why circular wait wins</span>
+          <p>Lock ordering is a <strong>design-time, zero-runtime-cost</strong> fix. Just establish a total order over locks and enforce it. No extra API calls, no lost work, no reduced utilization. It requires discipline, not machinery.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>The pattern:</b> most concurrency problems have a "cheap fix" (discipline) and an "expensive fix" (runtime mechanism). Lock ordering is the cheap fix for deadlock — it wins because it's essentially free.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Break any one — deadlock is gone</div>
+        <div class="break-vis">
+          <div class="break-row">
+            <span class="break-badge bad">MUTEX</span>
+            <span class="break-desc">Make resources shareable — rare for locks, common for read-only data</span>
+            <span class="break-icon">❌</span>
+          </div>
+          <div class="break-row">
+            <span class="break-badge bad">HOLD+WAIT</span>
+            <span class="break-desc">Acquire all upfront or release before wait — possible but reduces parallelism</span>
+            <span class="break-icon">⚠️</span>
+          </div>
+          <div class="break-row">
+            <span class="break-badge bad">NO-PREEMPT</span>
+            <span class="break-desc">Allow forced release — loses work, only viable with transactions</span>
+            <span class="break-icon">⚠️</span>
+          </div>
+          <div class="break-row tested">
+            <span class="break-badge good">CIRCULAR</span>
+            <span class="break-desc">Enforce global lock ordering — zero runtime cost, most common fix</span>
+            <span class="break-icon">✅</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide" data-chapter="Prevention Strategies">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">📖 Prevention Strategies — Breaking Each Condition</span>
+    <h2 style="margin-bottom:16px;">Four conditions, four strategies, four tradeoffs</h2>
+    <div class="prev-table">
+      <div class="prev-cell prev-corner">Condition</div>
+      <div class="prev-cell prev-head h1">How to Break It</div>
+      <div class="prev-cell prev-head h2">Cost</div>
+
+      <div class="prev-cell prev-label c1">Mutual Exclusion</div>
+      <div class="prev-cell prev-val">Make the resource shareable (read-only access, immutable data, atomic ops)</div>
+      <div class="prev-cell prev-val bad">Often impossible for locks</div>
+
+      <div class="prev-cell prev-label c2">Hold and Wait</div>
+      <div class="prev-cell prev-val">Request all locks at the start; release everything if any unavailable</div>
+      <div class="prev-cell prev-val bad">Reduces utilization</div>
+
+      <div class="prev-cell prev-label c3">No Preemption</div>
+      <div class="prev-cell prev-val">Allow the kernel to forcibly preempt locks; rollback on release</div>
+      <div class="prev-cell prev-val bad">Loses work, needs transactions</div>
+
+      <div class="prev-cell prev-label c4">Circular Wait</div>
+      <div class="prev-cell prev-val">Global ordering: all threads acquire locks in ascending ID order</div>
+      <div class="prev-cell prev-val good">Free — just discipline</div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span class="ic">💡</span>
+      <div><b>The four strategies are well-known:</b> <strong>prevention</strong> (break a condition statically), <strong>avoidance</strong> (banker's algorithm — check before allocating), and <strong>detection</strong> (build the graph, look for cycles, recover). The next slide compares them.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide" data-chapter="Prevention vs Avoidance vs Detection">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">📖 Prevention · Avoidance · Detection</span>
+    <h2 style="margin-bottom:16px;">Three philosophies for handling deadlock</h2>
+    <div class="approach-grid">
+      <div class="approach-card prev">
+        <h4>✓ Prevention</h4>
+        <p>Design the system so that one Coffman condition <em>cannot</em> hold. Lock ordering is the classic example. Deadlock is impossible by construction.</p>
+        <div class="cost">COST: RESTRICTIVE · EASY TO VERIFY</div>
+      </div>
+      <div class="approach-card avoid">
+        <h4>⚠ Avoidance</h4>
+        <p>Before granting a lock request, check whether granting it would lead to an unsafe state. Banker's algorithm is the canonical example. Deadlock is impossible but some allocations are denied even when safe.</p>
+        <div class="cost">COST: MODERATE · NEEDS ADVANCE INFO</div>
+      </div>
+      <div class="approach-card detect">
+        <h4>🔍 Detection &amp; Recovery</h4>
+        <p>Allow deadlock to occur, then periodically check for it (build the graph, look for cycles) and recover (kill a thread, preempt a resource). Linux lockdep is a runtime approximation.</p>
+        <div class="cost">COST: REACTIVE · RECOVERY IS DISRUPTIVE</div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:20px">
+      <div class="panel emerald">
+        <span class="panel-label">What production systems do</span>
+        <p><strong>Combination:</strong> prevention (lock ordering) + detection (lockdep-style tooling) as a safety net. Avoidance (banker's) is mostly academic — it requires knowing future requests, which real workloads don't provide.</p>
+      </div>
+      <div class="panel amber">
+        <span class="panel-label">The practical reality</span>
+        <p>Most real deadlocks are <strong>bugs</strong>, not architectural problems. A developer violated lock ordering. A refactor changed the acquisition sequence. Detection catches these; prevention prevents these.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide" data-chapter="Live Demo · Deadlock" data-anim="deadlockdemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">🧪 Live Demo — The Deadlock Simulation</span>
+    <h2 style="margin-bottom:16px;">Watch two threads <span class="grad-crimson">block forever</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Two threads, two locks, one deadlock</div>
+        <div class="terminal" id="deadlockTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./deadlock_demo</span>
+          </div>
+          <div class="term-body" id="deadlockBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./deadlock_demo</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">What you're seeing</span>
+          <p>Thread 1 acquires lock A, sleeps briefly, then tries to acquire lock B. Thread 2 acquires lock B, sleeps briefly, then tries to acquire lock A. The sleeps are deliberate — they ensure both threads grab their first lock before trying for the second.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The freeze</span>
+          <p>After both threads have made their first acquisition, both reach for the second. Neither can proceed. The process hangs — <code style="font-family:var(--mono);color:#ffd18a">pthread_join</code> never returns, the shell prompt never reappears.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix (slide 19)</span>
+          <p>Same code, but both threads acquire locks in the <strong>same order</strong> (A then B). No cycle. No deadlock. Correct behavior restored by ordering discipline alone.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide" data-chapter="Code · Deadlock" data-anim="codestep1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge crimson">💻 Code — The Deadlock-Prone Version</span>
+    <h2 style="margin-bottom:16px;">Two threads. Two mutexes. <span class="grad-crimson">Opposite order.</span></h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head bad"><span>deadlock_demo.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;unistd.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-type">pthread_mutex_t</span> <span class="c-var">lock_A</span> = <span class="c-var">PTHREAD_MUTEX_INITIALIZER</span>;</span><span class="code-line"><span class="c-type">pthread_mutex_t</span> <span class="c-var">lock_B</span> = <span class="c-var">PTHREAD_MUTEX_INITIALIZER</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">thread_one_routine</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_A</span>);   <span class="c-com">// T1 locks A</span></span><span class="code-line">    <span class="c-name">sleep</span>(<span class="c-num">1</span>);                      <span class="c-com">// let T2 lock B</span></span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_B</span>);   <span class="c-bad">// T1 blocks on B</span></span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_B</span>);</span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_A</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">thread_two_routine</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_B</span>);   <span class="c-com">// T2 locks B</span></span><span class="code-line">    <span class="c-name">sleep</span>(<span class="c-num">1</span>);                      <span class="c-com">// let T1 lock A</span></span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_A</span>);   <span class="c-bad">// T2 blocks on A</span></span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_A</span>);</span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_B</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel crimson">
+          <span class="panel-label">The exact problem</span>
+          <p>T1 acquires A, sleeps. T2 acquires B, sleeps. Both wake up. T1 tries to acquire B — held by T2. T2 tries to acquire A — held by T1. <strong>Circular wait</strong>. Both block. Deadlock.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why the sleep is critical</span>
+          <p>Without the sleep, the deadlock might not manifest on every run — one thread might finish before the other starts. The sleep is a <strong>deliberate synchronization</strong> that forces the interleaving. In real code, this timing happens naturally, unpredictably.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Note the order</span>
+          <p>T1: <strong>A → B</strong>. T2: <strong>B → A</strong>. Opposite orders. That's the bug. Lock ordering would fix this — see the next slide.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 19 -->
+<section class="slide" data-chapter="Code · Fixed" data-anim="codestep2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">💻 Code — The Fixed Version</span>
+    <h2 style="margin-bottom:16px;">Same locks. <span class="grad-emerald">Same order.</span> No deadlock.</h2>
+    <div class="split wide-left">
+      <div class="code-block">
+        <div class="code-head good"><span>no_deadlock.c</span><span class="dots"><i></i><i></i><i></i></span></div>
+        <pre><code><span class="code-line"><span class="c-com">// Both threads acquire in the SAME order: A then B</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;pthread.h&gt;</span></span><span class="code-line"><span class="c-kw">#include</span> <span class="c-str">&lt;unistd.h&gt;</span></span><span class="code-line"></span><span class="code-line"><span class="c-type">pthread_mutex_t</span> <span class="c-var">lock_A</span> = <span class="c-var">PTHREAD_MUTEX_INITIALIZER</span>;</span><span class="code-line"><span class="c-type">pthread_mutex_t</span> <span class="c-var">lock_B</span> = <span class="c-var">PTHREAD_MUTEX_INITIALIZER</span>;</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">thread_one_routine</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_A</span>);   <span class="c-com">// 1st</span></span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_B</span>);   <span class="c-com">// 2nd</span></span><span class="code-line">    <span class="c-com">// ... critical work ...</span></span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_B</span>);</span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_A</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span><span class="code-line"></span><span class="code-line"><span class="c-type">void</span>* <span class="c-name">thread_two_routine</span>(<span class="c-type">void</span>* <span class="c-var">arg</span>) {</span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_A</span>);   <span class="c-good">// SAME order — 1st</span></span><span class="code-line">    <span class="c-name">pthread_mutex_lock</span>(&amp;<span class="c-var">lock_B</span>);   <span class="c-good">// SAME order — 2nd</span></span><span class="code-line">    <span class="c-com">// ... critical work ...</span></span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_B</span>);</span><span class="code-line">    <span class="c-name">pthread_mutex_unlock</span>(&amp;<span class="c-var">lock_A</span>);</span><span class="code-line">    <span class="c-kw">return</span> <span class="c-num">NULL</span>;</span><span class="code-line">}</span></code></pre>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What changed</span>
+          <p>Thread 2 now acquires <strong>lock_A first, then lock_B</strong> — matching Thread 1's order. Both threads compete for A first. One wins, one waits. The winner proceeds to B, completes, releases both. The waiter now acquires A, then B, completes.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Why no sleep is needed</span>
+          <p>Even without the sleep, even with any interleaving, the ordering prevents the deadlock. The lock ordering is a <strong>structural guarantee</strong> — it doesn't depend on timing.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The cost</span>
+          <p>Almost zero. Threads now serialize slightly more on lock A (since both need it first), but there's no deadlock. The tradeoff — a tiny bit of contention — is essentially free compared to a frozen program.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide" data-chapter="Semaphores">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">📖 Semaphores — The Second Primitive</span>
+    <h2 style="margin-bottom:16px;">A mutex is a semaphore <span class="grad-violet">with a counter of 1</span></h2>
+    <div class="split">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The semaphore counter</div>
+        <div class="sema-vis">
+          <div class="sema-label">SEMAPHORE VALUE</div>
+          <div class="sema-count" id="semaCount">3</div>
+          <div class="sema-bar">
+            <div class="sema-slot full">1</div>
+            <div class="sema-slot full">1</div>
+            <div class="sema-slot full">1</div>
+            <div class="sema-slot empty">0</div>
+            <div class="sema-slot empty">0</div>
+          </div>
+          <div class="sema-label" style="margin-top:8px">MAX CAPACITY = 5</div>
+          <div class="sema-ops">
+            <div class="sema-op wait">wait(s) · decrement</div>
+            <div class="sema-op signal">signal(s) · increment</div>
+          </div>
+        </div>
+        <p style="font-size:11.5px;margin-top:14px;color:var(--muted);line-height:1.55;text-align:center">Counter = number of permits available. wait() takes one, signal() returns one.</p>
+      </div>
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">Formal definition</span>
+          <p>A <strong>semaphore</strong> is an advanced signaling synchronization variable that maintains an internal integer counter to manage thread traffic access caps. Two operations: <code style="font-family:var(--mono);color:#c9a7ff">wait()</code> (decrement) and <code style="font-family:var(--mono);color:#c9a7ff">signal()</code> (increment).</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The counting semantics</span>
+          <p>When a thread calls <code style="font-family:var(--mono);color:#b9d0ff">wait()</code> and the counter is 0, it blocks. Otherwise, it decrements and proceeds. When a thread calls <code style="font-family:var(--mono);color:#b9d0ff">signal()</code>, it increments the counter — potentially waking a waiting thread.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Binary vs counting</span>
+          <p><strong>Binary semaphore</strong> — counter is 0 or 1. Functionally equivalent to a mutex (though not identical in ownership rules).<br>
+          <strong>Counting semaphore</strong> — counter can be any non-negative integer. Used to limit concurrency (e.g., "allow 3 database connections at a time").</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide" data-chapter="Semaphore · Deadlock">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge amber">📖 Semaphores &amp; Deadlock</span>
+    <h2 style="margin-bottom:16px;">Same conditions apply — <span class="grad-amber">different primitive</span></h2>
+    <div class="split wide-right">
+      <div class="stack">
+        <div class="panel amber">
+          <span class="panel-label">The insight</span>
+          <p>Deadlock isn't a property of a specific primitive. It's a property of the <strong>pattern of acquisition</strong>. You can build a deadlock out of mutexes, semaphores, spinlocks, or anything else — the Coffman conditions apply uniformly.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The famous example</span>
+          <p>Dijkstra's classic: two semaphores S1=1, S2=1. Thread A does <code style="font-family:var(--mono);color:#b9d0ff">wait(S1); wait(S2);</code>. Thread B does <code style="font-family:var(--mono);color:#b9d0ff">wait(S2); wait(S1);</code>. Same deadlock as two mutexes.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">The fix</span>
+          <p>Same as before: <strong>order the waits</strong>. Both threads wait(S1) first, then wait(S2). Or use a single semaphore initialized to 1 (equivalent to a mutex) — which solves the ordering problem trivially.</p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Why this matters:</b> beginners often think "semaphores are safer than mutexes." They aren't — they're just a different tool with different semantics. The Coffman conditions don't care which primitive you use.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Two semaphores, two threads, one deadlock</div>
+        <svg viewBox="0 0 340 240" style="width:100%;height:auto">
+          <rect x="20" y="20" width="300" height="90" rx="10" fill="rgba(91,141,255,.06)" stroke="rgba(91,141,255,.55)" stroke-width="1.4"/>
+          <text x="170" y="42" text-anchor="middle" font-size="10" fill="#b9d0ff" font-family="Inter" font-weight="800">THREAD A</text>
+          <text x="170" y="66" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono">wait(S1) ✓</text>
+          <text x="170" y="86" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono">wait(S2) ⏳ blocked</text>
+          <text x="170" y="102" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">S2 held by Thread B</text>
+
+          <rect x="20" y="130" width="300" height="90" rx="10" fill="rgba(46,230,168,.06)" stroke="rgba(46,230,168,.55)" stroke-width="1.4"/>
+          <text x="170" y="152" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="Inter" font-weight="800">THREAD B</text>
+          <text x="170" y="176" text-anchor="middle" font-size="10" fill="#88ffd8" font-family="JetBrains Mono">wait(S2) ✓</text>
+          <text x="170" y="196" text-anchor="middle" font-size="10" fill="#ff9fb1" font-family="JetBrains Mono">wait(S1) ⏳ blocked</text>
+          <text x="170" y="212" text-anchor="middle" font-size="8.5" fill="rgba(255,159,177,.7)" font-family="JetBrains Mono">S1 held by Thread A</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide" data-chapter="Live Demo · Fixed" data-anim="fixeddemo">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🧪 Live Demo — The Fixed Version Runs</span>
+    <h2 style="margin-bottom:16px;">Same code, ordered locks, <span class="grad-emerald">both threads finish</span></h2>
+    <div class="split wide-left">
+      <div class="vis-frame">
+        <div class="vis-cap">Live · Ordered acquisition completes successfully</div>
+        <div class="terminal" id="fixedTerminal">
+          <div class="term-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="title">user@box — ./no_deadlock</span>
+          </div>
+          <div class="term-body" id="fixedBody">
+            <span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./no_deadlock</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What you're seeing</span>
+          <p>Both threads acquire lock_A, then lock_B — in that order, every time. They serialize on lock_A (one waits while the other completes), then serialize on lock_B. Both finish.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The timing</span>
+          <p>You'll see one thread complete before the other — lock ordering <strong>serializes</strong> them somewhat. That's the cost of the fix: a tiny bit of parallelism lost for a guaranteed deadlock-free program.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">What to notice</span>
+          <p>Compare to slide 17 — that terminal <em>stops</em> at "waiting for lock_B". This terminal reaches "both threads complete". Same program structure, different ordering, opposite result.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 23 -->
+<section class="slide" data-chapter="Lexicon · 1">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge">🏷️ System Lexicon — Deadlock &amp; Coffman</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(255,77,109,.4);background:linear-gradient(150deg,rgba(255,77,109,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,77,109,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffa3b5 60%,#ff4d6d);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Deadlock</div>
+        <div class="lex-sub" style="color:#ff9fb1">Term 01 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>A critical gridlock error state where multiple competing threads are paralyzed permanently while waiting for a closed loop of dependencies to clear.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Everyone is waiting for everyone else. Nobody can proceed. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Key property</span>
+          <p>Silent — no crash, no error, just frozen. The kernel doesn't detect this; it just sees blocked threads.</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(255,182,72,.4);background:linear-gradient(150deg,rgba(255,182,72,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(255,182,72,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Coffman Conditions</div>
+        <div class="lex-sub" style="color:#ffd18a">Term 02 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>The definitive mathematical requirements (Mutual Exclusion, Hold &amp; Wait, No Preemption, Circular Wait) that must all hold true for a deadlock to manifest.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( Four checkboxes. All four must be checked for deadlock. Uncheck any one — deadlock is impossible. )</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide" data-chapter="Lexicon · 2">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏷️ System Lexicon — Semaphore &amp; Circular Wait</span>
+    <div class="two-lex">
+      <div class="lex-card" style="border-color:rgba(46,230,168,.4);background:linear-gradient(150deg,rgba(46,230,168,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(46,230,168,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Semaphore</div>
+        <div class="lex-sub" style="color:#88ffd8">Term 03 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An advanced signaling synchronization variable that maintains an internal integer counter to manage thread traffic access caps.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A mutex with a counter. Instead of "one at a time," it says "N at a time." )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Common uses</span>
+          <p>Binary semaphore (counter=1) ≈ mutex. Counting semaphore limits concurrency (connection pools, worker queues).</p>
+        </div>
+      </div>
+
+      <div class="lex-card" style="border-color:rgba(160,107,255,.4);background:linear-gradient(150deg,rgba(160,107,255,.10),rgba(255,255,255,.02));box-shadow:0 30px 80px -40px rgba(160,107,255,.85),inset 0 1px 0 rgba(255,255,255,.07)">
+        <div class="lex-term" style="background:linear-gradient(100deg,#ffffff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Circular Wait</div>
+        <div class="lex-sub" style="color:#c9a7ff">Term 04 of 04</div>
+        <div class="lex-row">
+          <span class="lex-key">Formal Definition</span>
+          <p>An execution condition where a closed ring of processes exists such that each process waits for a resource held by the next process in the sequence loop.</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">Plain Translation</span>
+          <p class="bracket">( A waits B, B waits C, C waits A — the ring closes and everyone blocks. )</p>
+        </div>
+        <div class="lex-row">
+          <span class="lex-key">The fix</span>
+          <p>Global lock ordering. If every thread acquires locks in ascending ID order, a closed ring is mathematically impossible.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide" data-chapter="Real World · Lockdep" data-anim="lockdep">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🌍 Real World — Linux lockdep</span>
+    <h2 style="margin-bottom:16px;">The kernel's <span class="grad-emerald">runtime deadlock detector</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">What lockdep does</span>
+          <p>The Linux kernel has a runtime deadlock detector called <strong>lockdep</strong> (the lock dependency validator). It tracks the order in which locks are acquired throughout the system and warns if a potential deadlock pattern is detected.</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">How it works</span>
+          <p>Every lock is instrumented. When a lock is acquired, lockdep records the sequence of locks currently held. If it sees <code style="font-family:var(--mono);color:#b9d0ff">A→B</code> in one place and <code style="font-family:var(--mono);color:#b9d0ff">B→A</code> elsewhere, it prints a warning to <code style="font-family:var(--mono);color:#b9d0ff">dmesg</code>.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">The catch</span>
+          <p>lockdep only catches <strong>observed</strong> patterns. If the deadlock requires a specific timing that hasn't occurred yet, lockdep won't see it. It's a safety net, not a proof.</p>
+        </div>
+        <div class="panel violet">
+          <span class="panel-label">The impact</span>
+          <p>Running with lockdep enabled is slow (2–10× performance hit) but catches real bugs before they ship. Linus Torvalds has publicly praised lockdep as one of the most valuable kernel debugging tools ever built.</p>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · lockdep output (conceptual)</div>
+        <div class="lockdep-vis">
+          <div class="lockdep-row detect">
+            <span class="ld-icon">⚠</span>
+            <strong style="color:#ff9fb1">WARNING: possible circular locking dependency detected</strong><br>
+            kworker/0:2/1234 is trying to acquire lock:<br>
+            &nbsp;&nbsp;(&amp;lock_B){+.+.}, at: foo+0x42/0x100<br>
+            but task is already holding lock:<br>
+            &nbsp;&nbsp;(&amp;lock_A){+.+.}, at: bar+0x18/0x80<br>
+            ...which lock already depends on the new lock.
+          </div>
+          <div class="lockdep-row ok">
+            <span class="ld-icon" style="color:#88ffd8">✓</span>
+            <strong style="color:#88ffd8">NO WARNING</strong> — both paths acquire A then B<br>
+            &nbsp;&nbsp;path 1: A → B ✓<br>
+            &nbsp;&nbsp;path 2: A → B ✓<br>
+            consistent ordering observed
+          </div>
+          <div style="padding:12px 14px;border-radius:8px;background:rgba(91,141,255,.06);border:1px solid rgba(91,141,255,.4);font-family:var(--mono);font-size:11px;color:var(--ink-2);line-height:1.7">
+            <strong style="color:#b9d0ff">Enable:</strong> CONFIG_PROVE_LOCKING=y<br>
+            <strong style="color:#b9d0ff">Boot param:</strong> lockdep=1<br>
+            <strong style="color:#b9d0ff">Check:</strong> dmesg | grep -i lockdep
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide" data-chapter="Activity">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge violet">🎭 Interactive Activity — The Dining Philosophers Roleplay</span>
+    <h2 style="margin-bottom:16px;">Five students. Five forks. <span class="grad-violet">Break the deadlock.</span></h2>
+    <div class="split">
+      <div class="stack">
+        <div class="panel violet">
+          <span class="panel-label">The setup</span>
+          <p>Arrange five students in a circle. Place a single object (pen, eraser, small notebook) between each pair of students — that's 5 objects total. Each student needs <strong>both</strong> their left and right object to "eat."</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">Round 1 · Deadlock</span>
+          <p>Have all five students grab their left object simultaneously. Then have them try to grab their right. <strong>Everyone fails</strong> — the right object is held by the neighbor. The classroom is deadlocked.</p>
+        </div>
+        <div class="panel amber">
+          <span class="panel-label">Round 2 · Discussion</span>
+          <p>Ask the class: <em>"What would fix this?"</em> Expect suggestions: "one student grabs right instead of left," "students release and retry," "wait for the neighbor to finish first." Each maps to a prevention strategy.</p>
+        </div>
+        <div class="panel emerald">
+          <span class="panel-label">Round 3 · Lock ordering fix</span>
+          <p>Assign each object a number (1–5). Rule: <strong>always grab the lower-numbered object first</strong>. Student 1 (between objects 5 and 1) grabs object 1 first (right). Student 2 (between 1 and 2) grabs object 1 first (left). They now contend for object 1 — one wins, proceeds to object 2, and the chain unblocks. <strong>No deadlock.</strong></p>
+        </div>
+        <div class="note">
+          <span class="ic">💡</span>
+          <div><b>Debrief:</b> ask why "grab the lower number first" prevents deadlock. Answer: it breaks the circular wait — no cycle of "I hold X, want Y" where Y has a lower number than X, since everyone always grabs lower first.</div>
+        </div>
+      </div>
+      <div class="vis-frame">
+        <div class="vis-cap">Live · The five students and their forks</div>
+        <div class="activity-scene">
+          <div class="role-list">
+            <div class="role-item p deadlock"><span class="ri-icon">🧘</span>P1<br>holds F1<br>wants F2</div>
+            <div class="role-item p deadlock"><span class="ri-icon">🧘</span>P2<br>holds F2<br>wants F3</div>
+            <div class="role-item p deadlock"><span class="ri-icon">🧘</span>P3<br>holds F3<br>wants F4</div>
+            <div class="role-item p deadlock"><span class="ri-icon">🧘</span>P4<br>holds F4<br>wants F5</div>
+            <div class="role-item p deadlock"><span class="ri-icon">🧘</span>P5<br>holds F5<br>wants F1</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:10px;border:1px solid rgba(255,77,109,.55);background:rgba(255,77,109,.08);font-family:var(--mono);font-size:11px;line-height:1.55;color:#ff9fb1;text-align:center;margin-top:10px">
+            every philosopher holds one fork · every one is blocked on the next · deadlock
+          </div>
+          <div style="padding:12px 14px;border-radius:10px;border:1px solid rgba(46,230,168,.55);background:rgba(46,230,168,.08);font-family:var(--mono);font-size:11px;line-height:1.55;color:#88ffd8;text-align:center">
+            ✓ FIX: order forks 1-5 · always grab lower number first
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 27 (FINAL) -->
+<section class="slide" data-chapter="Summary · Next">
+  <div class="slide-inner">
+    <span class="slide-badge" style="display:none"></span>
+    <span class="badge emerald">🏆 Grand Summary — L15 Key Takeaways</span>
+    <h2 style="margin-bottom:18px;">Four things to walk out with</h2>
+    <div class="takeaway-list" style="margin-bottom:20px">
+      <div class="takeaway">
+        <div class="tk-num">01</div>
+        <p>A <strong>deadlock</strong> is a set of threads permanently blocked waiting for each other's resources. It's not a crash — it's a silent freeze. The kernel doesn't detect it; it just sees blocked threads.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">02</div>
+        <p>The <strong>four Coffman conditions</strong> — Mutual Exclusion, Hold and Wait, No Preemption, Circular Wait — must ALL hold for deadlock to occur. Break any one, and deadlock is impossible.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">03</div>
+        <p><strong>Circular Wait</strong> is the easiest condition to break, via <strong>global lock ordering</strong>: every thread acquires locks in the same predefined order. Zero runtime cost, complete prevention.</p>
+      </div>
+      <div class="takeaway">
+        <div class="tk-num">04</div>
+        <p>Real systems combine <strong>prevention</strong> (lock ordering discipline) with <strong>detection</strong> (Linux lockdep, runtime cycle checking). Avoidance (banker's algorithm) is mostly academic — it needs advance knowledge of future requests.</p>
+      </div>
+    </div>
+
+    <div class="gateway" style="margin-top:20px">
+      <div class="stack">
+        <div class="panel emerald">
+          <span class="panel-label">Next module</span>
+          <p style="font-size:clamp(14.5px,1.1vw,17px);color:#88ffd8;font-weight:700">Module 5 — File &amp; Storage Management (L16: Disk Geometry)</p>
+        </div>
+        <div class="panel blue">
+          <span class="panel-label">The link</span>
+          <p>Module 4 covered concurrency — how multiple threads share state safely. Module 5 shifts to <strong>persistent storage</strong>: how filesystems organize data on HDDs and SSDs, how inodes track file metadata, and how crash consistency ensures nothing is lost on power failure. The locking patterns you learned in Module 4 will reappear in filesystem code, where deadlocks are especially dangerous.</p>
+        </div>
+        <div>
+          <div class="next-file">➔ Proceed to L16: Disk Geometry &amp; Physical Storage Realities &nbsp;|&nbsp; [L16.html]</div>
+        </div>
+      </div>
+      <div class="arrow-asset">
+        <svg viewBox="0 0 300 200">
+          <defs>
+            <linearGradient id="arrowGrad15" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2ee6a8" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#2ee6a8"/>
+            </linearGradient>
+          </defs>
+          <g class="arrow-glow">
+            <line x1="10" y1="100" x2="190" y2="100" stroke="url(#arrowGrad15)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M180 55 L270 100 L180 145 Z" fill="url(#arrowGrad15)"/>
+            <line x1="10" y1="100" x2="240" y2="100" stroke="#ffffff" stroke-width="2" class="arrow-dash" opacity=".85"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="controls">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</div>
+
+<div class="hint" id="hint">Navigate <kbd>←</kbd> <kbd>→</kbd> or swipe · <kbd>F</kbd> fullscreen</div>
+
+<script>
+const ANIM = {};
+const RUNNING = {};
+function reg(name, factory){ ANIM[name] = factory; }
+function startAnim(name){
+  if(!name || RUNNING[name] || !ANIM[name]) return;
+  RUNNING[name] = ANIM[name]() || { stop(){} };
+}
+function stopAnim(name){
+  if(!name || !RUNNING[name]) return;
+  try { RUNNING[name].stop(); } catch(e){}
+  delete RUNNING[name];
+}
+
+/* ---------- Slide 1 : dining canvas ---------- */
+reg('diningcanvas', function(){
+  const c = document.getElementById('diningCanvas');
+  if(!c) return { stop(){} };
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  let active = true, raf = null, t = 0;
+
+  const cx = W / 2, cy = H / 2 + 10;
+  const radius = 160;
+
+  // 5 philosophers at angles, 5 forks between them
+  const philAngles = [-Math.PI/2, -Math.PI/2 + 2*Math.PI/5, -Math.PI/2 + 4*Math.PI/5, -Math.PI/2 + 6*Math.PI/5, -Math.PI/2 + 8*Math.PI/5];
+  const forkAngles = philAngles.map(a => a + Math.PI/5);
+
+  let phase = 0; // 0=idle, 1=left grabs, 2=stuck
+  let phaseT = 0;
+
+  function drawTable(){
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.65, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(160,107,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,107,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function drawPhilosopher(angle, index){
+    const x = cx + Math.cos(angle) * radius * 0.95;
+    const y = cy + Math.sin(angle) * radius * 0.95;
+    const isFrozen = phase >= 1;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
+    ctx.fillStyle = isFrozen ? 'rgba(255,77,109,0.22)' : 'rgba(91,141,255,0.20)';
+    ctx.fill();
+    ctx.strokeStyle = isFrozen ? '#ff4d6d' : '#5b8dff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#eaf0fc';
+    ctx.font = '800 11px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('P' + (index + 1), x, y);
+  }
+
+  function drawFork(angle, index){
+    const x = cx + Math.cos(angle) * radius * 0.80;
+    const y = cy + Math.sin(angle) * radius * 0.80;
+    const isHeld = phase >= 1;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 14, 0, Math.PI * 2);
+    ctx.fillStyle = isHeld ? 'rgba(255,77,109,0.30)' : 'rgba(255,182,72,0.15)';
+    ctx.fill();
+    ctx.strokeStyle = isHeld ? '#ff4d6d' : '#ffb648';
+    ctx.lineWidth = isHeld ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = isHeld ? '#ff9fb1' : '#ffd18a';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isHeld ? '🔒' : '🍴', x, y);
+  }
+
+  function frame(){
+    if(!active) return;
+    t++;
+    phaseT++;
+
+    // Phase transitions
+    if (phase === 0 && phaseT > 60) { phase = 1; phaseT = 0; }
+    else if (phase === 1 && phaseT > 90) { phase = 2; phaseT = 0; }
+    else if (phase === 2 && phaseT > 120) { phase = 0; phaseT = 0; }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for(let x = 0; x < W; x += 40){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for(let y = 0; y < H; y += 40){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // title
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('FIVE PHILOSOPHERS · FIVE FORKS · ONE DEADLOCK', W/2, 16);
+
+    drawTable();
+
+    for(let i = 0; i < 5; i++){
+      drawFork(forkAngles[i], i);
+    }
+    for(let i = 0; i < 5; i++){
+      drawPhilosopher(philAngles[i], i);
+    }
+
+    // status text
+    let statusText = '';
+    let statusColor = '';
+    if (phase === 0) { statusText = 'ALL PHILOSOPHERS THINKING'; statusColor = 'rgba(185,208,255,0.75)'; }
+    else if (phase === 1) { statusText = 'ALL GRAB LEFT FORK · waiting for right'; statusColor = 'rgba(255,209,138,0.9)'; }
+    else { statusText = 'DEADLOCK · every fork held · no progress possible'; statusColor = '#ff9fb1'; }
+
+    ctx.fillStyle = statusColor;
+    ctx.font = '800 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(statusText, W/2, H - 20);
+
+    // arrow cycle in deadlock phase
+    if (phase === 2) {
+      ctx.strokeStyle = 'rgba(255,77,109,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { stop(){ active = false; if(raf) cancelAnimationFrame(raf); } };
+});
+
+/* ---------- Slide 4 : dining phase (static SVG animation, no JS needed) ---------- */
+reg('diningphase', function(){ return { stop(){} }; });
+
+/* ---------- Slide 8 : RAG (static) ---------- */
+reg('rag', function(){ return { stop(){} }; });
+
+/* ---------- Slide 17 : deadlock demo ---------- */
+reg('deadlockdemo', function(){
+  const body = document.getElementById('deadlockBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    {cls:'term-line dim', text:'[T1] start, acquiring lock_A...'},
+    {cls:'term-line ok', text:'[T1] acquired lock_A'},
+    {cls:'term-line dim', text:'[T2] start, acquiring lock_B...'},
+    {cls:'term-line ok', text:'[T2] acquired lock_B'},
+    {cls:'term-line dim', text:'[T1] sleeping 1s...'},
+    {cls:'term-line dim', text:'[T2] sleeping 1s...'},
+    {cls:'term-line warn', text:'[T1] wake, acquiring lock_B...'},
+    {cls:'term-line warn', text:'[T2] wake, acquiring lock_A...'},
+    {cls:'term-line err', text:'[T1] BLOCKED — lock_B held by T2'},
+    {cls:'term-line err', text:'[T2] BLOCKED — lock_A held by T1'},
+    {cls:'term-line err', text:'[main] pthread_join(T1) never returns...'},
+    {cls:'term-line err', text:'[main] pthread_join(T2) never returns...'},
+    {cls:'term-line hl', text:'💀 PROCESS HUNG — NO PROGRESS POSSIBLE'},
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./deadlock_demo</span></span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 18 : code stepper 1 ---------- */
+reg('codestep1', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep1"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,3,4,6,7,8,9,10,11,12,14,15,16,17,18,19];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t === 9 || t === 16) lines[t].classList.add('hl-bad');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 19 : code stepper 2 ---------- */
+reg('codestep2', function(){
+  const lines = Array.from(document.querySelectorAll('.slide[data-anim="codestep2"] .code-line'));
+  if(!lines.length) return { stop(){} };
+  const seq = [0,1,2,3,5,6,8,9,10,11,12,13,15,16,17,18,19,20];
+  let i = 0;
+  function tick(){
+    lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good'));
+    const t = seq[i % seq.length];
+    if(lines[t]){
+      lines[t].classList.add('hl');
+      if(t === 9 || t === 16) lines[t].classList.add('hl-good');
+    }
+    i++;
+  }
+  tick();
+  const timer = setInterval(tick, 700);
+  return { stop(){ clearInterval(timer); lines.forEach(l => l.classList.remove('hl','hl-bad','hl-good')); } };
+});
+
+/* ---------- Slide 22 : fixed demo ---------- */
+reg('fixeddemo', function(){
+  const body = document.getElementById('fixedBody');
+  if(!body) return { stop(){} };
+
+  const lines = [
+    {cls:'term-line dim', text:'[T1] start, acquiring lock_A...'},
+    {cls:'term-line ok', text:'[T1] acquired lock_A'},
+    {cls:'term-line dim', text:'[T2] start, acquiring lock_A...'},
+    {cls:'term-line warn', text:'[T2] blocked — T1 holds lock_A'},
+    {cls:'term-line ok', text:'[T1] acquired lock_B'},
+    {cls:'term-line ok', text:'[T1] critical work done'},
+    {cls:'term-line ok', text:'[T1] released lock_B'},
+    {cls:'term-line ok', text:'[T1] released lock_A'},
+    {cls:'term-line ok', text:'[T1] exit'},
+    {cls:'term-line ok', text:'[T2] acquired lock_A'},
+    {cls:'term-line ok', text:'[T2] acquired lock_B'},
+    {cls:'term-line ok', text:'[T2] critical work done'},
+    {cls:'term-line ok', text:'[T2] released lock_B'},
+    {cls:'term-line ok', text:'[T2] released lock_A'},
+    {cls:'term-line ok', text:'[T2] exit'},
+    {cls:'term-line hl', text:'✓ BOTH THREADS COMPLETED'},
+  ];
+
+  let idx = 0;
+  function reset(){
+    body.innerHTML = '<span class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">./no_deadlock</span></span>';
+    idx = 0;
+  }
+
+  function tick(){
+    if(idx < lines.length){
+      body.insertAdjacentHTML('beforeend', `<span class="${lines[idx].cls}">${lines[idx].text}</span>`);
+      idx++;
+    } else {
+      setTimeout(() => { if(!body.isConnected) return; reset(); }, 4000);
+      idx = lines.length + 1;
+    }
+  }
+
+  const timer = setInterval(tick, 500);
+  return { stop(){ clearInterval(timer); reset(); } };
+});
+
+/* ---------- Slide 25 : lockdep highlight ---------- */
+reg('lockdep', function(){
+  const rows = document.querySelectorAll('.lockdep-row');
+  if(!rows.length) return { stop(){} };
+  let idx = 0;
+  function tick(){
+    rows.forEach(r => r.style.opacity = '0.6');
+    if(rows[idx % rows.length]) rows[idx % rows.length].style.opacity = '1';
+    idx++;
+  }
+  tick();
+  const timer = setInterval(tick, 1500);
+  return { stop(){ clearInterval(timer); rows.forEach(r => r.style.opacity = '1'); } };
+});
+
+/* ---------- Deck controller ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const counterEl = document.getElementById('slideCounter');
+const chapterEl = document.getElementById('chapterLabel');
+const progressEl = document.getElementById('progressBar');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const hintEl = document.getElementById('hint');
+
+let idx = -1;
+const TOTAL = slides.length;
+function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+function go(n){
+  n = Math.max(0, Math.min(TOTAL - 1, n));
+  if(n === idx) return;
+  if(idx >= 0){
+    const prev = slides[idx];
+    prev.classList.remove('active');
+    if(prev.dataset.anim) stopAnim(prev.dataset.anim);
+  }
+  idx = n;
+  const cur = slides[idx];
+  cur.scrollTop = 0;
+  cur.classList.add('active');
+  if(cur.dataset.anim){
+    setTimeout(() => startAnim(cur.dataset.anim), 280);
+  }
+  counterEl.textContent = pad(idx + 1) + ' / ' + pad(TOTAL);
+  chapterEl.textContent = cur.dataset.chapter || '';
+  progressEl.style.width = (((idx + 1) / TOTAL) * 100) + '%';
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx === TOTAL - 1;
+  if(idx > 0) hintEl.classList.add('hide');
+}
+go(0);
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key){
+    case 'ArrowRight': case 'PageDown': case ' ':
+      e.preventDefault(); go(idx + 1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(idx - 1); break;
+    case 'Home': e.preventDefault(); go(0); break;
+    case 'End': e.preventDefault(); go(TOTAL - 1); break;
+    case 'f': case 'F':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+prevBtn.addEventListener('click', () => go(idx - 1));
+nextBtn.addEventListener('click', () => go(idx + 1));
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].clientX;
+  touchStartY = e.changedTouches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700){
+    if(dx < 0) go(idx + 1); else go(idx - 1);
+  }
+}, { passive: true });
+
+let wheelLock = false;
+document.addEventListener('wheel', (e) => {
+  const cur = slides[idx];
+  if(cur.scrollHeight > cur.clientHeight + 4){
+    const atTop = cur.scrollTop <= 0;
+    const atBottom = cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+    if((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+  }
+  if(wheelLock) return;
+  if(Math.abs(e.deltaY) < 24) return;
+  wheelLock = true;
+  go(idx + (e.deltaY > 0 ? 1 : -1));
+  setTimeout(() => { wheelLock = false; }, 620);
+}, { passive: true });
+</script>
+</body>
+</html>
