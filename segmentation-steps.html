@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation · Step-by-Step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= INTERACTIVE SIMULATOR ================= */
+.simulator-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:50px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center;}
+
+/* Left side: CPU Input */
+.cpu-input-area{text-align:center;padding:24px;border:1px dashed rgba(255,255,255,.2);border-radius:16px;background:rgba(0,0,0,.2);}
+.input-label{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px;font-weight:800;letter-spacing:.1em;}
+.address-display{font-family:var(--mono);font-size:32px;font-weight:900;color:#fff;letter-spacing:2px;margin-bottom:24px;}
+.address-display span.seg{color:var(--emerald);}
+.address-display span.off{color:var(--amber);}
+.btn-calc{padding:14px 24px;background:var(--violet);color:#fff;border:none;border-radius:12px;font-family:var(--font);font-size:14px;font-weight:800;cursor:pointer;transition:.2s;box-shadow:0 8px 20px -8px rgba(160,107,255,.8);width:100%;}
+.btn-calc:hover{background:#b585ff;transform:translateY(-2px);}
+.btn-calc:active{transform:translateY(0);}
+
+/* Right side: Segment Table & Output */
+.segment-table{border:1px solid var(--stroke-2);border-radius:12px;overflow:hidden;margin-bottom:20px;}
+.st-row{display:grid;grid-template-columns:1fr 1fr 1fr;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.05);font-family:var(--mono);font-size:13px;color:var(--ink-2);transition:.3s;}
+.st-row:last-child{border-bottom:none;}
+.st-row.head{background:rgba(255,255,255,.05);font-weight:900;color:#fff;font-size:11px;letter-spacing:.1em;}
+.st-row.active-row{background:rgba(46,230,168,.15);color:#fff;border-left:3px solid var(--emerald);}
+
+.physical-output{padding:20px;border-radius:12px;background:rgba(46,230,168,.1);border:1px solid rgba(46,230,168,.4);text-align:center;transition:.3s;opacity:.3;}
+.physical-output.active{opacity:1;box-shadow:0 0 30px rgba(46,230,168,.2);}
+.po-label{font-family:var(--mono);font-size:11px;color:#88ffd8;font-weight:800;letter-spacing:.1em;margin-bottom:8px;}
+.po-value{font-family:var(--mono);font-size:24px;font-weight:900;color:#fff;}
+
+/* ================= EXPLANATION STEPS ================= */
+.step-list{display:flex;flex-direction:column;gap:16px;margin-top:40px;}
+.step-item{display:flex;gap:20px;background:rgba(255,255,255,.02);border:1px solid var(--stroke);padding:20px;border-radius:16px;transition:.3s;}
+.step-item:hover{background:rgba(255,255,255,.04);border-color:var(--stroke-2);}
+.step-num{width:32px;height:32px;border-radius:50%;background:rgba(91,141,255,.2);color:#b9d0ff;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:var(--mono);flex-shrink:0;}
+.step-content h4{font-size:16px;font-weight:800;margin-bottom:6px;color:#fff;}
+.step-content p{font-size:14px;color:var(--ink-2);line-height:1.6;}
+
+@media (max-width: 800px) {
+  .sim-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP NAVIGATION ================= -->
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+    <a href="knowledgebase.html" class="nav-link">Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- ================= PAGE HEADER ================= -->
+  <header class="page-header">
+    <h1 class="page-title">Step-by-Step Mechanics</h1>
+    <p class="page-subtitle">Press the button below to watch exactly how the CPU translates a logical address into a physical memory location.</p>
+  </header>
+
+  <!-- ================= INTERACTIVE SIMULATOR ================= -->
+  <section class="simulator-box">
+    <div class="sim-grid">
+      
+      <!-- LEFT: CPU INPUT -->
+      <div class="cpu-input-area">
+        <div class="input-label">CPU WANTS TO READ</div>
+        <div class="address-display">
+          <span class="seg">Seg 1</span> : <span class="off">Offset 04</span>
+        </div>
+        <button class="btn-calc" id="runBtn">Run Translation ➔</button>
+      </div>
+
+      <!-- RIGHT: SEGMENT TABLE & OUTPUT -->
+      <div>
+        <div class="segment-table" id="segTable">
+          <div class="st-row head">
+            <div>Segment</div>
+            <div>Base</div>
+            <div>Limit</div>
+          </div>
+          <div class="st-row" id="row-0">
+            <div>0 (Code)</div>
+            <div>0x4000</div>
+            <div>2000</div>
+          </div>
+          <div class="st-row" id="row-1">
+            <div>1 (Data)</div>
+            <div>0x9000</div>
+            <div>1000</div>
+          </div>
+          <div class="st-row" id="row-2">
+            <div>2 (Stack)</div>
+            <div>0xB000</div>
+            <div>500</div>
+          </div>
+        </div>
+
+        <div class="physical-output" id="physOut">
+          <div class="po-label">PHYSICAL ADDRESS</div>
+          <div class="po-value" id="physValue">0x0000</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= EXPLANATION STEPS ================= -->
+  <section class="step-list">
+    
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>The CPU generates a logical address</h4>
+        <p>The program asks for a specific variable. It provides a pair of numbers: the <strong>Segment Number</strong> (e.g., Segment 1 for Data) and the <strong>Offset</strong> (e.g., Offset 04, meaning the 4th byte into that segment).</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4>Look up the Segment Table</h4>
+        <p>The Memory Management Unit (MMU) looks at the Segment Number and finds the corresponding row in the Segment Table. It grabs the <strong>Base</strong> and the <strong>Limit</strong>.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4>Check the Limit (Security Check)</h4>
+        <p>The MMU checks if the Offset (04) is smaller than the Limit (1000). If the program tries to read Offset 1500, the MMU throws a <strong>Segmentation Fault (SIGSEGV)</strong> because the program is trying to read outside its allowed boundary.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4>Calculate the Physical Address</h4>
+        <p>If the offset is safe, the MMU adds the Offset to the Base. (e.g., Base 0x9000 + Offset 04 = Physical Address 0x9004). The CPU can now fetch the data from RAM!</p>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= INTERACTIVE SIMULATOR LOGIC ================= */
+const runBtn = document.getElementById('runBtn');
+const row1 = document.getElementById('row-1');
+const physOut = document.getElementById('physOut');
+const physValue = document.getElementById('physValue');
+
+runBtn.addEventListener('click', () => {
+  // 1. Highlight the row in the table
+  row1.classList.add('active-row');
+  
+  // 2. Reset button text
+  runBtn.textContent = "Calculating...";
+  
+  // 3. Wait 1 second, then show the answer
+  setTimeout(() => {
+    physOut.classList.add('active');
+    physValue.textContent = '0x9004';
+    runBtn.textContent = '0x9000 + 0x04 = 0x9004';
+    
+    // Reset after 3 seconds so they can run it again
+    setTimeout(() => {
+      row1.classList.remove('active-row');
+      physOut.classList.remove('active');
+      physValue.textContent = '0x0000';
+      runBtn.textContent = 'Run Translation ➔';
+    }, 4000);
+    
+  }, 800);
+});
+</script>
+
+</body>
+</html>
