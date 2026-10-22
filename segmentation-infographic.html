@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation vs Paging · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= INFOGRAPHIC GRID ================= */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:50px;}
+.info-card{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;position:relative;overflow:hidden;}
+.info-card.seg{border-top:4px solid var(--amber);}
+.info-card.pag{border-top:4px solid var(--blue);}
+.card-title{font-size:24px;font-weight:900;margin-bottom:8px;color:#fff;}
+.card-sub{font-size:13px;color:var(--muted);margin-bottom:24px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;}
+
+/* VISUAL BLOCKS */
+.visual-box{height:180px;background:rgba(0,0,0,.3);border-radius:16px;padding:16px;margin-bottom:24px;display:flex;gap:8px;align-items:flex-end;justify-content:center;border:1px dashed rgba(255,255,255,.15);}
+/* Segmentation Blocks */
+.seg-block{border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;text-align:center;}
+.seg-code{width:100px;height:130px;background:rgba(255,182,72,.2);border:1px solid #ffb648;}
+.seg-data{width:70px;height:90px;background:rgba(91,141,255,.2);border:1px solid #5b8dff;}
+.seg-stack{width:50px;height:50px;background:rgba(46,230,168,.2);border:1px solid #2ee6a8;}
+
+/* Paging Blocks */
+.pag-grid{display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;width:100%;}
+.pag-block{height:38px;background:rgba(91,141,255,.15);border:1px solid #5b8dff;border-radius:4px;display:grid;place-items:center;font-family:var(--mono);font-size:10px;color:#b9d0ff;}
+
+/* LISTS */
+.pro-con-list{list-style:none;font-size:14px;margin-bottom:24px;}
+.pro-con-list li{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;color:var(--ink-2);}
+.pro-con-list li strong{color:#fff;}
+.icon-pro{color:var(--emerald);font-weight:900;}
+.icon-con{color:var(--crimson);font-weight:900;}
+
+/* ================= BOTTOM SUMMARY ================= */
+.summary-box{background:linear-gradient(150deg,rgba(160,107,255,.1),rgba(255,255,255,.02));border:1px solid rgba(160,107,255,.3);border-radius:24px;padding:32px;text-align:center;}
+.summary-box h3{font-size:20px;color:#fff;font-weight:900;margin-bottom:12px;}
+.summary-box p{font-size:15px;color:var(--ink-2);max-width:800px;margin:0 auto;}
+
+@media (max-width: 850px) {
+  .info-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP NAVIGATION ================= -->
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+    <a href="knowledgebase.html" class="nav-link">Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- ================= PAGE HEADER ================= -->
+  <header class="page-header">
+    <h1 class="page-title">The Visual Cheat Sheet</h1>
+    <p class="page-subtitle">A quick visual comparison of the two fundamental ways the OS manages memory: Segmentation vs. Paging.</p>
+  </header>
+
+  <!-- ================= INFOGRAPHIC COMPARISON ================= -->
+  <div class="info-grid">
+    
+    <!-- SEGMENTATION CARD -->
+    <div class="info-card seg">
+      <div class="card-title">🧩 Segmentation</div>
+      <div class="card-sub">Variable-Sized Blocks</div>
+      
+      <div class="visual-box">
+        <div class="seg-block seg-code">CODE<br>(Large)</div>
+        <div class="seg-block seg-data">DATA<br>(Med)</div>
+        <div class="seg-block seg-stack">STK<br>(Small)</div>
+      </div>
+
+      <ul class="pro-con-list">
+        <li><span class="icon-pro">✔</span> <div><strong>Logical:</strong> Matches the program's structure perfectly.</div></li>
+        <li><span class="icon-pro">✔</span> <div><strong>Protection:</strong> Easy to set limits (read-only for Code).</div></li>
+        <li><span class="icon-pro">✔</span> <div><strong>No Internal Waste:</strong> The block is exactly the size it needs to be.</div></li>
+        <li><span class="icon-con">✖</span> <div><strong>External Fragmentation:</strong> Leaves awkward gaps in RAM that new segments can't fit into.</div></li>
+      </ul>
+    </div>
+
+    <!-- PAGING CARD -->
+    <div class="info-card pag">
+      <div class="card-title">📄 Paging</div>
+      <div class="card-sub">Fixed-Sized Blocks</div>
+      
+      <div class="visual-box">
+        <div class="pag-grid">
+          <div class="pag-block">Pg 0</div>
+          <div class="pag-block">Pg 1</div>
+          <div class="pag-block">Pg 2</div>
+          <div class="pag-block">Pg 3</div>
+          <div class="pag-block">Pg 4</div>
+          <div class="pag-block">Pg 5</div>
+          <div class="pag-block">Pg 6</div>
+          <div class="pag-block">Pg 7</div>
+          <div class="pag-block">Pg 8</div>
+          <div class="pag-block">Pg 9</div>
+          <div class="pag-block">Pg 10</div>
+          <div class="pag-block">Pg 11</div>
+        </div>
+      </div>
+
+      <ul class="pro-con-list">
+        <li><span class="icon-pro">✔</span> <div><strong>No External Waste:</strong> Any free page can hold any part of a program.</div></li>
+        <li><span class="icon-pro">✔</span> <div><strong>Simple Allocation:</strong> Every block is identical, making OS math easy.</div></li>
+        <li><span class="icon-con">✖</span> <div><strong>Internal Fragmentation:</strong> Wastes space inside the last page if the code doesn't fill it perfectly.</div></li>
+        <li><span class="icon-con">✖</span> <div><strong>Illogical:</strong> Splits the program into identical chunks that don't match its logical structure.</div></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- ================= BOTTOM SUMMARY ================= -->
+  <div class="summary-box">
+    <h3>The Ultimate Solution: Segmentation with Paging</h3>
+    <p>Because both have flaws, modern systems (like x86-64 Linux and Windows) use a hybrid approach. They use **Segmentation** to define logical parts of the program (and set security limits), and then they break those segments into **Pages** to eliminate external fragmentation.</p>
+  </div>
+
+</main>
+
+</body>
+</html>
