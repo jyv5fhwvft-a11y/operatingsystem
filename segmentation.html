@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,8 +31,8 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .nav-link:hover{color:#ffd18a;}
 
 /* ================= MAIN PAGE LAYOUT ================= */
-.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 32px 40px;}
-.page-header{text-align:center;margin-bottom:60px;}
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
 .page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
 
@@ -41,7 +43,7 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 
 /* ================= ANALOGY GRID ================= */
 .analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
-.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;overflow:hidden;}
 .analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
 .analogy-box.el5{border-top:4px solid var(--amber);}
 .analogy-box.tech{border-top:4px solid var(--violet);}
@@ -50,7 +52,7 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .analogy-body strong{color:#fff;}
 
 /* ================= VISUAL ANIMATION BOX ================= */
-.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:220px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
 
 /* 5th Grader Memory Drop Animation */
 .mem-container {
@@ -63,7 +65,8 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
   border-radius: 12px;
   padding: 16px;
   height: 180px;
-  width: 90%;
+  width: 100%;
+  max-width: 280px;
   margin: 0 auto;
   position: relative;
 }
@@ -84,49 +87,14 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .mem-box {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-  opacity: 0;
-  animation: dropIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-.box-gym {
-  width: 100px; height: 130px;
-  background: rgba(46,230,168,.15); border: 2px solid #2ee6a8; color: #88ffd8;
-  animation-delay: 0s;
-}
-.box-lib {
-  width: 70px; height: 90px;
-  background: rgba(255,182,72,.15); border: 2px solid #ffb648; color: #ffd18a;
-  animation-delay: 1s;
-}
-.box-office {
-  width: 50px; height: 50px;
-  background: rgba(255,77,109,.15); border: 2px solid #ff4d6d; color: #ff9fb1;
-  animation-delay: 2s;
-}
-@keyframes dropIn {
-  0% { transform: translateY(-60px) scale(0.8); opacity: 0; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-/* Technical CPU Animation */
-.cpu-box{padding:16px;border:1px solid var(--violet);background:rgba(160,107,255,.1);border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;color:#c9a7ff;line-height:1.6;}
-.cpu-arrow{color:var(--violet);font-size:20px;margin:0 12px;animation:moveArrow 2s infinite ease-in-out;}
-@keyframes moveArrow { 0%, 100% { transform: translateX(0); opacity: 0.5; } 50% { transform: translateX(8px); opacity: 1; } }
-
-.pulse-seg0 {
-  animation: pulseGreen 1.5s infinite;
-  padding: 2px 6px;
+  padding: 4px 8px;
   border-radius: 6px;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  background: rgba(46,230,168,.05);
 }
 @keyframes pulseGreen {
-  0%, 100% { background: rgba(46,230,168,0); }
+  0%, 100% { background: rgba(46,230,168,.05); }
   50% { background: rgba(46,230,168,.3); box-shadow: 0 0 10px rgba(46,230,168,.4); }
 }
 
@@ -143,9 +111,11 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .hub-btn{padding:8px 16px;border-radius:8px;background:rgba(91,141,255,.15);color:#b9d0ff;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
 .hub-card:hover .hub-btn{background:var(--blue);color:#fff;}
 
-@media (max-width: 800px) {
+@media (max-width: 850px) {
   .analogy-grid, .hub-grid { grid-template-columns: 1fr; }
   .definition-card { padding: 24px; }
+  .anim-container { flex-direction: column; gap: 16px; }
+  .cpu-arrow { transform: rotate(90deg); margin: 12px 0; animation: none; }
 }
 </style>
 </head>
@@ -155,8 +125,43 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 <nav class="nav">
   <a href="index.html" class="nav-brand">
     <span class="nav-dot"></span>
-[Quoted text hidden]
-      <div class="anim-container" style="padding: 30px 20px 20px 20px; background: transparent; border: none; min-height: auto;">
+    <span>CS 301 · Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- ================= PAGE HEADER ================= -->
+  <header class="page-header">
+    <h1 class="page-title">Segmentation</h1>
+    <p class="page-subtitle">Dividing memory into logical, variable-sized chunks like code, stack, and data.</p>
+  </header>
+
+  <!-- ================= DEFINITION SECTION ================= -->
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      Segmentation is a memory management technique where a program's virtual address space is divided into variable-sized blocks called <strong>segments</strong>. Unlike paging, segments are not fixed-size; they represent logical units of the program, such as the code, the heap, and the stack.
+    </p>
+  </section>
+
+  <!-- ================= ANALOGY GRID ================= -->
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER ANALOGY -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine your school building. Instead of making every room exactly the same size (which wastes space if you need a giant gym), the school is divided into <strong>different sized rooms based on what they hold.</strong> 
+        <br><br>
+        The gym is a big room. The library is medium. The principal's office is small. In memory, a program is built the same way: the code gets a big segment, the stack gets a medium segment, and the global variables get a small segment.
+      </div>
+      
+      <div class="anim-container">
         <div class="mem-container">
           <div class="mem-box box-gym">GYM<br>(Code)</div>
           <div class="mem-box box-lib">LIBRARY<br>(Data)</div>
@@ -183,3 +188,46 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
           <div style="margin-top:4px;"><span style="color:var(--amber)">Seg 1 (Data)</span> : Base 0x9000</div>
           <div style="margin-top:4px;"><span style="color:var(--crimson)">Seg 2 (Stack)</span>: Base 0xB000</div>
         </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Everyone learns differently. Pick the module that works best for you.</p>
+    
+    <div class="hub-grid">
+      
+      <!-- Hub Card 1: Step-by-Step -->
+      <a href="segmentation-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Mechanics</div>
+        <div class="hub-card-text">Watch a live animation of how the CPU translates a logical address into physical RAM using the Segment Table.</div>
+        <div class="hub-btn">Open Deep Dive →</div>
+      </a>
+
+      <!-- Hub Card 2: Mind Map -->
+      <a href="segmentation-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how Segmentation connects to Paging, Virtual Memory, and Fragmentation in one giant visual tree.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+
+      <!-- Hub Card 3: Infographic -->
+      <a href="segmentation-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A quick, high-level cheat sheet comparing the pros and cons of Segmentation vs. Paging.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>
