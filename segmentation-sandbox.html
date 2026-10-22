@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation · Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= SANDBOX UI ================= */
+.sandbox-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;position:relative;overflow:hidden;transition:background 0.3s;}
+.sandbox-box.error{background:rgba(255,77,109,.1);border-color:var(--crimson);animation:shake 0.5s;}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+
+.sandbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start;}
+
+/* Left side: Inputs */
+.input-area{background:rgba(0,0,0,.3);padding:24px;border-radius:16px;border:1px dashed rgba(255,255,255,.15);}
+.input-group{margin-bottom:20px;}
+.input-group label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:800;text-transform:uppercase;}
+.input-group input{width:100%;padding:12px 16px;border-radius:8px;border:1px solid var(--stroke-2);background:rgba(0,0,0,.5);color:#fff;font-family:var(--mono);font-size:16px;font-weight:800;outline:none;transition:.2s;}
+.input-group input:focus{border-color:var(--emerald);box-shadow:0 0 10px rgba(46,230,168,.2);}
+.input-help{font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;}
+.btn-run{width:100%;padding:16px;background:var(--emerald);color:#000;border:none;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.2s;box-shadow:0 8px 20px -8px rgba(46,230,168,.8);margin-top:10px;}
+.btn-run:hover{background:#5fffc4;transform:translateY(-2px);}
+.btn-run:active{transform:translateY(0);}
+
+/* Right side: Table */
+.table-area{background:rgba(0,0,0,.3);padding:24px;border-radius:16px;border:1px solid var(--stroke-2);}
+.table-title{font-family:var(--mono);font-size:12px;font-weight:900;color:#fff;margin-bottom:12px;text-align:center;letter-spacing:.1em;}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px;margin-bottom:16px;}
+th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1);color:var(--ink-2);}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;}
+tr.active td{color:#fff;background:rgba(91,141,255,.2);font-weight:800;}
+
+.result-box{padding:16px;border-radius:8px;text-align:center;font-family:var(--mono);transition:.3s;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.2);}
+.result-box.success{background:rgba(46,230,168,.15);border:1px solid var(--emerald);color:#fff;box-shadow:0 0 20px rgba(46,230,168,.2);}
+.result-box.fail{background:rgba(255,77,109,.15);border:1px solid var(--crimson);color:#ff9fb1;box-shadow:0 0 20px rgba(255,77,109,.2);}
+.result-box .res-label{font-size:10px;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
+.result-box .res-val{font-size:20px;font-weight:900;}
+
+@media (max-width: 750px) { .sandbox-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+    <a href="knowledgebase.html" class="nav-link">Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The "What If?" Sandbox</h1>
+    <p class="page-subtitle">Test the limits of the MMU. Try a safe offset (under 200). Then, try a dangerous offset (over 200) to see what happens.</p>
+  </header>
+
+  <section class="sandbox-box" id="sandboxBox">
+    <div class="sandbox-grid">
+      
+      <!-- INPUTS -->
+      <div class="input-area">
+        <div class="input-group">
+          <label>Segment Number</label>
+          <input type="text" value="1 (Data)" disabled style="opacity:0.5; cursor:not-allowed;">
+        </div>
+        <div class="input-group">
+          <label>Enter Offset (0 - 999)</label>
+          <input type="number" id="offsetInput" value="04" min="0" max="999">
+          <div class="input-help">The Limit for Segment 1 is 200. Try typing 300!</div>
+        </div>
+        <button class="btn-run" id="runBtn">Run Translation</button>
+      </div>
+
+      <!-- TABLE & OUTPUT -->
+      <div class="table-area">
+        <div class="table-title">Segment Table</div>
+        <table id="segTable">
+          <tr><th>Seg</th><th>Base</th><th>Limit</th></tr>
+          <tr id="row-0"><td>0</td><td>1000</td><td>300</td></tr>
+          <tr id="row-1" class="active"><td>1</td><td>1500</td><td>200</td></tr>
+          <tr id="row-2"><td>2</td><td>2000</td><td>350</td></tr>
+        </table>
+        
+        <div class="result-box" id="resultBox">
+          <div class="res-label">RESULT</div>
+          <div class="res-val" id="resultText">Waiting for input...</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<script>
+const offsetInput = document.getElementById('offsetInput');
+const runBtn = document.getElementById('runBtn');
+const sandboxBox = document.getElementById('sandboxBox');
+const resultBox = document.getElementById('resultBox');
+const resultText = document.getElementById('resultText');
+
+runBtn.addEventListener('click', () => {
+  // 1. Get the offset the user typed
+  const offset = parseInt(offsetInput.value);
+  const limit = 200;
+  const base = 1500;
+
+  // 2. Reset visuals
+  sandboxBox.classList.remove('error');
+  resultBox.className = 'result-box';
+  
+  // 3. Simulate processing delay
+  resultText.textContent = "Checking...";
+  resultText.style.color = "var(--muted)";
+
+  setTimeout(() => {
+    // 4. The Limit Check
+    if (isNaN(offset) || offset < 0) {
+      resultText.textContent = "Enter a valid number!";
+    } 
+    else if (offset >= limit) {
+      // TRAP: OUT OF BOUNDS
+      sandboxBox.classList.add('error');
+      resultBox.classList.add('fail');
+      resultBox.querySelector('.res-label').textContent = "HARDWARE TRAP";
+      resultText.textContent = "💥 SEGFAULT (SIGSEGV)";
+      resultText.style.color = "var(--crimson)";
+      
+      // Reset after 3 seconds
+      setTimeout(() => {
+        sandboxBox.classList.remove('error');
+        resultBox.className = 'result-box';
+        resultBox.querySelector('.res-label').textContent = "RESULT";
+        resultText.textContent = "Try again...";
+        resultText.style.color = "var(--muted)";
+      }, 3000);
+    } 
+    else {
+      // SUCCESS: CALCULATE PHYSICAL ADDRESS
+      const physical = base + offset;
+      resultBox.classList.add('success');
+      resultBox.querySelector('.res-label').textContent = "PHYSICAL ADDRESS";
+      resultText.textContent = `0x${physical.toString(16).toUpperCase()} (${physical})`;
+      resultText.style.color = "var(--emerald)";
+    }
+  }, 600);
+});
+</script>
+
+</body>
+</html>
