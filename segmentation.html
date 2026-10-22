@@ -24,55 +24,56 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.72);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
 .nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
 .nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
-  margin: 0 auto;
-  position: relative;
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(91,141,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,141,255,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--blue);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px, 1.5vw, 18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;display:flex;flex-direction:column;}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--violet);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:220px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
+
+/* 5th Grader Memory Drop Animation */
+.mem-container {
+  display: flex; align-items: flex-end; justify-content: center; gap: 8px;
+  border: 2px dashed rgba(255,255,255,.2); background: rgba(0,0,0,.4);
+  border-radius: 12px; padding: 16px; height: 180px; width: 100%; max-width: 280px;
+  margin: 0 auto; position: relative;
 }
 .mem-container::before {
-  content: 'MEMORY (RAM)';
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg);
-  padding: 0 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--muted);
-  letter-spacing: .1em;
+  content: 'MEMORY (RAM)'; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: var(--bg); padding: 0 8px; font-family: var(--mono); font-size: 10px;
+  font-weight: 800; color: var(--muted); letter-spacing: .1em;
 }
 .mem-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-  opacity: 0;
-  animation: dropIn 4s infinite;
-}
-.box-gym {
-  width: 100px; height: 130px;
-  background: rgba(46,230,168,.15); border: 2px solid #2ee6a8; color: #88ffd8;
-  animation-delay: 0s;
-}
-.box-lib {
-  width: 70px; height: 90px;
-  background: rgba(255,182,72,.15); border: 2px solid #ffb648; color: #ffd18a;
-  animation-delay: 0.5s;
-}
-.box-office {
-  width: 50px; height: 50px;
-  background: rgba(255,77,109,.15); border: 2px solid #ff4d6d; color: #ff9fb1;
-  animation-delay: 1s;
-}
-@keyframes dropIn {
-  0% { transform: translateY(-100px) scale(0.8); opacity: 0; }
-  15% { transform: translateY(0) scale(1); opacity: 1; }
-  85% { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(-100px) scale(0.8); opacity: 0; }
+  display: flex; align-items: center; justify-content: center; border-radius: 6px;
+.hub-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title{font-size:16px;font-weight:800;margin-bottom:8px;}
+.hub-card-text{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(91,141,255,.15);color:#b9d0ff;font-family:var(--mono);font-size:11px;font-weight:800;}
+
+@media (max-width: 850px) {
+  .analogy-grid, .hub-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
   .anim-container { flex-direction: column; gap: 16px; min-height: 300px; }
   .cpu-arrow { transform: rotate(90deg); margin: 12px 0; animation: none; }
 }
@@ -80,7 +81,6 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 </head>
 <body>
 
-<!-- ================= TOP NAVIGATION ================= -->
 <nav class="nav">
   <a href="index.html" class="nav-brand">
     <span class="nav-dot"></span>
@@ -94,13 +94,11 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 
 <main class="container">
 
-  <!-- ================= PAGE HEADER ================= -->
   <header class="page-header">
     <h1 class="page-title">Segmentation</h1>
     <p class="page-subtitle">Dividing memory into logical, variable-sized chunks like code, stack, and data.</p>
   </header>
 
-  <!-- ================= DEFINITION SECTION ================= -->
   <section class="definition-card">
     <span class="def-label">The Definition</span>
     <p class="def-text">
@@ -108,10 +106,8 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
     </p>
   </section>
 
-  <!-- ================= ANALOGY GRID ================= -->
   <div class="analogy-grid">
     
-    <!-- 5TH GRADER ANALOGY -->
     <div class="analogy-box el5">
       <div class="analogy-title">🍎 The 5th Grader Analogy</div>
       <div class="analogy-body">
@@ -129,7 +125,6 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
       </div>
     </div>
 
-    <!-- TECHNICAL ANALOGY -->
     <div class="analogy-box tech">
       <div class="analogy-title">⚙️ The Technical Analogy</div>
       <div class="analogy-body">
@@ -138,10 +133,10 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
         When the CPU tries to read a memory address, it checks the Segment Table, finds the segment's base, and adds the offset. If the offset is bigger than the limit, it throws a Segmentation Fault.
       </div>
 
-      <div class="anim-container" style="flex-direction: row;">
-        <div class="cpu-box">CPU<br>Needs<br>Address</div>
-        <div class="cpu-arrow">➔</div>
-        <div class="cpu-box" style="border-color:var(--blue); background:rgba(91,141,255,.1); color:#b9d0ff; text-align:left; padding:12px 20px;">
+      <div class="anim-container">
+        <div class="cpu-box" style="margin-bottom:12px;">CPU<br>Needs<br>Address</div>
+        <div class="cpu-arrow" style="transform:rotate(90deg); margin:12px 0;">➔</div>
+        <div class="cpu-box" style="border-color:var(--blue); background:rgba(91,141,255,.1); color:#b9d0ff; text-align:left; padding:12px 20px; width:100%;">
           <div style="text-align:center; font-weight:800; border-bottom:1px solid rgba(255,255,255,.2); padding-bottom:4px; margin-bottom:6px; color:#fff;">Segment Table</div>
           <div class="pulse-seg0"><span style="color:var(--emerald)">Seg 0 (Code)</span> : Base 0x4000</div>
           <div style="margin-top:4px;"><span style="color:var(--amber)">Seg 1 (Data)</span> : Base 0x9000</div>
@@ -152,14 +147,12 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 
   </div>
 
-  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
   <section class="hub-section">
     <h2 class="hub-title">Choose Your Learning Style</h2>
     <p class="hub-subtitle">Everyone learns differently. Pick the module that works best for you.</p>
     
     <div class="hub-grid">
       
-      <!-- Hub Card 1: Step-by-Step -->
       <a href="segmentation-steps.html" class="hub-card">
         <div class="hub-icon">🧠</div>
         <div class="hub-card-title">Step-by-Step Mechanics</div>
@@ -167,7 +160,6 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
         <div class="hub-btn">Open Deep Dive →</div>
       </a>
 
-      <!-- Hub Card 2: Mind Map -->
       <a href="segmentation-mindmap.html" class="hub-card">
         <div class="hub-icon">🌳</div>
         <div class="hub-card-title">Interactive Mind Map</div>
@@ -175,7 +167,6 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
         <div class="hub-btn">Explore Mind Map →</div>
       </a>
 
-      <!-- Hub Card 3: Infographic -->
       <a href="segmentation-infographic.html" class="hub-card">
         <div class="hub-icon">📊</div>
         <div class="hub-card-title">Visual Infographic</div>
