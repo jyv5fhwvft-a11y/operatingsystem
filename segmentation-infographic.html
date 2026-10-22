@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CS 301 · Segmentation vs Paging · Infographic</title>
+<title>CS 301 · Segmentation · Infographic</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -17,67 +17,84 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
 body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
 
 /* ================= NAVIGATION BAR ================= */
 .nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
 .nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
-.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
 .nav-links{display:flex;gap:16px;}
 .nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
-.nav-link:hover{color:#ffd18a;}
+.nav-link:hover{color:#c9a7ff;}
 
 /* ================= MAIN PAGE LAYOUT ================= */
-.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 24px 40px;}
 .page-header{text-align:center;margin-bottom:50px;}
-.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
 
-/* ================= INFOGRAPHIC GRID ================= */
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:50px;}
-.info-card{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;position:relative;overflow:hidden;}
-.info-card.seg{border-top:4px solid var(--amber);}
-.info-card.pag{border-top:4px solid var(--blue);}
-.card-title{font-size:24px;font-weight:900;margin-bottom:8px;color:#fff;}
-.card-sub{font-size:13px;color:var(--muted);margin-bottom:24px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;}
+/* ================= INFOGRAPHIC FLOWCHART ================= */
+.flow-chart{display:flex;flex-direction:column;align-items:center;gap:20px;position:relative;margin-top:40px;}
 
-/* VISUAL BLOCKS */
-.visual-box{height:180px;background:rgba(0,0,0,.3);border-radius:16px;padding:16px;margin-bottom:24px;display:flex;gap:8px;align-items:flex-end;justify-content:center;border:1px dashed rgba(255,255,255,.15);}
-/* Segmentation Blocks */
-.seg-block{border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;text-align:center;}
-.seg-code{width:100px;height:130px;background:rgba(255,182,72,.2);border:1px solid #ffb648;}
-.seg-data{width:70px;height:90px;background:rgba(91,141,255,.2);border:1px solid #5b8dff;}
-.seg-stack{width:50px;height:50px;background:rgba(46,230,168,.2);border:1px solid #2ee6a8;}
+/* Nodes */
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);min-width:200px;}
+.node.cpu{border-color:var(--violet);background:rgba(160,107,255,.1);}
+.node.addr{border-color:var(--blue);background:rgba(91,141,255,.1);display:flex;gap:12px;justify-content:center;}
+.node.table{border-color:var(--amber);background:rgba(255,182,72,.1);padding:12px;text-align:left;}
+.node.check{border-color:var(--amber);background:rgba(0,0,0,.5);transform:rotate(45deg);width:100px;height:100px;display:grid;place-items:center;margin:20px 0;border-radius:8px;}
+.node.check > div{transform:rotate(-45deg);font-family:var(--mono);font-size:12px;font-weight:800;color:#fff;}
+.node.phys{border-color:var(--emerald);background:rgba(46,230,168,.1);}
+.node.trap{border-color:var(--crimson);background:rgba(255,77,109,.15);position:absolute;right:-20px;top:180px;transform:scale(0.8);opacity:0.4;transition:.3s;}
 
-/* Paging Blocks */
-.pag-grid{display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;width:100%;}
-.pag-block{height:38px;background:rgba(91,141,255,.15);border:1px solid #5b8dff;border-radius:4px;display:grid;place-items:center;font-family:var(--mono);font-size:10px;color:#b9d0ff;}
+.node-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:800;margin-bottom:6px;letter-spacing:.1em;}
+.node-title{font-weight:900;font-size:16px;color:#fff;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:4px;}
 
-/* LISTS */
-.pro-con-list{list-style:none;font-size:14px;margin-bottom:24px;}
-.pro-con-list li{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;color:var(--ink-2);}
-.pro-con-list li strong{color:#fff;}
-.icon-pro{color:var(--emerald);font-weight:900;}
-.icon-con{color:var(--crimson);font-weight:900;}
+/* Address Splits */
+.addr-box{padding:6px 12px;border-radius:6px;font-family:var(--mono);font-size:14px;font-weight:800;}
+.addr-seg{background:rgba(91,141,255,.3);color:#b9d0ff;}
+.addr-off{background:rgba(255,182,72,.3);color:#ffd18a;}
 
-/* ================= BOTTOM SUMMARY ================= */
-.summary-box{background:linear-gradient(150deg,rgba(160,107,255,.1),rgba(255,255,255,.02));border:1px solid rgba(160,107,255,.3);border-radius:24px;padding:32px;text-align:center;}
-.summary-box h3{font-size:20px;color:#fff;font-weight:900;margin-bottom:12px;}
-.summary-box p{font-size:15px;color:var(--ink-2);max-width:800px;margin:0 auto;}
+/* Segment Table */
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;margin-top:8px;}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1);color:var(--ink-2);}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;}
+tr.active-row td{color:#fff;background:rgba(255,255,255,.1);font-weight:800;}
 
-@media (max-width: 850px) {
-  .info-grid { grid-template-columns: 1fr; }
+/* Arrows */
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-5px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--stroke-2);}
+
+/* Animations */
+.packet{position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;box-shadow:0 0 15px #fff, 0 0 30px var(--blue);z-index:10;top:0;left:50%;transform:translateX(-50%);opacity:0;}
+
+@keyframes flow{
+  0%{top:60px;opacity:1;}
+  15%{top:140px;opacity:1;}
+  30%{top:260px;opacity:1;}
+  50%{top:400px;opacity:1;}
+  65%{top:520px;opacity:1;}
+  85%{top:640px;opacity:1;}
+  100%{top:700px;opacity:0;}
 }
+
+@keyframes highlightTable{
+  0%, 25%{background:rgba(255,182,72,.1);}
+  26%, 100%{background:rgba(255,255,255,.15);}
+}
+
+/* Layout Adjustments */
+.split-container{display:flex;justify-content:space-between;width:100%;max-width:400px;position:relative;}
+.side-arrow{width:50%;height:2px;background:var(--stroke);margin-top:20px;}
 </style>
 </head>
 <body>
 
-<!-- ================= TOP NAVIGATION ================= -->
 <nav class="nav">
   <a href="index.html" class="nav-brand">
     <span class="nav-dot"></span>
-    <span>CS 301 · Deep Dive</span>
+    <span>CS 301 · Infographic</span>
   </a>
   <div class="nav-links">
     <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
@@ -87,73 +104,140 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 
 <main class="container">
 
-  <!-- ================= PAGE HEADER ================= -->
   <header class="page-header">
-    <h1 class="page-title">The Visual Cheat Sheet</h1>
-    <p class="page-subtitle">A quick visual comparison of the two fundamental ways the OS manages memory: Segmentation vs. Paging.</p>
+    <h1 class="page-title">The Address Translation Flow</h1>
+    <p class="page-subtitle">Watch how the CPU translates a logical address into a physical address using the Segment Table.</p>
   </header>
 
-  <!-- ================= INFOGRAPHIC COMPARISON ================= -->
-  <div class="info-grid">
+  <section class="flow-chart">
     
-    <!-- SEGMENTATION CARD -->
-    <div class="info-card seg">
-      <div class="card-title">🧩 Segmentation</div>
-      <div class="card-sub">Variable-Sized Blocks</div>
-      
-      <div class="visual-box">
-        <div class="seg-block seg-code">CODE<br>(Large)</div>
-        <div class="seg-block seg-data">DATA<br>(Med)</div>
-        <div class="seg-block seg-stack">STK<br>(Small)</div>
-      </div>
+    <!-- The Animated Packet -->
+    <div class="packet" id="packet"></div>
 
-      <ul class="pro-con-list">
-        <li><span class="icon-pro">✔</span> <div><strong>Logical:</strong> Matches the program's structure perfectly.</div></li>
-        <li><span class="icon-pro">✔</span> <div><strong>Protection:</strong> Easy to set limits (read-only for Code).</div></li>
-        <li><span class="icon-pro">✔</span> <div><strong>No Internal Waste:</strong> The block is exactly the size it needs to be.</div></li>
-        <li><span class="icon-con">✖</span> <div><strong>External Fragmentation:</strong> Leaves awkward gaps in RAM that new segments can't fit into.</div></li>
-      </ul>
+    <!-- CPU -->
+    <div class="node cpu">
+      <div class="node-label">Hardware</div>
+      <div class="node-title">CPU</div>
     </div>
 
-    <!-- PAGING CARD -->
-    <div class="info-card pag">
-      <div class="card-title">📄 Paging</div>
-      <div class="card-sub">Fixed-Sized Blocks</div>
-      
-      <div class="visual-box">
-        <div class="pag-grid">
-          <div class="pag-block">Pg 0</div>
-          <div class="pag-block">Pg 1</div>
-          <div class="pag-block">Pg 2</div>
-          <div class="pag-block">Pg 3</div>
-          <div class="pag-block">Pg 4</div>
-          <div class="pag-block">Pg 5</div>
-          <div class="pag-block">Pg 6</div>
-          <div class="pag-block">Pg 7</div>
-          <div class="pag-block">Pg 8</div>
-          <div class="pag-block">Pg 9</div>
-          <div class="pag-block">Pg 10</div>
-          <div class="pag-block">Pg 11</div>
-        </div>
-      </div>
+    <div class="arrow-down"></div>
 
-      <ul class="pro-con-list">
-        <li><span class="icon-pro">✔</span> <div><strong>No External Waste:</strong> Any free page can hold any part of a program.</div></li>
-        <li><span class="icon-pro">✔</span> <div><strong>Simple Allocation:</strong> Every block is identical, making OS math easy.</div></li>
-        <li><span class="icon-con">✖</span> <div><strong>Internal Fragmentation:</strong> Wastes space inside the last page if the code doesn't fill it perfectly.</div></li>
-        <li><span class="icon-con">✖</span> <div><strong>Illogical:</strong> Splits the program into identical chunks that don't match its logical structure.</div></li>
-      </ul>
+    <!-- Logical Address -->
+    <div class="node addr">
+      <div>
+        <div class="node-label">Segment</div>
+        <div class="addr-box addr-seg">Seg 1</div>
+      </div>
+      <div>
+        <div class="node-label">Offset</div>
+        <div class="addr-box addr-off">04</div>
+      </div>
     </div>
 
-  </div>
+    <div class="arrow-down"></div>
 
-  <!-- ================= BOTTOM SUMMARY ================= -->
-  <div class="summary-box">
-    <h3>The Ultimate Solution: Segmentation with Paging</h3>
-    <p>Because both have flaws, modern systems (like x86-64 Linux and Windows) use a hybrid approach. They use **Segmentation** to define logical parts of the program (and set security limits), and then they break those segments into **Pages** to eliminate external fragmentation.</p>
-  </div>
+    <!-- Segment Table -->
+    <div class="node table">
+      <div class="node-label">Segment Table</div>
+      <table>
+        <tr><th>Seg</th><th>Base</th><th>Limit</th></tr>
+        <tr class="active-row" id="tableRow1"><td>0</td><td>1000</td><td>300</td></tr>
+        <tr><td>1</td><td>1500</td><td>200</td></tr>
+        <tr><td>2</td><td>2000</td><td>350</td></tr>
+      </table>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Limit Check -->
+    <div class="node check" id="checkNode">
+      <div>Offset < Limit?<br><span style="color:var(--emerald)">04 < 200 = YES</span></div>
+    </div>
+
+    <!-- Trap (Hidden, lights up red on error) -->
+    <div class="node trap" id="trapNode">
+      <div class="node-title" style="color:var(--crimson)">💥 TRAP</div>
+      <div class="node-sub">Segmentation Fault</div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Physical Address -->
+    <div class="node phys">
+      <div class="node-label">Physical Address</div>
+      <div class="node-sub" style="color:#fff;font-size:14px;">Base (1500) + Offset (04)</div>
+      <div class="node-title" style="color:var(--emerald);font-size:24px;margin-top:8px;">1504</div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Main Memory -->
+    <div class="node" style="border-color:var(--blue); background:rgba(91,141,255,.1);">
+      <div class="node-label">Main Memory</div>
+      <div class="node-title" style="color:#b9d0ff;">S1 Segment Block</div>
+      <div class="node-sub">1500 to 1700</div>
+    </div>
+
+  </section>
 
 </main>
+
+<script>
+/* ================= ANIMATION LOOP ================= */
+const packet = document.getElementById('packet');
+const tableRow1 = document.getElementById('tableRow1');
+const checkNode = document.getElementById('checkNode');
+const trapNode = document.getElementById('trapNode');
+
+let running = true;
+
+function runAnimation() {
+  if (!running) return;
+  
+  // Reset states
+  packet.style.animation = 'none';
+  packet.offsetHeight; // trigger reflow
+  packet.style.animation = 'flow 4s linear infinite';
+  
+  tableRow1.style.background = 'transparent';
+  checkNode.style.borderColor = 'var(--amber)';
+  checkNode.style.boxShadow = 'none';
+  trapNode.style.opacity = '0.2';
+  trapNode.style.transform = 'scale(0.8)';
+
+  // Sequence timing
+  setTimeout(() => {
+    if (!running) return;
+    // Highlight Table
+    tableRow1.style.background = 'rgba(255,182,72,.3)';
+    tableRow1.style.transition = 'background 0.3s';
+  }, 1500);
+
+  setTimeout(() => {
+    if (!running) return;
+    // Highlight Check
+    checkNode.style.borderColor = 'var(--emerald)';
+    checkNode.style.boxShadow = '0 0 20px rgba(46,230,168,.5)';
+  }, 2800);
+
+  setTimeout(() => {
+    if (!running) return;
+    // (Optional: Trigger trap briefly to show the alternative path)
+    // trapNode.style.opacity = '1';
+    // trapNode.style.transform = 'scale(1)';
+  }, 3500);
+}
+
+// Start loop
+runAnimation();
+setInterval(runAnimation, 4000);
+
+// Stop animation if user leaves page
+document.addEventListener('visibilitychange', () => {
+  running = document.visibilityState === 'visible';
+  if (running) runAnimation();
+});
+</script>
 
 </body>
 </html>
