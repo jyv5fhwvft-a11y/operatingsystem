@@ -146,11 +146,13 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
       <div class="anim-container" style="flex-direction: row;">
         <div class="cpu-box">CPU<br>Needs<br>Address</div>
         <div class="cpu-arrow">➔</div>
-        <div class="cpu-box" style="border-color:var(--blue); background:rgba(91,141,255,.1); color:#b9d0ff;">
-          Segment Table<br>
-          Seg 1: Base 0x9000<br>
-          Limit: 1000
-        </div>
+<div class="cpu-box" style="border-color:var(--blue); background:rgba(91,141,255,.1); color:#b9d0ff; text-align:left; padding:12px 20px;">
+  <div style="text-align:center; font-weight:800; border-bottom:1px solid rgba(255,255,255,.2); padding-bottom:4px; margin-bottom:6px; color:#fff;">Segment Table</div>
+  <span style="color:var(--emerald)">Seg 0 (Code)</span> : Base 0x4000<br>
+  <span style="color:var(--amber)">Seg 1 (Data)</span> : Base 0x9000<br>
+  <span style="color:var(--crimson)">Seg 2 (Stack)</span>: Base 0xB000
+</div>
+        
       </div>
     </div>
 
