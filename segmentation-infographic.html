@@ -3,90 +3,124 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CS 301 · Segmentation · Infographic</title>
+<title>CS 301 · Paging vs Segmentation · Infographic</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 /* ================= CSS VARIABLES & RESET ================= */
 :root{
-  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --bg:#06090f;--panel:rgba(255,255,255,.03);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
   --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
-  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --paging-blue:#38bdf8;--seg-purple:#a855f7;
+  --emerald:#2ee6a8;--crimson:#ff4d6d;--amber:#ffb648;
   --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.5;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(56,189,248,.10),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(168,85,247,.10),transparent 60%);pointer-events:none;z-index:0;}
 body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
 
 /* ================= NAVIGATION BAR ================= */
 .nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
 .nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
-.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--seg-purple);box-shadow:0 0 12px var(--seg-purple);}
 .nav-links{display:flex;gap:16px;}
 .nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
 .nav-link:hover{color:#c9a7ff;}
 
 /* ================= MAIN PAGE LAYOUT ================= */
-.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 24px 40px;}
-.page-header{text-align:center;margin-bottom:50px;}
-.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+.container{position:relative;z-index:2;max-width:1400px;margin:0 auto;padding:100px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,3vw,40px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
 
-/* ================= INFOGRAPHIC FLOWCHART ================= */
-.flow-chart{display:flex;flex-direction:column;align-items:center;gap:20px;position:relative;margin-top:40px;}
+/* ================= INFOGRAPHIC GRID ================= */
+.info-split{display:grid;grid-template-columns:1fr 1fr;gap:32px;}
 
-/* Nodes */
-.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);min-width:200px;}
-.node.cpu{border-color:var(--violet);background:rgba(160,107,255,.1);}
-.node.addr{border-color:var(--blue);background:rgba(91,141,255,.1);display:flex;gap:12px;justify-content:center;}
-.node.table{border-color:var(--amber);background:rgba(255,182,72,.1);padding:12px;text-align:left;}
-.node.check{border-color:var(--amber);background:rgba(0,0,0,.5);transform:rotate(45deg);width:100px;height:100px;display:grid;place-items:center;margin:20px 0;border-radius:8px;}
-.node.check > div{transform:rotate(-45deg);font-family:var(--mono);font-size:12px;font-weight:800;color:#fff;}
-.node.phys{border-color:var(--emerald);background:rgba(46,230,168,.1);}
-.node.trap{border-color:var(--crimson);background:rgba(255,77,109,.15);position:absolute;right:-20px;top:180px;transform:scale(0.8);opacity:0.4;transition:.3s;}
+/* Wrapper for each side */
+.section-wrap{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:20px;position:relative;overflow:hidden;}
+.section-wrap.paging{border-top:4px solid var(--paging-blue);}
+.section-wrap.segmentation{border-top:4px solid var(--seg-purple);}
 
-.node-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:800;margin-bottom:6px;letter-spacing:.1em;}
-.node-title{font-weight:900;font-size:16px;color:#fff;}
-.node-sub{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:4px;}
+.section-header{text-align:center;font-size:20px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;padding:10px;border-radius:8px;color:#fff;}
+.paging .section-header{background:rgba(56,189,248,.15);color:var(--paging-blue);}
+.segmentation .section-header{background:rgba(168,85,247,.15);color:var(--seg-purple);}
 
-/* Address Splits */
-.addr-box{padding:6px 12px;border-radius:6px;font-family:var(--mono);font-size:14px;font-weight:800;}
-.addr-seg{background:rgba(91,141,255,.3);color:#b9d0ff;}
-.addr-off{background:rgba(255,182,72,.3);color:#ffd18a;}
+/* Text Boxes */
+.text-box{background:rgba(0,0,0,.2);border:1px solid var(--stroke);border-radius:12px;padding:16px;}
+.text-box p{font-size:13px;color:var(--ink-2);line-height:1.6;}
+.text-box strong{color:#fff;}
+.text-box h4{font-size:14px;color:#fff;margin-bottom:8px;}
+.text-box ul{list-style:none;font-size:12.5px;color:var(--ink-2);}
+.text-box li{position:relative;padding-left:14px;margin-bottom:6px;line-height:1.4;}
+.text-box li::before{content:'•';position:absolute;left:0;color:var(--muted);}
 
-/* Segment Table */
-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;margin-top:8px;}
-th,td{padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1);color:var(--ink-2);}
-th{color:var(--muted);font-size:10px;text-transform:uppercase;}
-tr.active-row td{color:#fff;background:rgba(255,255,255,.1);font-weight:800;}
+/* ================= DIAGRAM BOX ================= */
+.diagram-box{background:rgba(0,0,0,.4);border:1px solid var(--stroke-2);border-radius:16px;padding:20px;position:relative;font-family:var(--mono);font-size:11px;display:flex;flex-direction:column;gap:16px;}
+
+/* CPU */
+.cpu{background:rgba(255,255,255,.1);border:1px solid var(--muted);padding:10px 14px;border-radius:8px;text-align:center;width:fit-content;margin:0 auto;}
+.cpu span{display:block;font-size:18px;}
+
+/* Address Boxes */
+.addr-row{display:flex;justify-content:center;align-items:center;gap:8px;position:relative;}
+.addr-box{border:1px solid var(--stroke-2);padding:8px 10px;border-radius:6px;text-align:center;background:#000;}
+.addr-box .label{color:var(--muted);font-size:9px;margin-bottom:4px;letter-spacing:.05em;}
+.addr-box .val{color:#fff;font-weight:800;font-size:12px;}
+
+/* Paging specific */
+.paging .addr-box.spec{border-color:var(--paging-blue);background:rgba(56,189,248,.1);}
+.paging .addr-box.offset{border-color:var(--amber);background:rgba(255,182,72,.1);}
+
+/* Segmentation specific */
+.segmentation .addr-box.seg{border-color:var(--seg-purple);background:rgba(168,85,247,.1);}
+.segmentation .addr-box.offset{border-color:var(--amber);background:rgba(255,182,72,.1);}
+
+/* Tables */
+.table-wrap{display:flex;justify-content:space-between;gap:10px;}
+.tbl{background:#000;border:1px solid var(--stroke-2);border-radius:6px;overflow:hidden;width:48%;}
+.tbl .t-head{background:rgba(255,255,255,.1);padding:6px;text-align:center;font-weight:800;color:#fff;border-bottom:1px solid var(--stroke-2);display:flex;}
+.tbl .t-head div{flex:1;}
+.tbl .t-row{display:flex;border-bottom:1px solid rgba(255,255,255,.05);transition:.3s;}
+.tbl .t-row:last-child{border-bottom:none;}
+.tbl .t-row div{flex:1;padding:6px;text-align:center;color:var(--ink-2);}
+.paging .tbl .t-row.highlight{background:rgba(56,189,248,.2);color:#fff;font-weight:800;}
+.segmentation .tbl .t-row.highlight{background:rgba(168,85,247,.2);color:#fff;font-weight:800;}
 
 /* Arrows */
-.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
-.arrow-down::after{content:'';position:absolute;bottom:0;left:-5px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--stroke-2);}
+.arrow-d{width:2px;height:16px;background:var(--stroke-2);margin:0 auto;position:relative;}
+.arrow-d::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Limit Check Diamond */
+.diamond-wrap{display:flex;justify-content:center;align-items:center;position:relative;margin:8px 0;}
+.diamond{background:rgba(255,182,72,.15);border:1px solid var(--amber);padding:12px;transform:rotate(45deg);width:70px;height:70px;display:grid;place-items:center;border-radius:4px;}
+.diamond div{transform:rotate(-45deg);text-align:center;font-size:9px;line-height:1.2;color:#ffd18a;font-weight:800;}
+.trap-path{position:absolute;right:10px;top:0;display:flex;flex-direction:column;align-items:center;color:var(--crimson);font-size:10px;font-weight:800;}
+.trap-box{border:1px solid var(--crimson);background:rgba(255,77,109,.1);padding:4px 8px;border-radius:4px;margin-top:4px;}
+
+/* Memory Blocks */
+.mem-grid{display:flex;flex-direction:column;gap:4px;background:#000;border:1px solid var(--stroke-2);padding:8px;border-radius:6px;}
+.mem-block{padding:4px;text-align:center;border-radius:4px;font-weight:800;transition:.3s;}
+.paging .mem-block.valid{background:rgba(56,189,248,.1);border:1px solid var(--paging-blue);color:var(--paging-blue);}
+.segmentation .mem-block.valid{background:rgba(168,85,247,.1);border:1px solid var(--seg-purple);color:var(--seg-purple);}
+.mem-block.pulse{box-shadow:0 0 10px currentColor;}
+
+/* Flex Layouts for diagram */
+.diag-top{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.diag-mid{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.diag-col{display:flex;flex-direction:column;gap:6px;flex:1;}
+.text-center{text-align:center;color:var(--muted);font-size:9px;letter-spacing:.05em;}
 
 /* Animations */
-.packet{position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;box-shadow:0 0 15px #fff, 0 0 30px var(--blue);z-index:10;top:0;left:50%;transform:translateX(-50%);opacity:0;}
+@keyframes pulseBlue { 0%,100%{background:rgba(56,189,248,.1);} 50%{background:rgba(56,189,248,.3);} }
+@keyframes pulsePurple { 0%,100%{background:rgba(168,85,247,.1);} 50%{background:rgba(168,85,247,.3);} }
+.paging-anim{animation:pulseBlue 2s infinite;}
+.seg-anim{animation:pulsePurple 2s infinite;}
 
-@keyframes flow{
-  0%{top:60px;opacity:1;}
-  15%{top:140px;opacity:1;}
-  30%{top:260px;opacity:1;}
-  50%{top:400px;opacity:1;}
-  65%{top:520px;opacity:1;}
-  85%{top:640px;opacity:1;}
-  100%{top:700px;opacity:0;}
+@media (max-width: 900px) {
+  .info-split { grid-template-columns: 1fr; }
 }
-
-@keyframes highlightTable{
-  0%, 25%{background:rgba(255,182,72,.1);}
-  26%, 100%{background:rgba(255,255,255,.15);}
-}
-
-/* Layout Adjustments */
-.split-container{display:flex;justify-content:space-between;width:100%;max-width:400px;position:relative;}
-.side-arrow{width:50%;height:2px;background:var(--stroke);margin-top:20px;}
 </style>
 </head>
 <body>
@@ -105,139 +139,153 @@ tr.active-row td{color:#fff;background:rgba(255,255,255,.1);font-weight:800;}
 <main class="container">
 
   <header class="page-header">
-    <h1 class="page-title">The Address Translation Flow</h1>
-    <p class="page-subtitle">Watch how the CPU translates a logical address into a physical address using the Segment Table.</p>
+    <h1 class="page-title">Memory Allocation: Paging vs. Segmentation</h1>
+    <p class="page-subtitle">A visual breakdown of how the CPU translates a logical address into a physical address for both memory models.</p>
   </header>
 
-  <section class="flow-chart">
+  <div class="info-split">
     
-    <!-- The Animated Packet -->
-    <div class="packet" id="packet"></div>
-
-    <!-- CPU -->
-    <div class="node cpu">
-      <div class="node-label">Hardware</div>
-      <div class="node-title">CPU</div>
-    </div>
-
-    <div class="arrow-down"></div>
-
-    <!-- Logical Address -->
-    <div class="node addr">
-      <div>
-        <div class="node-label">Segment</div>
-        <div class="addr-box addr-seg">Seg 1</div>
+    <!-- ================= PAGING SECTION ================= -->
+    <div class="section-wrap paging">
+      <div class="section-header">Paging</div>
+      
+      <div class="text-box">
+        <p>Paging is a memory management scheme that eliminates the need for <strong>contiguous allocation</strong> of physical memory. The process's address space is divided into fixed-size blocks called <strong>pages</strong>, while physical memory is divided into fixed-size blocks called <strong>frames</strong>.</p>
       </div>
-      <div>
-        <div class="node-label">Offset</div>
-        <div class="addr-box addr-off">04</div>
+
+      <div class="text-box">
+        <h4>Advantages</h4>
+        <ul>
+          <li>Eliminates external fragmentation.</li>
+          <li>Simplifies memory allocation.</li>
+          <li>Supports efficient swapping and virtual memory.</li>
+        </ul>
       </div>
+
+      <!-- PAGING DIAGRAM -->
+      <div class="diagram-box">
+        <div class="diag-top">
+          <div class="cpu"><span>⚙️</span>CPU</div>
+          <div class="arrow-d"></div>
+          
+          <div class="addr-row">
+            <div class="addr-box spec"><div class="label">Page Number</div><div class="val">P2</div></div>
+            <div class="addr-box offset"><div class="label">Offset</div><div class="val">0x0A</div></div>
+          </div>
+          <div class="text-center" style="color:var(--paging-blue)">Logical Address</div>
+        </div>
+
+        <div class="diag-mid">
+          <div class="diag-col">
+            <div class="text-center" style="margin-bottom:4px;">Page Table</div>
+            <div class="tbl" style="width:100%;">
+              <div class="t-head"><div>Page</div><div>Frame</div></div>
+              <div class="t-row"><div>P0</div><div>F2</div></div>
+              <div class="t-row"><div>P1</div><div>F5</div></div>
+              <div class="t-row highlight paging-anim"><div>P2</div><div>F0</div></div>
+              <div class="t-row"><div>P3</div><div>F3</div></div>
+            </div>
+          </div>
+
+          <div class="diag-col">
+            <div class="text-center" style="margin-bottom:4px;">Main Memory</div>
+            <div class="mem-grid">
+              <div class="mem-block valid pulse">F0 (P2)</div>
+              <div class="mem-block valid">F1</div>
+              <div class="mem-block valid">F2</div>
+              <div class="mem-block valid">F3</div>
+              <div class="mem-block valid">F4</div>
+              <div class="mem-block valid">F5</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diag-top">
+          <div class="arrow-d" style="transform:rotate(180deg);"></div>
+          <div class="addr-row">
+            <div class="addr-box spec"><div class="label">Frame Number</div><div class="val">F0</div></div>
+            <div class="addr-box offset"><div class="label">Offset</div><div class="val">0x0A</div></div>
+          </div>
+          <div class="text-center" style="color:var(--paging-blue)">Physical Address</div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="arrow-down"></div>
+    <!-- ================= SEGMENTATION SECTION ================= -->
+    <div class="section-wrap segmentation">
+      <div class="section-header">Segmentation</div>
+      
+      <div class="text-box">
+        <p>Segmentation is a memory management technique where the memory is divided into <strong>variable-sized</strong> segments based on the <strong>logical divisions</strong> of a program, such as functions, objects, or data arrays.</p>
+      </div>
 
-    <!-- Segment Table -->
-    <div class="node table">
-      <div class="node-label">Segment Table</div>
-      <table>
-        <tr><th>Seg</th><th>Base</th><th>Limit</th></tr>
-        <tr class="active-row" id="tableRow1"><td>0</td><td>1000</td><td>300</td></tr>
-        <tr><td>1</td><td>1500</td><td>200</td></tr>
-        <tr><td>2</td><td>2000</td><td>350</td></tr>
-      </table>
+      <div class="text-box">
+        <h4>Advantages</h4>
+        <ul>
+          <li>Provides logical separation of different parts of a program.</li>
+          <li>Facilitates protection and sharing of segments.</li>
+          <li>Simplifies management of growing data structures.</li>
+        </ul>
+      </div>
+
+      <!-- SEGMENTATION DIAGRAM -->
+      <div class="diagram-box">
+        <div class="diag-top">
+          <div class="cpu"><span>⚙️</span>CPU</div>
+          <div class="arrow-d"></div>
+          
+          <div class="addr-row">
+            <div class="addr-box seg"><div class="label">Segment Number</div><div class="val">S1</div></div>
+            <div class="addr-box offset"><div class="label">Offset</div><div class="val">04</div></div>
+          </div>
+          <div class="text-center" style="color:var(--seg-purple)">Logical Address</div>
+        </div>
+
+        <div class="diag-mid">
+          <div class="diag-col">
+            <div class="text-center" style="margin-bottom:4px;">Segment Table</div>
+            <div class="tbl" style="width:100%;">
+              <div class="t-head"><div>Base</div><div>Limit</div></div>
+              <div class="t-row"><div>1000</div><div>300</div></div>
+              <div class="t-row highlight seg-anim"><div>1500</div><div>200</div></div>
+              <div class="t-row"><div>2000</div><div>350</div></div>
+              <div class="t-row"><div>2500</div><div>150</div></div>
+            </div>
+          </div>
+
+          <div class="diag-col">
+            <div class="text-center" style="margin-bottom:4px;">Main Memory</div>
+            <div class="mem-grid">
+              <div class="mem-block valid">S0</div>
+              <div class="mem-block valid pulse">S1</div>
+              <div class="mem-block valid">S2</div>
+              <div class="mem-block valid">S3</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diag-top" style="position:relative;">
+           <div class="diamond-wrap">
+             <div class="diamond"><div>Offset < Limit?<br>04 < 200 = YES</div></div>
+             <div class="trap-path">
+               NO ➔ <div class="trap-box">Trap (Segfault)</div>
+             </div>
+           </div>
+           <div class="arrow-d"></div>
+           <div class="addr-row">
+             <div class="addr-box seg"><div class="label">Base Address</div><div class="val">1500</div></div>
+             <div class="addr-box offset"><div class="label">+ Offset</div><div class="val">04</div></div>
+           </div>
+           <div class="text-center" style="color:var(--seg-purple)">Physical Address = 1504</div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="arrow-down"></div>
-
-    <!-- Limit Check -->
-    <div class="node check" id="checkNode">
-      <div>Offset < Limit?<br><span style="color:var(--emerald)">04 < 200 = YES</span></div>
-    </div>
-
-    <!-- Trap (Hidden, lights up red on error) -->
-    <div class="node trap" id="trapNode">
-      <div class="node-title" style="color:var(--crimson)">💥 TRAP</div>
-      <div class="node-sub">Segmentation Fault</div>
-    </div>
-
-    <div class="arrow-down"></div>
-
-    <!-- Physical Address -->
-    <div class="node phys">
-      <div class="node-label">Physical Address</div>
-      <div class="node-sub" style="color:#fff;font-size:14px;">Base (1500) + Offset (04)</div>
-      <div class="node-title" style="color:var(--emerald);font-size:24px;margin-top:8px;">1504</div>
-    </div>
-
-    <div class="arrow-down"></div>
-
-    <!-- Main Memory -->
-    <div class="node" style="border-color:var(--blue); background:rgba(91,141,255,.1);">
-      <div class="node-label">Main Memory</div>
-      <div class="node-title" style="color:#b9d0ff;">S1 Segment Block</div>
-      <div class="node-sub">1500 to 1700</div>
-    </div>
-
-  </section>
+  </div>
 
 </main>
-
-<script>
-/* ================= ANIMATION LOOP ================= */
-const packet = document.getElementById('packet');
-const tableRow1 = document.getElementById('tableRow1');
-const checkNode = document.getElementById('checkNode');
-const trapNode = document.getElementById('trapNode');
-
-let running = true;
-
-function runAnimation() {
-  if (!running) return;
-  
-  // Reset states
-  packet.style.animation = 'none';
-  packet.offsetHeight; // trigger reflow
-  packet.style.animation = 'flow 4s linear infinite';
-  
-  tableRow1.style.background = 'transparent';
-  checkNode.style.borderColor = 'var(--amber)';
-  checkNode.style.boxShadow = 'none';
-  trapNode.style.opacity = '0.2';
-  trapNode.style.transform = 'scale(0.8)';
-
-  // Sequence timing
-  setTimeout(() => {
-    if (!running) return;
-    // Highlight Table
-    tableRow1.style.background = 'rgba(255,182,72,.3)';
-    tableRow1.style.transition = 'background 0.3s';
-  }, 1500);
-
-  setTimeout(() => {
-    if (!running) return;
-    // Highlight Check
-    checkNode.style.borderColor = 'var(--emerald)';
-    checkNode.style.boxShadow = '0 0 20px rgba(46,230,168,.5)';
-  }, 2800);
-
-  setTimeout(() => {
-    if (!running) return;
-    // (Optional: Trigger trap briefly to show the alternative path)
-    // trapNode.style.opacity = '1';
-    // trapNode.style.transform = 'scale(1)';
-  }, 3500);
-}
-
-// Start loop
-runAnimation();
-setInterval(runAnimation, 4000);
-
-// Stop animation if user leaves page
-document.addEventListener('visibilitychange', () => {
-  running = document.visibilityState === 'visible';
-  if (running) runAnimation();
-});
-</script>
 
 </body>
 </html>
