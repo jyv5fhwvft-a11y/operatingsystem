@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Knowledge Base · Segmentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.72);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 32px 40px;}
+.page-header{text-align:center;margin-bottom:60px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(91,141,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,141,255,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--blue);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(18px,2vw,24px);line-height:1.6;color:#fff;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--violet);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+
+/* 5th Grader School Animation */
+.school-room{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-size:11px;font-weight:800;margin:0 4px;transition:all 1s ease;}
+.room-gym{width:100px;height:120px;background:rgba(46,230,168,.15);border:2px solid #2ee6a8;animation:pulseGym 3s infinite alternate;}
+.room-lib{width:80px;height:80px;background:rgba(255,182,72,.15);border:2px solid #ffb648;animation:pulseLib 3s infinite alternate 1s;}
+.room-office{width:60px;height:50px;background:rgba(255,77,109,.15);border:2px solid #ff4d6d;animation:pulseOff 3s infinite alternate 2s;}
+@keyframes pulseGym { 0%, 80% { transform: scale(1); box-shadow: 0 0 0 rgba(46,230,168,0); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(46,230,168,.4); } }
+@keyframes pulseLib { 0%, 80% { transform: scale(1); box-shadow: 0 0 0 rgba(255,182,72,0); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,182,72,.4); } }
+@keyframes pulseOff { 0%, 80% { transform: scale(1); box-shadow: 0 0 0 rgba(255,77,109,0); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,77,109,.4); } }
+
+/* Technical CPU Animation */
+.cpu-box{padding:16px;border:1px solid var(--violet);background:rgba(160,107,255,.1);border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;color:#c9a7ff;line-height:1.6;}
+.cpu-arrow{color:var(--violet);font-size:20px;margin:0 12px;animation:moveArrow 2s infinite ease-in-out;}
+@keyframes moveArrow { 0%, 100% { transform: translateX(0); opacity: 0.5; } 50% { transform: translateX(8px); opacity: 1; } }
+
+/* ================= MULTIMODAL HUB ================= */
+.hub-section{margin-top:80px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;}
+.hub-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title{font-size:16px;font-weight:800;margin-bottom:8px;}
+.hub-card-text{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(91,141,255,.15);color:#b9d0ff;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
+.hub-card:hover .hub-btn{background:var(--blue);color:#fff;}
+
+@media (max-width: 800px) {
+  .analogy-grid, .hub-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP NAVIGATION ================= -->
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- ================= PAGE HEADER ================= -->
+  <header class="page-header">
+    <h1 class="page-title">Segmentation</h1>
+    <p class="page-subtitle">Dividing memory into logical, variable-sized chunks like code, stack, and data.</p>
+  </header>
+
+  <!-- ================= DEFINITION SECTION ================= -->
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      Segmentation is a memory management technique where a program's virtual address space is divided into variable-sized blocks called <strong>segments</strong>. Unlike paging, segments are not fixed-size; they represent logical units of the program, such as the code, the heap, and the stack.
+    </p>
+  </section>
+
+  <!-- ================= ANALOGY GRID ================= -->
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER ANALOGY -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine your school building. Instead of making every room exactly the same size (which wastes space if you need a giant gym), the school is divided into <strong>different sized rooms based on what they hold.</strong> 
+        <br><br>
+        The gym is a big room. The library is medium. The principal's office is small. In memory, a program is built the same way: the code gets a big segment, the stack gets a medium segment, and the global variables get a small segment.
+      </div>
+      
+      <div class="anim-container">
+        <div class="school-room room-gym">GYM<br>(Code)</div>
+        <div class="school-room room-lib">LIBRARY<br>(Data)</div>
+        <div class="school-room room-office">OFFICE<br>(Stack)</div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL ANALOGY -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">⚙️ The Technical Analogy</div>
+      <div class="analogy-body">
+        The CPU sees memory as a set of logical segments. Each segment has a <strong>Base</strong> (where it starts in physical RAM) and a <strong>Limit</strong> (how long it is). 
+        <br><br>
+        When the CPU tries to read a memory address, it checks the Segment Table, finds the segment's base, and adds the offset. If the offset is bigger than the limit, it throws a Segmentation Fault.
+      </div>
+
+      <div class="anim-container" style="flex-direction: row;">
+        <div class="cpu-box">CPU<br>Needs<br>Address</div>
+        <div class="cpu-arrow">➔</div>
+        <div class="cpu-box" style="border-color:var(--blue); background:rgba(91,141,255,.1); color:#b9d0ff;">
+          Segment Table<br>
+          Seg 1: Base 0x9000<br>
+          Limit: 1000
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Everyone learns differently. Pick the module that works best for you.</p>
+    
+    <div class="hub-grid">
+      
+      <!-- Hub Card 1: Step-by-Step -->
+      <a href="segmentation-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Mechanics</div>
+        <div class="hub-card-text">Watch a live animation of how the CPU translates a logical address into physical RAM using the Segment Table.</div>
+        <div class="hub-btn">Open Deep Dive →</div>
+      </a>
+
+      <!-- Hub Card 2: Mind Map -->
+      <a href="segmentation-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how Segmentation connects to Paging, Virtual Memory, and Fragmentation in one giant visual tree.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+
+      <!-- Hub Card 3: Infographic -->
+      <a href="segmentation-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A quick, high-level cheat sheet comparing the pros and cons of Segmentation vs. Paging.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>
