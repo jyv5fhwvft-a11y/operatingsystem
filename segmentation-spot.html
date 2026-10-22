@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation · Fragmentation Hunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,77,109,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--crimson);box-shadow:0 0 12px var(--crimson);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ff9fb1;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= GAME UI ================= */
+.game-board{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.score-board{display:flex;justify-content:space-between;font-family:var(--mono);font-size:14px;font-weight:800;color:#fff;margin-bottom:24px;background:rgba(0,0,0,.3);padding:12px 20px;border-radius:10px;border:1px dashed var(--stroke-2);}
+
+/* Memory Bar */
+.memory-bar{display:flex;gap:4px;height:120px;background:#000;border:2px solid var(--stroke-2);border-radius:12px;padding:8px;margin-bottom:30px;overflow:hidden;}
+.block{border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:800;text-align:center;color:#fff;transition:.3s;position:relative;}
+.block.used{background:rgba(91,141,255,.15);border:1px solid var(--blue);cursor:default;}
+.block.used.code{background:rgba(46,230,168,.15);border-color:var(--emerald);color:#88ffd8;}
+.block.used.data{background:rgba(255,182,72,.15);border-color:var(--amber);color:#ffd18a;}
+.block.used.stack{background:rgba(160,107,255,.15);border-color:var(--violet);color:#c9a7ff;}
+
+/* The Gaps (Fragmentation) */
+.block.gap{background:rgba(255,255,255,.05);border:1px dashed var(--crimson);cursor:pointer;color:var(--muted);}
+.block.gap:hover{background:rgba(255,77,109,.1);border-style:solid;}
+.block.gap.found{background:rgba(255,77,109,.3);border:1px solid var(--crimson);color:#fff;pointer-events:none;}
+
+/* Sizes */
+.w-10{flex:10;} .w-15{flex:15;} .w-20{flex:20;} .w-30{flex:30;}
+
+/* Feedback */
+.feedback{text-align:center;font-size:16px;font-weight:800;color:var(--ink-2);min-height:40px;margin-bottom:20px;transition:.3s;}
+.feedback.success{color:var(--emerald);}
+.feedback.error{color:var(--crimson);}
+
+/* Win Screen */
+.win-screen{display:none;text-align:center;padding:30px;background:rgba(46,230,168,.1);border:1px solid var(--emerald);border-radius:16px;margin-top:20px;}
+.win-screen h2{color:var(--emerald);font-size:24px;margin-bottom:12px;font-weight:900;}
+.win-screen p{color:var(--ink-2);font-size:15px;margin-bottom:20px;}
+.btn-reset{padding:12px 24px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Fragmentation Hunt</h1>
+    <p class="page-subtitle">This is physical RAM. The OS needs to load a new 15MB program, but there are no 15MB blocks left. Tap the wasted gaps to find the fragmentation.</p>
+  </header>
+
+  <div class="game-board">
+    <div class="score-board">
+      <span>Target: Find 3 Gaps</span>
+      <span id="scoreText">Found: 0 / 3</span>
+    </div>
+
+    <div class="memory-bar" id="memoryBar">
+      <!-- Used Memory (Process A) -->
+      <div class="block used code w-20">CODE<br>(20MB)</div>
+      
+      <!-- GAP 1 -->
+      <div class="block gap w-10" data-gap="1">GAP<br>(10MB)</div>
+      
+      <!-- Used Memory (Process A) -->
+      <div class="block used data w-15">DATA<br>(15MB)</div>
+      
+      <!-- GAP 2 -->
+      <div class="block gap w-20" data-gap="2">GAP<br>(20MB)</div>
+      
+      <!-- Used Memory (Process B) -->
+      <div class="block used stack w-15">STACK<br>(15MB)</div>
+      
+      <!-- GAP 3 -->
+      <div class="block gap w-10" data-gap="3">GAP<br>(10MB)</div>
+    </div>
+
+    <div class="feedback" id="feedbackText">Tap the dashed red blocks to identify the wasted space.</div>
+
+    <div class="win-screen" id="winScreen">
+      <h2>🔍 You Found Them All!</h2>
+      <p>Notice how the total empty space is 10MB + 20MB + 10MB = <strong>40MB</strong>? But because the gaps are split up, a new 15MB program <em>still</em> can't fit into the 10MB or 10MB gaps. The OS would have to run <strong>Compaction</strong> (shifting the blocks) to combine the space.</p>
+      <button class="btn-reset" onclick="location.reload()">Play Again</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+let gapsFound = 0;
+const totalGaps = 3;
+const scoreText = document.getElementById('scoreText');
+const feedbackText = document.getElementById('feedbackText');
+const winScreen = document.getElementById('winScreen');
+
+// Handle clicking the gaps
+const gaps = document.querySelectorAll('.block.gap');
+const usedBlocks = document.querySelectorAll('.block.used');
+
+gaps.forEach(gap => {
+  gap.addEventListener('click', function() {
+    // If already found, ignore
+    if (this.classList.contains('found')) return;
+    
+    // Mark as found
+    this.classList.add('found');
+    this.innerHTML = 'FOUND!<br>💥';
+    gapsFound++;
+    
+    // Update Score
+    scoreText.textContent = `Found: ${gapsFound} / ${totalGaps}`;
+    feedbackText.className = 'feedback success';
+    feedbackText.textContent = "Correct! This is wasted space.";
+
+    // Check for Win
+    if (gapsFound === totalGaps) {
+      setTimeout(() => {
+        document.getElementById('memoryBar').style.opacity = '0.3';
+        winScreen.style.display = 'block';
+        feedbackText.style.display = 'none';
+      }, 800);
+    }
+  });
+});
+
+// Handle clicking used blocks (to teach them that this is NOT wasted space)
+usedBlocks.forEach(block => {
+  block.addEventListener('click', function() {
+    if (gapsFound === totalGaps) return; // Ignore if game over
+    
+    feedbackText.className = 'feedback error';
+    feedbackText.textContent = "That block is currently being used by a program! Find the empty gaps.";
+    
+    // Shake effect
+    this.style.transform = 'translateX(5px)';
+    setTimeout(() => this.style.transform = 'translateX(-5px)', 100);
+    setTimeout(() => this.style.transform = 'translateX(0)', 200);
+  });
+});
+</script>
+
+</body>
+</html>
