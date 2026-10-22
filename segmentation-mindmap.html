@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation · Mind Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= MIND MAP GRID ================= */
+.mindmap-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 20px;
+  align-items: center;
+  justify-items: center;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+/* The glowing lines connecting the nodes */
+.mindmap-container::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%; height: 60%;
+  border: 2px dashed rgba(255,255,255,.1);
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The Nodes */
+.map-node {
+  background: var(--panel);
+  border: 1.5px solid var(--stroke-2);
+  border-radius: 16px;
+  padding: 16px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 220px;
+}
+.map-node:hover, .map-node.active {
+  border-color: var(--emerald);
+  box-shadow: 0 0 20px rgba(46,230,168,.3);
+  transform: scale(1.05);
+}
+.map-node.center {
+  grid-column: 2;
+  grid-row: 2;
+  background: rgba(46,230,168,.1);
+  border-color: var(--emerald);
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(46,230,168,.2);
+}
+.map-node.top-left { grid-column: 1; grid-row: 1; }
+.map-node.top-right { grid-column: 3; grid-row: 1; }
+.map-node.bottom-left { grid-column: 1; grid-row: 3; }
+.map-node.bottom-right { grid-column: 3; grid-row: 3; }
+.map-node.left { grid-column: 1; grid-row: 2; }
+.map-node.right { grid-column: 3; grid-row: 2; }
+
+.node-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+.node-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+.node-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ================= INFO PANEL ================= */
+.info-panel {
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 120px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.info-panel h3 { color: var(--emerald); font-size: 18px; margin-bottom: 8px; font-weight: 800; }
+.info-panel p { color: var(--ink-2); font-size: 15px; line-height: 1.6; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .mindmap-container { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .mindmap-container::before { display: none; }
+  .map-node { grid-column: 1 !important; grid-row: auto !important; max-width: 100%; }
+  .map-node.center { order: -1; margin-bottom: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP NAVIGATION ================= -->
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+    <a href="knowledgebase.html" class="nav-link">Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- ================= PAGE HEADER ================= -->
+  <header class="page-header">
+    <h1 class="page-title">Segmentation Mind Map</h1>
+    <p class="page-subtitle">Tap any node on the map to see how it connects to the central concept of Segmentation.</p>
+  </header>
+
+  <!-- ================= INTERACTIVE MIND MAP ================= -->
+  <section class="mindmap-container">
+    
+    <!-- Center Node -->
+    <div class="map-node center">
+      <span class="node-icon">🧩</span>
+      <div class="node-title">Segmentation</div>
+    </div>
+
+    <!-- Surrounding Nodes -->
+    <div class="map-node top-left" data-target="mmu">
+      <span class="node-icon">⚙️</span>
+      <div class="node-title">The MMU</div>
+      <div class="node-sub">Hardware translation</div>
+    </div>
+
+    <div class="map-node top-right" data-target="sizes">
+      <span class="node-icon">📦</span>
+      <div class="node-title">Variable Sizes</div>
+      <div class="node-sub">Code, Data, Stack</div>
+    </div>
+
+    <div class="map-node left" data-target="protection">
+      <span class="node-icon">🛡️</span>
+      <div class="node-title">Protection</div>
+      <div class="node-sub">Limit Checks</div>
+    </div>
+
+    <div class="map-node right" data-target="fragmentation">
+      <span class="node-icon">⚠️</span>
+      <div class="node-title">Fragmentation</div>
+      <div class="node-sub">External gaps</div>
+    </div>
+
+    <div class="map-node bottom-left" data-target="paging">
+      <span class="node-icon">📄</span>
+      <div class="node-title">vs. Paging</div>
+      <div class="node-sub">Fixed vs Variable</div>
+    </div>
+
+    <div class="map-node bottom-right" data-target="segfault">
+      <span class="node-icon">💥</span>
+      <div class="node-title">Segfault</div>
+      <div class="node-sub">Out of bounds error</div>
+    </div>
+
+  </section>
+
+  <!-- ================= INFO PANEL ================= -->
+  <section class="info-panel" id="infoPanel">
+    <h3>👆 Tap a Node</h3>
+    <p>Select any of the surrounding branches to explore how it relates to Segmentation.</p>
+  </section>
+
+</main>
+
+<script>
+/* ================= MIND MAP DATA ================= */
+const nodeData = {
+  mmu: {
+    title: "⚙️ The Memory Management Unit (MMU)",
+    text: "The MMU is the hardware chip that does the math. It takes the Segment Number from the CPU, looks it up in the Segment Table, and adds the Base address to the Offset to find the physical RAM location."
+  },
+  sizes: {
+    title: "📦 Variable Sizes (Code, Data, Stack)",
+    text: "Unlike paging (which uses identical blocks), a segment's size depends on its logical purpose. The Code segment might be huge, the Data segment medium, and the Stack segment small. It perfectly matches the program's shape."
+  },
+  protection: {
+    title: "🛡️ Protection & Limit Checks",
+    text: "Every segment has a Limit. Before the MMU allows a read or write, it checks if the offset is smaller than the limit. If it's larger, it blocks the access. This stops a buggy program from overwriting other memory."
+  },
+  fragmentation: {
+    title: "⚠️ External Fragmentation",
+    text: "Because segments are variable-sized, they can leave awkward gaps (holes) in RAM when they are removed. A new segment might not fit into the gap, even if the total free space is large enough. This is called External Fragmentation."
+  },
+  paging: {
+    title: "📄 Segmentation vs. Paging",
+    text: "Paging divides memory into fixed-size pages (like identical shoeboxes). Segmentation divides memory into variable, logical chunks. Modern operating systems often combine both (Segmentation with Paging) to get the best of both worlds."
+  },
+  segfault: {
+    title: "💥 Segmentation Fault (SIGSEGV)",
+    text: "When a program tries to read or write outside the bounds of its segment (exceeding the Limit), the hardware throws an exception. The OS catches this and kills the program, resulting in the famous 'Segmentation Fault' error."
+  }
+};
+
+const nodes = document.querySelectorAll('.map-node:not(.center)');
+const panel = document.getElementById('infoPanel');
+
+nodes.forEach(node => {
+  node.addEventListener('click', () => {
+    // 1. Remove active class from all nodes
+    nodes.forEach(n => n.classList.remove('active'));
+    
+    // 2. Add active class to clicked node
+    node.classList.add('active');
+    
+    // 3. Get the data for this node
+    const target = node.getAttribute('data-target');
+    const data = nodeData[target];
+    
+    // 4. Update the info panel with a little fade effect
+    panel.style.opacity = 0;
+    setTimeout(() => {
+      panel.innerHTML = `<h3>${data.title}</h3><p>${data.text}</p>`;
+      panel.style.opacity = 1;
+    }, 150);
+  });
+});
+</script>
+
+</body>
+</html>
