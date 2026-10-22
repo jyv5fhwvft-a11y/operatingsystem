@@ -105,7 +105,7 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .mem-block{padding:4px;text-align:center;border-radius:4px;font-weight:800;transition:.3s;}
 .paging .mem-block.valid{background:rgba(56,189,248,.1);border:1px solid var(--paging-blue);color:var(--paging-blue);}
 .segmentation .mem-block.valid{background:rgba(168,85,247,.1);border:1px solid var(--seg-purple);color:var(--seg-purple);}
-.mem-block.pulse{box-shadow:0 0 10px currentColor;}
+
 
 /* Flex Layouts for diagram */
 .diag-top{display:flex;flex-direction:column;align-items:center;gap:6px;}
@@ -114,6 +114,23 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 .text-center{text-align:center;color:var(--muted);font-size:9px;letter-spacing:.05em;}
 
 /* Animations */
+  /* Animation for Paging Memory Block (Blue) */
+@keyframes pulseMemBlue {
+  0%, 100% { background: rgba(56,189,248,.1); box-shadow: none; transform: scale(1); }
+  50% { background: rgba(56,189,248,.5); box-shadow: 0 0 15px rgba(56,189,248,.8); transform: scale(1.02); }
+}
+.paging .mem-block.pulse { 
+  animation: pulseMemBlue 2s infinite; 
+}
+
+/* Animation for Segmentation Memory Block (Purple) */
+@keyframes pulseMemPurple {
+  0%, 100% { background: rgba(168,85,247,.1); box-shadow: none; transform: scale(1); }
+  50% { background: rgba(168,85,247,.5); box-shadow: 0 0 15px rgba(168,85,247,.8); transform: scale(1.02); }
+}
+.segmentation .mem-block.pulse { 
+  animation: pulseMemPurple 2s infinite; 
+}
 @keyframes pulseBlue { 0%,100%{background:rgba(56,189,248,.1);} 50%{background:rgba(56,189,248,.3);} }
 @keyframes pulsePurple { 0%,100%{background:rgba(168,85,247,.1);} 50%{background:rgba(168,85,247,.3);} }
 .paging-anim{animation:pulseBlue 2s infinite;}
