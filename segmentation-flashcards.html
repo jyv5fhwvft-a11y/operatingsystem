@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Segmentation · Flashcards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.15),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLASHCARD UI ================= */
+.quiz-container{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);position:relative;overflow:hidden;}
+.progress-bar{position:absolute;top:0;left:0;height:4px;background:var(--violet);width:0%;transition:width 0.3s ease;}
+.q-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.1em;margin-bottom:24px;}
+.question{font-size:clamp(18px,2.5vw,24px);font-weight:800;color:#fff;line-height:1.4;margin-bottom:32px;min-height:80px;}
+
+/* Options */
+.options{display:flex;flex-direction:column;gap:12px;}
+.option{background:rgba(255,255,255,.03);border:1px solid var(--stroke-2);border-radius:12px;padding:16px 20px;font-size:15px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:.2s;display:flex;justify-content:space-between;align-items:center;}
+.option:hover{background:rgba(255,255,255,.08);border-color:var(--violet);color:#fff;}
+.option.correct{background:rgba(46,230,168,.15);border-color:var(--emerald);color:var(--emerald);}
+.option.wrong{background:rgba(255,77,109,.15);border-color:var(--crimson);color:var(--crimson);}
+.option.disabled{pointer-events:none;}
+
+/* Feedback Box */
+.feedback{display:none;margin-top:24px;padding:16px;border-radius:12px;font-size:14px;line-height:1.6;}
+.feedback.show{display:block;animation:fadeIn 0.3s ease;}
+.feedback.success{background:rgba(46,230,168,.1);border:1px solid var(--emerald);color:#88ffd8;}
+.feedback.fail{background:rgba(255,77,109,.1);border:1px solid var(--crimson);color:#ff9fb1;}
+
+/* Next Button */
+.btn-next{display:none;margin-top:24px;width:100%;padding:16px;background:var(--violet);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:900;cursor:pointer;transition:.2s;}
+.btn-next:hover{background:#b585ff;transform:translateY(-2px);}
+.btn-next.show{display:block;animation:fadeIn 0.3s ease;}
+
+/* Win Screen */
+.win-screen{display:none;text-align:center;padding:40px 20px;}
+.win-screen h2{font-size:32px;color:var(--emerald);font-weight:900;margin-bottom:16px;}
+.win-screen p{font-size:16px;color:var(--ink-2);margin-bottom:24px;}
+.btn-reset{padding:14px 28px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer;}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Rapid-Fire Flashcards</h1>
+    <p class="page-subtitle">Test your knowledge. Tap the correct answer to reveal the explanation and move to the next card.</p>
+  </header>
+
+  <div class="quiz-container" id="quizBox">
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div id="quizContent">
+      <div class="q-meta">
+        <span id="qNum">Question 1 / 5</span>
+        <span id="qScore">Score: 0</span>
+      </div>
+      
+      <div class="question" id="questionText">Loading...</div>
+      
+      <div class="options" id="optionsContainer"></div>
+      
+      <div class="feedback" id="feedbackBox"></div>
+      
+      <button class="btn-next" id="nextBtn">Next Question ➔</button>
+    </div>
+
+    <div class="win-screen" id="winScreen">
+      <h2>🏆 Perfect Score!</h2>
+      <p>You've mastered the core concepts of Segmentation.</p>
+      <button class="btn-reset" onclick="location.reload()">Play Again</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "Does Segmentation eliminate external fragmentation?",
+    options: ["True", "False"],
+    answer: 1, // Index of the correct option (0 for True, 1 for False)
+    explanation: "False. Because segments are variable-sized, they leave awkward gaps (holes) in RAM called External Fragmentation. Paging eliminates external fragmentation, but causes internal fragmentation."
+  },
+  {
+    q: "What happens if a program tries to access an Offset larger than the Segment Limit?",
+    options: ["The OS ignores it", "A Segmentation Fault (SIGSEGV) occurs", "It automatically expands the segment", "The CPU reboots"],
+    answer: 1,
+    explanation: "Correct. The MMU checks if `Offset < Limit`. If the offset is larger, it exceeds the segment boundary, and the hardware triggers a trap (Segmentation Fault) to kill the process."
+  },
+  {
+    q: "In a Segment Table, what does the 'Base' address represent?",
+    options: ["The size of the segment", "The starting physical address in RAM", "The speed of the CPU", "The offset of the variable"],
+    answer: 1,
+    explanation: "Correct. The Base address is the exact starting location of that segment in physical RAM. To find the physical address, you add the Offset to the Base."
+  },
+  {
+    q: "Why is Segmentation considered a 'logical' memory model?",
+    options: ["Because it uses math to calculate addresses", "Because it divides memory based on the program's actual structure (Code, Stack, Data)", "Because it only runs on Linux", "Because it uses fixed-size pages"],
+    answer: 1,
+    explanation: "Correct. Segmentation is logical because it maps directly to how the programmer wrote the code. The Code is in one segment, the Stack in another, and the Heap in another."
+  },
+  {
+    q: "Which of the following is NOT a typical segment in a program?",
+    options: ["Code Segment", "Stack Segment", "Cache Segment", "Data Segment"],
+    answer: 2,
+    explanation: "Correct. The CPU Cache is a hardware component, not a memory segment allocated by the OS. The typical segments are Code (text), Data, Heap, and Stack."
+  }
+];
+
+let currentQuestion = 0;
+let score = 0;
+let canAnswer = true;
+
+const questionText = document.getElementById('questionText');
+const optionsContainer = document.getElementById('optionsContainer');
+const feedbackBox = document.getElementById('feedbackBox');
+const nextBtn = document.getElementById('nextBtn');
+const qNum = document.getElementById('qNum');
+const qScore = document.getElementById('qScore');
+const progressBar = document.getElementById('progressBar');
+const winScreen = document.getElementById('winScreen');
+const quizContent = document.getElementById('quizContent');
+
+function loadQuestion() {
+  canAnswer = true;
+  const q = questions[currentQuestion];
+  
+  // Update Meta
+  qNum.textContent = `Question ${currentQuestion + 1} / ${questions.length}`;
+  qScore.textContent = `Score: ${score}`;
+  progressBar.style.width = `${(currentQuestion / questions.length) * 100}%`;
+  
+  // Load Question
+  questionText.textContent = q.q;
+  feedbackBox.className = 'feedback';
+  feedbackBox.textContent = '';
+  nextBtn.className = 'btn-next';
+  
+  // Load Options
+  optionsContainer.innerHTML = '';
+  q.options.forEach((opt, index) => {
+    const btn = document.createElement('div');
+    btn.className = 'option';
+    btn.innerHTML = `<span>${opt}</span>`;
+    btn.onclick = () => selectOption(index, btn);
+    optionsContainer.appendChild(btn);
+  });
+}
+
+function selectOption(index, btnElement) {
+  if (!canAnswer) return;
+  canAnswer = false;
+  
+  const q = questions[currentQuestion];
+  const allOptions = document.querySelectorAll('.option');
+  
+  // Disable all options
+  allOptions.forEach(opt => opt.classList.add('disabled'));
+  
+  if (index === q.answer) {
+    // Correct
+    btnElement.classList.add('correct');
+    score++;
+    qScore.textContent = `Score: ${score}`;
+    feedbackBox.className = 'feedback show success';
+    feedbackBox.innerHTML = `<strong>✅ Correct!</strong><br>${q.explanation}`;
+  } else {
+    // Wrong
+    btnElement.classList.add('wrong');
+    // Highlight correct answer
+    allOptions[q.answer].classList.add('correct');
+    
+    feedbackBox.className = 'feedback show fail';
+    feedbackBox.innerHTML = `<strong>❌ Incorrect.</strong><br>${q.explanation}`;
+  }
+  
+  // Show next button
+  nextBtn.className = 'btn-next show';
+}
+
+nextBtn.onclick = () => {
+  currentQuestion++;
+  if (currentQuestion < questions.length) {
+    loadQuestion();
+  } else {
+    // End Game
+    progressBar.style.width = '100%';
+    quizContent.style.display = 'none';
+    winScreen.style.display = 'block';
+  }
+};
+
+// Initialize
+loadQuestion();
+</script>
+
+</body>
+</html>
