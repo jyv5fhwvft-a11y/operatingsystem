@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Knowledge Base</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:60px;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(160,107,255,.15),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* Top Navigation */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.72);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-back{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-back:hover{color:#ffd18a;}
+
+/* Header */
+.hero{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:140px 32px 40px;text-align:center;}
+.hero h1{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#9dc0ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hero p{font-size:16px;color:var(--ink-2);max-width:600px;margin:0 auto 32px;line-height:1.6;}
+
+/* Search Box */
+.search-wrap{max-width:600px;margin:0 auto;position:relative;}
+.search-input{width:100%;padding:18px 24px 18px 56px;border-radius:16px;border:1.5px solid var(--stroke-2);background:rgba(255,255,255,.05);color:#fff;font-size:16px;font-family:var(--font);outline:none;transition:.3s;}
+.search-input:focus{border-color:var(--blue);background:rgba(91,141,255,.1);box-shadow:0 0 0 4px rgba(91,141,255,.15);}
+.search-icon{position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:20px;color:var(--muted);}
+
+/* Grid */
+.grid-container{position:relative;z-index:2;max-width:1000px;margin:40px auto;padding:0 32px;display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:20px;}
+.topic-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-decoration:none;color:var(--ink);transition:.3s;position:relative;overflow:hidden;display:flex;flex-direction:column;}
+.topic-card:hover{border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);background:rgba(255,255,255,.06);}
+.topic-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--blue);}
+.topic-card.paging::before{background:var(--emerald);}
+.topic-card.vm::before{background:var(--amber);}
+.topic-card.semaphore::before{background:var(--crimson);}
+.topic-icon{font-size:28px;margin-bottom:16px;}
+.topic-title{font-size:18px;font-weight:800;margin-bottom:8px;letter-spacing:-.01em;}
+.topic-desc{font-size:13px;color:var(--muted);line-height:1.5;flex-grow:1;}
+.topic-badge{margin-top:16px;display:inline-block;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);font-family:var(--mono);font-size:10px;font-weight:800;color:var(--ink-2);letter-spacing:.06em;}
+
+/* Empty State */
+.empty{grid-column:1/-1;text-align:center;padding:60px;color:var(--muted);display:none;}
+.empty.visible{display:block;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Knowledge Base</span>
+  </a>
+  <a href="index.html" class="nav-back">← Back to Home</a>
+</nav>
+
+<header class="hero">
+  <h1>Topic Knowledge Base</h1>
+  <p>Search for a concept to see the 5th-grader analogy, the technical breakdown, and step-by-step visuals.</p>
+  
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="kbSearch" class="search-input" placeholder="Try typing 'Segmentation' or 'Paging'...">
+  </div>
+</header>
+
+<main class="grid-container" id="topicGrid">
+  
+  <!-- Card 1: Segmentation -->
+  <a href="segmentation.html" class="topic-card segmentation" data-title="segmentation memory virtual">
+    <div class="topic-icon">🧩</div>
+    <div class="topic-title">Segmentation</div>
+    <div class="topic-desc">Dividing memory into logical, variable-sized chunks like code, stack, and data.</div>
+    <div class="topic-badge">Memory Management</div>
+  </a>
+
+  <!-- Card 2: Paging -->
+  <a href="paging.html" class="topic-card paging" data-title="paging memory frames pages">
+    <div class="topic-icon">📄</div>
+    <div class="topic-title">Paging</div>
+    <div class="topic-desc">Breaking memory into fixed-size blocks to eliminate external fragmentation.</div>
+    <div class="topic-badge">Memory Management</div>
+  </a>
+
+  <!-- Card 3: Virtual Memory -->
+  <a href="virtual-memory.html" class="topic-card vm" data-title="virtual memory demand paging swap">
+    <div class="topic-icon">🌌</div>
+    <div class="topic-title">Virtual Memory</div>
+    <div class="topic-desc">Fooling programs into thinking they have more RAM than physically exists.</div>
+    <div class="topic-badge">Memory Management</div>
+  </a>
+
+  <!-- Card 4: Semaphore -->
+  <a href="semaphore.html" class="topic-card semaphore" data-title="semaphore mutex sync thread lock">
+    <div class="topic-icon">🚦</div>
+    <div class="topic-title">Semaphore</div>
+    <div class="topic-desc">A signaling variable used to control access to shared resources between threads.</div>
+    <div class="topic-badge">Process Synchronization</div>
+  </a>
+
+  <div class="empty" id="emptyState">
+    <h2>No topics found</h2>
+    <p style="margin-top:10px;font-size:14px;">We haven't written an article for that yet!</p>
+  </div>
+
+</main>
+
+<script>
+// Live Search Logic
+const searchInput = document.getElementById('kbSearch');
+const cards = document.querySelectorAll('.topic-card');
+const emptyState = document.getElementById('emptyState');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.toLowerCase().trim();
+  let visibleCount = 0;
+
+  cards.forEach(card => {
+    // Search in the title and the hidden data-title tags
+    const title = card.querySelector('.topic-title').textContent.toLowerCase();
+    const tags = card.getAttribute('data-title').toLowerCase();
+    
+    if (title.includes(query) || tags.includes(query)) {
+      card.style.display = 'flex';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  if (visibleCount === 0) {
+    emptyState.classList.add('visible');
+  } else {
+    emptyState.classList.remove('visible');
+  }
+});
+</script>
+
+</body>
+</html>
