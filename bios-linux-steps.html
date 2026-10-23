@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux BIOS · Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1200px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= INTERACTIVE TIMELINE ================= */
+.timeline-layout{display:grid;grid-template-columns:300px 1fr;gap:32px;align-items:start;}
+
+/* Left Sidebar (Stages) */
+.timeline-nav{display:flex;flex-direction:column;gap:8px;position:sticky;top:100px;}
+.tl-btn{background:rgba(255,255,255,.02);border:1px solid var(--stroke);border-left:4px solid var(--muted);border-radius:8px;padding:14px 16px;text-align:left;cursor:pointer;transition:.3s;display:flex;flex-direction:column;gap:4px;}
+.tl-btn:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);border-left-color:var(--emerald);}
+.tl-btn.active{background:rgba(46,230,168,.1);border-color:var(--emerald);border-left-color:var(--emerald);transform:translateX(4px);box-shadow:0 4px 20px -5px rgba(46,230,168,.3);}
+.tl-num{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.1em;}
+.tl-btn.active .tl-num{color:var(--emerald);}
+.tl-name{font-size:14px;font-weight:700;color:var(--ink-2);}
+.tl-btn.active .tl-name{color:#fff;}
+
+/* Right Panel (Content) */
+.timeline-content{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;min-height:500px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);position:relative;overflow:hidden;}
+.tc-header{margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed rgba(255,255,255,.15);}
+.tc-stage{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--emerald);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.tc-title{font-size:24px;font-weight:900;color:#fff;line-height:1.2;}
+
+.tc-section{margin-bottom:20px;}
+.tc-label{font-family:var(--mono);font-size:11px;font-weight:900;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:block;}
+.tc-text{font-size:15px;color:var(--ink-2);line-height:1.6;}
+.tc-list{list-style:none;padding-left:0;margin-top:8px;}
+.tc-list li{font-size:14px;color:var(--ink-2);margin-bottom:6px;padding-left:20px;position:relative;}
+.tc-list li::before{content:'▹';position:absolute;left:0;color:var(--emerald);}
+.tc-code{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;font-family:var(--mono);font-size:13px;color:#88ffd8;margin-top:8px;}
+
+/* Next Button */
+.btn-next-stage{margin-top:30px;padding:12px 24px;background:var(--emerald);color:#000;border:none;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:8px;}
+.btn-next-stage:hover{background:#5fffc4;transform:translateY(-2px);}
+.btn-next-stage:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.3s ease; }
+
+@media (max-width: 900px) {
+  .timeline-layout { grid-template-columns: 1fr; }
+  .timeline-nav { flex-direction: row; overflow-x: auto; padding-bottom: 10px; position: static; }
+  .tl-btn { min-width: 150px; border-left: none; border-bottom: 4px solid var(--muted); }
+  .tl-btn.active { transform: translateY(-4px); border-bottom-color: var(--emerald); border-left-color: transparent; }
+  .timeline-content { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-linux.html" class="nav-link">← Back to Linux BIOS</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Linux BIOS Timeline</h1>
+    <p class="page-subtitle">Click through the stages to trace the path from the BIOS ROM through GRUB to the Linux systemd initialization.</p>
+  </header>
+
+  <div class="timeline-layout">
+    
+    <!-- LEFT NAVIGATION -->
+    <div class="timeline-nav" id="timelineNav">
+      <button class="tl-btn active" data-stage="0"><span class="tl-num">STAGE 0</span><span class="tl-name">BIOS & POST</span></button>
+      <button class="tl-btn" data-stage="1"><span class="tl-num">STAGE 1</span><span class="tl-name">Boot Order & MBR</span></button>
+      <button class="tl-btn" data-stage="2"><span class="tl-num">STAGE 2</span><span class="tl-name">VBR Loading</span></button>
+      <button class="tl-btn" data-stage="3"><span class="tl-num">STAGE 3</span><span class="tl-name">GRUB Legacy</span></button>
+      <button class="tl-btn" data-stage="4"><span class="tl-num">STAGE 4</span><span class="tl-name">Modern GRUB2</span></button>
+      <button class="tl-btn" data-stage="5"><span class="tl-num">STAGE 5</span><span class="tl-name">Kernel & Initrd</span></button>
+      <button class="tl-btn" data-stage="6"><span class="tl-num">STAGE 6</span><span class="tl-name">Protected Mode</span></button>
+      <button class="tl-btn" data-stage="7"><span class="tl-num">STAGE 7</span><span class="tl-name">Kernel Init & systemd</span></button>
+    </div>
+
+    <!-- RIGHT CONTENT PANEL -->
+    <div class="timeline-content" id="timelineContent">
+      <!-- Content injected via JS -->
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+/* ================= STAGE DATA ================= */
+const stages = [
+  {
+    stage: "Stage 0",
+    title: "Power-On & BIOS Initialization",
+    what: "System powers on and BIOS takes control.",
+    actual: [
+      "CPU starts executing from BIOS ROM at 0xFFFF0 (16-bit real mode).",
+      "POST runs: CPU, memory, chipset verification, video init.",
+      "BIOS extension ROMs (SCSI, RAID, network) initialized.",
+      "Interrupt Vector Table (IVT) set up at 0x0000.",
+      "Services established: INT 10h (Video), INT 13h (Disk), INT 15h (Memory)."
+    ],
+    code: "Memory Test: 16384MB detected\nINT 13h available for disk services\nIVT at 0x0000-0x03FF",
+    passed: "Hardware map and interrupt vector table."
+  },
+  {
+    stage: "Stage 1",
+    title: "Boot Device Selection & MBR Loading",
+    what: "BIOS searches for bootable devices.",
+    actual: [
+      "Reads boot order from CMOS (e.g., HDD, CD-ROM, USB).",
+      "Attempts to read the first sector (512 bytes) from each device.",
+      "Checks for boot signature 0x55AA at bytes 510-511.",
+      "Loads valid MBR into memory at 0x7C00.",
+      "MBR code scans the 4-entry partition table for the active partition (boot flag 0x80)."
+    ],
+    code: "MBR Load Address: 0x7C00\nSignature Check: 0x55AA\nActive Partition: Entry 1 marked 0x80",
+    passed: "Active partition information."
+  },
+  {
+    stage: "Stage 2",
+    title: "Volume Boot Record (VBR) Loading",
+    what: "MBR loads and executes partition boot sector.",
+    actual: [
+      "MBR uses INT 13h (AH=02h) to read the first sector of the active partition.",
+      "Loads Volume Boot Record (VBR) to 0x7C00 (overwrites the MBR).",
+      "VBR contains OS-specific bootstrap code (e.g., GRUB stage 1)."
+    ],
+    code: "Using INT 13h, AH=02h\nCHS addressing or LBA\nControl transferred to partition bootloader",
+    passed: "VBR in memory, control to partition bootloader."
+  },
+  {
+    stage: "Stage 3",
+    title: "Linux BIOS Boot (GRUB Legacy)",
+    what: "Legacy GRUB stages load from disk.",
+    actual: [
+      "VBR contains GRUB Stage 1 (446 bytes).",
+      "Stage 1 loads Stage 1.5 from disk sectors immediately following the MBR.",
+      "Stage 1.5 contains filesystem drivers (ext2, ext3, fat).",
+      "Stage 1.5 loads Stage 2 from /boot/grub/.",
+      "Stage 2 reads menu.lst or grub.conf and displays the boot menu."
+    ],
+    code: "Stage 1: 446 bytes in MBR/VBR\nStage 1.5: e2fs_stage1_5 or fat_stage1_5\nStage 2 Config: /boot/grub/grub.conf",
+    passed: "User selects the kernel and initrd."
+  },
+  {
+    stage: "Stage 4",
+    title: "Linux BIOS Boot (Modern GRUB2)",
+    what: "GRUB2 uses a single core image approach.",
+    actual: [
+      "MBR contains GRUB2 boot.img (first sector).",
+      "boot.img loads core.img from sectors 1-63 (post-MBR gap).",
+      "core.img contains built-in filesystem drivers (no separate 1.5 needed).",
+      "core.img loads /boot/grub/grub.cfg.",
+      "Loads additional modules from /boot/grub/i386-pc/."
+    ],
+    code: "boot.img: 512 bytes in MBR\ncore.img: 25-30KB in post-MBR gap\nConfig: /boot/grub/grub.cfg",
+    passed: "GRUB2 operational with filesystem access."
+  },
+  {
+    stage: "Stage 5",
+    title: "Linux Kernel and Initrd Loading",
+    what: "GRUB loads the Linux kernel and initrd.",
+    actual: [
+      "Loads vmlinuz kernel image using INT 13h.",
+      "Loads initrd.img (initial RAM disk).",
+      "Sets up the kernel command line.",
+      "Prepares for protected mode transition."
+    ],
+    code: "Kernel: vmlinuz-5.15.0-91-generic\nInitrd: initrd.img-5.15.0-91-generic\nParameters: root=/dev/sda2 ro quiet",
+    passed: "Kernel and initrd in memory."
+  },
+  {
+    stage: "Stage 6",
+    title: "Protected Mode Handoff",
+    what: "GRUB hands control to the Linux kernel.",
+    actual: [
+      "GRUB switches CPU to 32-bit protected mode.",
+      "BIOS interrupts (INT 10h, 13h) are disabled permanently.",
+      "Jumps to kernel entry point (startup_32()).",
+      "Passes boot parameters and memory map."
+    ],
+    code: "CPU Mode: 32-bit protected mode\nKernel Entry: startup_32()\nBIOS SERVICES NO LONGER AVAILABLE",
+    passed: "Full control to the Linux kernel."
+  },
+  {
+    stage: "Stage 7",
+    title: "Linux Kernel Initialization and init",
+    what: "Kernel boots and starts the init system.",
+    actual: [
+      "Kernel decompresses and initializes.",
+      "Mounts root filesystem from initrd.",
+      "Starts init process (PID 1).",
+      "Modern systems use systemd (/usr/lib/systemd/systemd).",
+      "Init starts all system services (networking, logging, getty)."
+    ],
+    code: "Init System: systemd\nRoot FS: Ext4 on /dev/sda2 mounted\nServices: 150+ starting",
+    passed: "Running Linux system with user login."
+  }
+];
+
+/* ================= RENDER LOGIC ================= */
+const btns = document.querySelectorAll('.tl-btn');
+const content = document.getElementById('timelineContent');
+
+function renderStage(index) {
+  const data = stages[index];
+  
+  let actualHtml = '';
+  if (Array.isArray(data.actual)) {
+    actualHtml = `<ul class="tc-list">${data.actual.map(item => `<li>${item}</li>`).join('')}</ul>`;
+  } else {
+    actualHtml = `<p class="tc-text">${data.actual}</p>`;
+  }
+
+  let codeHtml = '';
+  if (data.code) {
+    codeHtml = `<div class="tc-section"><span class="tc-label">Example Data</span><div class="tc-code">${data.code.replace(/\n/g, '<br>')}</div></div>`;
+  }
+
+  const isLast = index === stages.length - 1;
+  const nextBtnHtml = `<button class="btn-next-stage" onclick="nextStage(${index})" ${isLast ? 'disabled' : ''}>Next Stage ➔</button>`;
+
+  content.innerHTML = `
+    <div class="fade-in">
+      <div class="tc-header">
+        <div class="tc-stage">${data.stage}</div>
+        <div class="tc-title">${data.title}</div>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Happens</span>
+        <p class="tc-text">${data.what}</p>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Actually Occurs</span>
+        ${actualHtml}
+      </div>
+      ${codeHtml}
+      <div class="tc-section" style="background:rgba(46,230,168,.05); padding:16px; border-radius:8px; border-left:3px solid var(--emerald);">
+        <span class="tc-label" style="color:var(--emerald);">Information Passed to Next Step</span>
+        <p class="tc-text" style="color:#fff; font-weight:600;">${data.passed}</p>
+      </div>
+      ${nextBtnHtml}
+    </div>
+  `;
+}
+
+/* ================= EVENT LISTENERS ================= */
+btns.forEach((btn, index) => {
+  btn.addEventListener('click', () => {
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderStage(index);
+  });
+});
+
+function nextStage(currentIndex) {
+  const nextIndex = currentIndex + 1;
+  if (nextIndex < stages.length) {
+    btns[nextIndex].click();
+    if (window.innerWidth <= 900) {
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+    }
+  }
+}
+
+// Initialize first stage
+renderStage(0);
+</script>
+
+</body>
+</html>
