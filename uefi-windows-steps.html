@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · UEFI Windows · Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1200px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= INTERACTIVE TIMELINE ================= */
+.timeline-layout{display:grid;grid-template-columns:300px 1fr;gap:32px;align-items:start;}
+
+/* Left Sidebar (Stages) */
+.timeline-nav{display:flex;flex-direction:column;gap:8px;position:sticky;top:100px;}
+.tl-btn{background:rgba(255,255,255,.02);border:1px solid var(--stroke);border-left:4px solid var(--muted);border-radius:8px;padding:14px 16px;text-align:left;cursor:pointer;transition:.3s;display:flex;flex-direction:column;gap:4px;}
+.tl-btn:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);border-left-color:var(--blue);}
+.tl-btn.active{background:rgba(91,141,255,.1);border-color:var(--blue);border-left-color:var(--blue);transform:translateX(4px);box-shadow:0 4px 20px -5px rgba(91,141,255,.3);}
+.tl-num{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.1em;}
+.tl-btn.active .tl-num{color:var(--blue);}
+.tl-name{font-size:14px;font-weight:700;color:var(--ink-2);}
+.tl-btn.active .tl-name{color:#fff;}
+
+/* Right Panel (Content) */
+.timeline-content{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;min-height:500px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);position:relative;overflow:hidden;}
+.tc-header{margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed rgba(255,255,255,.15);}
+.tc-stage{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.tc-title{font-size:24px;font-weight:900;color:#fff;line-height:1.2;}
+
+.tc-section{margin-bottom:20px;}
+.tc-label{font-family:var(--mono);font-size:11px;font-weight:900;color:var(--violet);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:block;}
+.tc-text{font-size:15px;color:var(--ink-2);line-height:1.6;}
+.tc-list{list-style:none;padding-left:0;margin-top:8px;}
+.tc-list li{font-size:14px;color:var(--ink-2);margin-bottom:6px;padding-left:20px;position:relative;}
+.tc-list li::before{content:'▹';position:absolute;left:0;color:var(--emerald);}
+.tc-code{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;font-family:var(--mono);font-size:13px;color:#88ffd8;margin-top:8px;}
+
+/* Next Button */
+.btn-next-stage{margin-top:30px;padding:12px 24px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:8px;}
+.btn-next-stage:hover{background:#8fb4ff;transform:translateY(-2px);}
+.btn-next-stage:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.3s ease; }
+
+@media (max-width: 900px) {
+  .timeline-layout { grid-template-columns: 1fr; }
+  .timeline-nav { flex-direction: row; overflow-x: auto; padding-bottom: 10px; position: static; }
+  .tl-btn { min-width: 150px; border-left: none; border-bottom: 4px solid var(--muted); }
+  .tl-btn.active { transform: translateY(-4px); border-bottom-color: var(--blue); border-left-color: transparent; }
+  .timeline-content { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-windows.html" class="nav-link">← Back to UEFI Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The UEFI Boot Timeline</h1>
+    <p class="page-subtitle">Click through the stages to see exactly what the hardware and Windows OS are doing at each phase.</p>
+  </header>
+
+  <div class="timeline-layout">
+    
+    <!-- LEFT NAVIGATION -->
+    <div class="timeline-nav" id="timelineNav">
+      <button class="tl-btn active" data-stage="0"><span class="tl-num">STAGE 0</span><span class="tl-name">Power On</span></button>
+      <button class="tl-btn" data-stage="1"><span class="tl-num">STAGE 1</span><span class="tl-name">CPU & SEC Phase</span></button>
+      <button class="tl-btn" data-stage="2"><span class="tl-num">STAGE 2</span><span class="tl-name">PEI Phase</span></button>
+      <button class="tl-btn" data-stage="3"><span class="tl-num">STAGE 3</span><span class="tl-name">DXE Phase</span></button>
+      <button class="tl-btn" data-stage="4"><span class="tl-num">STAGE 4</span><span class="tl-name">BDS Phase</span></button>
+      <button class="tl-btn" data-stage="5"><span class="tl-num">STAGE 5</span><span class="tl-name">Boot Loader</span></button>
+      <button class="tl-btn" data-stage="6"><span class="tl-num">STAGE 6</span><span class="tl-name">Windows BOOTMGR</span></button>
+      <button class="tl-btn" data-stage="7"><span class="tl-num">STAGE 7</span><span class="tl-name">Windows Kernel</span></button>
+      <button class="tl-btn" data-stage="8"><span class="tl-num">STAGE 8</span><span class="tl-name">Windows Startup</span></button>
+    </div>
+
+    <!-- RIGHT CONTENT PANEL -->
+    <div class="timeline-content" id="timelineContent">
+      <!-- Content injected via JS -->
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+/* ================= STAGE DATA ================= */
+const stages = [
+  {
+    stage: "Stage 0",
+    title: "The Beginning - Power On",
+    what: "You press the power button.",
+    actual: [
+      "Electricity flows to motherboard components.",
+      "CPU receives power but is 'frozen' (no instructions yet).",
+      "RAM is empty and uninitialized.",
+      "All storage devices are powered but inactive."
+    ],
+    code: null,
+    passed: "Hardware is physically ready."
+  },
+  {
+    stage: "Stage 1",
+    title: "CPU Wake-Up & SEC Phase",
+    what: "CPU starts executing from hardwired location.",
+    actual: [
+      "CPU begins at memory address 0xFFFFFF0 (hardwired).",
+      "Executes first instruction from CPU microcode.",
+      "Jumps to UEFI firmware in flash memory.",
+      "SEC Phase sets up temporary RAM (Cache-as-RAM).",
+      "Verifies PEI phase integrity using SHA256."
+    ],
+    code: "CPU starts at JMP 0x00000000\nTemp stack at 0x80000000\nPEI Foundation at 0x00010000",
+    passed: "Control transferred to UEFI SEC phase + Secure environment."
+  },
+  {
+    stage: "Stage 2",
+    title: "PEI (Pre-EFI Initialization)",
+    what: "The Construction Crew.",
+    actual: [
+      "PEI core initializes basic CPU features.",
+      "Sets up memory controller (but not main memory yet).",
+      "Memory Discovery: Program memory controller, test RAM, create memory map.",
+      "Handoff to DXE: Locates DXE IPL and passes Hand-Off Blocks (HOBs)."
+    ],
+    code: "Detected 16GB DDR4 RAM\nHOB list at 0x70000000\nDXE IPL entry point: 0x00020000",
+    passed: "Full memory map + ready-to-use RAM + HOB list."
+  },
+  {
+    stage: "Stage 3",
+    title: "DXE (Driver Execution Environment)",
+    what: "The Driver Loading.",
+    actual: [
+      "DXE Foundation sets up Boot Services and Runtime Services.",
+      "Hardware Driver Dispatch: PCIe enumeration, storage, graphics, USB, network.",
+      "Boot Device Selection Prep: Creates bootable device list, initializes console."
+    ],
+    code: "Boot Services Table at 0x70001000\nNVMe Controller at 0000:03:00.0\nBoot devices: [NVMe0, USB1]",
+    passed: "Functional hardware devices + Ready boot environment."
+  },
+  {
+    stage: "Stage 4",
+    title: "BDS (Boot Device Selection)",
+    what: "The Crossroads.",
+    actual: [
+      "Loads Boot Manager, reads Boot Configuration, displays boot menu.",
+      "Access selected boot device.",
+      "Loads disk drivers, reads GPT partition table, locates EFI System Partition (ESP)."
+    ],
+    code: "ESP at Partition 1\nGUID: {C12A7328...}\nESP mounted at fs0:",
+    passed: "Selected boot option + Access to boot loader files."
+  },
+  {
+    stage: "Stage 5",
+    title: "Boot Loader Execution",
+    what: "The Key Finder.",
+    actual: [
+      "Navigate to \\EFI\\Microsoft\\Boot\\ on ESP.",
+      "Find bootmgfw.efi file.",
+      "Verify file integrity (SHA256 hash).",
+      "UEFI loads bootmgfw.efi into memory and transfers control."
+    ],
+    code: "Full path: fs0:\\EFI\\Microsoft\\Boot\\bootmgfw.efi\nFile size: 1.2MB\nLoaded at 0x80000000",
+    passed: "Valid boot loader file + Running Windows Boot Manager."
+  },
+  {
+    stage: "Stage 6",
+    title: "Windows Boot Manager",
+    what: "The Conductor.",
+    actual: [
+      "Opens \\EFI\\Microsoft\\Boot\\BCD.",
+      "Parses boot entries and determines which OS to load.",
+      "Locates OS partition, finds \\Windows\\System32\\winload.efi.",
+      "Loads winload.efi into memory."
+    ],
+    code: "OS entries: 'Windows 11', 'Windows Recovery'\nTarget: Partition 2\nLoad address: 0x90000000",
+    passed: "Target OS location + Windows kernel loader ready."
+  },
+  {
+    stage: "Stage 7",
+    title: "Windows Kernel Loading",
+    what: "The Takeover.",
+    actual: [
+      "winload.efi loads ntoskrnl.exe (Kernel) and hal.dll (HAL).",
+      "Loads system drivers and reads registry hives.",
+      "Exit Boot Services: Windows calls ExitBootServices().",
+      "UEFI releases control of memory and resources. Windows owns all hardware."
+    ],
+    code: "Kernel: ntoskrnl.exe loaded at 0x1000000\nHAL: hal.dll loaded at 0x2000000\nBoot Services terminated",
+    passed: "Full Windows kernel environment + Full system control."
+  },
+  {
+    stage: "Stage 8",
+    title: "Windows Startup",
+    what: "The Final Stretch.",
+    actual: [
+      "Kernel initializes memory manager and process manager.",
+      "Launches Session Manager (smss.exe).",
+      "Launches Windows Logon Manager (winlogon.exe).",
+      "Starts services and displays login screen."
+    ],
+    code: "Kernel initialized at 0x1000000\nSession 0 established\nServices: 200+ services started",
+    passed: "Fully operational Windows."
+  }
+];
+
+/* ================= RENDER LOGIC ================= */
+const btns = document.querySelectorAll('.tl-btn');
+const content = document.getElementById('timelineContent');
+
+function renderStage(index) {
+  const data = stages[index];
+  
+  let actualHtml = '';
+  if (Array.isArray(data.actual)) {
+    actualHtml = `<ul class="tc-list">${data.actual.map(item => `<li>${item}</li>`).join('')}</ul>`;
+  } else {
+    actualHtml = `<p class="tc-text">${data.actual}</p>`;
+  }
+
+  let codeHtml = '';
+  if (data.code) {
+    codeHtml = `<div class="tc-section"><span class="tc-label">Example Data</span><div class="tc-code">${data.code.replace(/\n/g, '<br>')}</div></div>`;
+  }
+
+  const isLast = index === stages.length - 1;
+  const nextBtnHtml = `<button class="btn-next-stage" onclick="nextStage(${index})" ${isLast ? 'disabled' : ''}>Next Stage ➔</button>`;
+
+  content.innerHTML = `
+    <div class="fade-in">
+      <div class="tc-header">
+        <div class="tc-stage">${data.stage}</div>
+        <div class="tc-title">${data.title}</div>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Happens</span>
+        <p class="tc-text">${data.what}</p>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Actually Occurs</span>
+        ${actualHtml}
+      </div>
+      ${codeHtml}
+      <div class="tc-section" style="background:rgba(46,230,168,.05); padding:16px; border-radius:8px; border-left:3px solid var(--emerald);">
+        <span class="tc-label" style="color:var(--emerald);">Information Passed to Next Step</span>
+        <p class="tc-text" style="color:#fff; font-weight:600;">${data.passed}</p>
+      </div>
+      ${nextBtnHtml}
+    </div>
+  `;
+}
+
+/* ================= EVENT LISTENERS ================= */
+btns.forEach((btn, index) => {
+  btn.addEventListener('click', () => {
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderStage(index);
+  });
+});
+
+function nextStage(currentIndex) {
+  const nextIndex = currentIndex + 1;
+  if (nextIndex < stages.length) {
+    btns[nextIndex].click();
+    if (window.innerWidth <= 900) {
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+    }
+  }
+}
+
+// Initialize first stage
+renderStage(0);
+</script>
+
+</body>
+</html>
