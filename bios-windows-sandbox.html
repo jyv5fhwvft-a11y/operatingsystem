@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · BIOS Windows · Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= HEX EDITOR UI ================= */
+.sandbox-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:30px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hex-editor{background:#000;border:1px solid var(--stroke-2);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13px;color:var(--muted);line-height:1.8;overflow-x:auto;margin-bottom:24px;}
+.hex-row{display:flex;gap:20px;white-space:nowrap;}
+.hex-addr{color:var(--blue);font-weight:800;width:80px;display:inline-block;}
+.hex-bytes{display:flex;gap:8px;}
+.hex-byte{transition:all 0.3s;}
+.hex-byte.highlight-sig{color:var(--crimson);font-weight:900;background:rgba(255,77,109,.2);padding:0 4px;border-radius:3px;}
+.hex-byte.highlight-boot{color:var(--emerald);font-weight:900;background:rgba(46,230,168,.2);padding:0 4px;border-radius:3px;}
+
+/* Controls */
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.btn{padding:16px;border:none;border-radius:12px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.3s;text-align:center;}
+.btn:hover{transform:translateY(-3px);}
+.btn-normal{background:var(--emerald);color:#000;box-shadow:0 8px 20px -8px rgba(46,230,168,.8);}
+.btn-corrupt-bios{background:var(--crimson);color:#fff;box-shadow:0 8px 20px -8px rgba(255,77,109,.8);}
+.btn-corrupt-win{background:var(--violet);color:#fff;box-shadow:0 8px 20px -8px rgba(160,107,255,.8);}
+
+/* ================= TERMINAL OUTPUT ================= */
+.terminal{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:24px;font-family:var(--mono);font-size:14px;min-height:160px;display:flex;flex-direction:column;justify-content:center;}
+.term-line{display:block;margin-bottom:8px;line-height:1.5;}
+.t-error{color:var(--crimson);font-weight:800;font-size:16px;}
+.t-success{color:var(--emerald);font-weight:800;font-size:16px;}
+.t-info{color:var(--blue);}
+.t-dim{color:var(--muted);font-size:12px;}
+
+/* Animations */
+.shake{animation:shake 0.4s;}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+@media (max-width: 750px) {
+  .controls { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-windows.html" class="nav-link">← Back to BIOS Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The MBR Hex Editor</h1>
+    <p class="page-subtitle">You have direct access to the 512-byte Master Boot Record. Corrupt specific bytes and watch how the system fails to boot.</p>
+  </header>
+
+  <div class="sandbox-box">
+    
+    <div class="hex-editor" id="hexEditor">
+      <div class="hex-row"><span class="hex-addr">0x01B0:</span> <div class="hex-bytes"><span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span></div></div>
+      <div class="hex-row" style="margin-top:4px;">
+        <span class="hex-addr">0x01B8:</span> 
+        <div class="hex-bytes">
+          <!-- Disk Signature -->
+          <span class="hex-byte highlight-sig" id="diskSig1">12</span>
+          <span class="hex-byte highlight-sig" id="diskSig2">34</span>
+          <span class="hex-byte highlight-sig" id="diskSig3">56</span>
+          <span class="hex-byte highlight-sig" id="diskSig4">78</span>
+          <!-- Reserved -->
+          <span class="hex-byte">00</span> <span class="hex-byte">00</span>
+        </div>
+        <span style="color:var(--muted);font-size:11px;margin-left:10px;">&lt;- Disk Signature (Offset 0x01B8)</span>
+      </div>
+      <div class="hex-row" style="margin-top:10px;"><span class="hex-addr">0x01C0:</span> <div class="hex-bytes"><span class="hex-byte">80</span> <span class="hex-byte">01</span> <span class="hex-byte">01</span> <span class="hex-byte">00</span> <span class="hex-byte">07</span> <span class="hex-byte">FE</span> <span class="hex-byte">FF</span> <span class="hex-byte">FF</span></div></div>
+      <div class="hex-row" style="margin-top:4px;"><span class="hex-addr">0x01C8:</span> <div class="hex-bytes"><span class="hex-byte">00</span> <span class="hex-byte">08</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span></div></div>
+      <div class="hex-row" style="margin-top:10px;"><span class="hex-addr">0x01F0:</span> <div class="hex-bytes"><span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span> <span class="hex-byte">00</span></div></div>
+      <div class="hex-row" style="margin-top:4px;">
+        <span class="hex-addr">0x01FE:</span> 
+        <div class="hex-bytes">
+          <!-- Boot Signature -->
+          <span class="hex-byte highlight-boot" id="bootSig1">55</span>
+          <span class="hex-byte highlight-boot" id="bootSig2">AA</span>
+        </div>
+        <span style="color:var(--muted);font-size:11px;margin-left:10px;">&lt;- Boot Signature</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-normal" onclick="runBoot('normal')">🟢 Normal Boot</button>
+      <button class="btn btn-corrupt-bios" onclick="runBoot('bios-fail')">💥 Corrupt Boot Sig (55 AA)</button>
+      <button class="btn btn-corrupt-win" onclick="runBoot('win-fail')">💥 Change Disk Sig</button>
+    </div>
+  </div>
+
+  <!-- TERMINAL OUTPUT -->
+  <div class="terminal" id="terminal">
+    <span class="term-line t-info">System ready. Awaiting MBR modification...</span>
+  </div>
+
+</main>
+
+<script>
+/* ================= SANDBOX LOGIC ================= */
+const terminal = document.getElementById('terminal');
+const diskSigs = [document.getElementById('diskSig1'), document.getElementById('diskSig2'), document.getElementById('diskSig3'), document.getElementById('diskSig4')];
+const bootSigs = [document.getElementById('bootSig1'), document.getElementById('bootSig2')];
+
+function resetHex() {
+  // Restore Disk Signature to 12 34 56 78
+  const originalDisk = ['12', '34', '56', '78'];
+  diskSigs.forEach((el, i) => el.textContent = originalDisk[i]);
+  
+  // Restore Boot Signature to 55 AA
+  bootSigs[0].textContent = '55';
+  bootSigs[1].textContent = 'AA';
+}
+
+function runBoot(type) {
+  resetHex();
+  terminal.className = 'terminal';
+  
+  if (type === 'normal') {
+    terminal.innerHTML = `
+      <span class="term-line t-info">BIOS: Checking Boot Signature at 0x01FE... 55 AA (Valid)</span>
+      <span class="term-line t-info">BIOS: Loading MBR to 0x7C00...</span>
+      <span class="term-line t-info">BOOTMGR: Validating Disk Signature (12 34 56 78) against BCD... MATCH</span>
+      <span class="term-line t-success">Windows 10 Login Screen Loaded Successfully.</span>
+    `;
+  } 
+  
+  else if (type === 'bios-fail') {
+    // Corrupt Boot Signature
+    bootSigs[0].textContent = '00';
+    bootSigs[1].textContent = '00';
+    
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    terminal.innerHTML = `
+      <span class="term-line t-info">BIOS: Reading first sector...</span>
+      <span class="term-line t-error">BIOS: ERROR - Boot Signature 55 AA missing!</span>
+      <span class="term-line t-dim">System halts. The BIOS does not recognize this disk as bootable.</span>
+      <span class="term-line t-error">"No bootable device found. Press any key to reboot."</span>
+    `;
+  } 
+  
+  else if (type === 'win-fail') {
+    // Change Disk Signature to FF FF FF FF
+    diskSigs.forEach(el => el.textContent = 'FF');
+    
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    terminal.innerHTML = `
+      <span class="term-line t-info">BIOS: Boot Signature valid (55 AA). Loading MBR...</span>
+      <span class="term-line t-info">BOOTMGR: Reading Disk Signature... Found: FF FF FF FF</span>
+      <span class="term-line t-info">BOOTMGR: Looking up BCD for expected Disk Signature...</span>
+      <span class="term-line t-error">BOOTMGR: ERROR - Signature Mismatch (Expected 12 34 56 78)</span>
+      <span class="term-line t-error">"BOOTMGR is missing. Press Ctrl+Alt+Del to restart."</span>
+    `;
+  }
+}
+</script>
+
+</body>
+</html>
