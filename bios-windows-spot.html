@@ -43,7 +43,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .error-desc{color:var(--muted);font-size:14px;line-height:1.6;}
 
 /* Hex Dump */
-.hex-dump{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto;margin-bottom:24px;color:var(--muted);}
+.hex-dump{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto;margin-bottom:24px;color:var(--muted); -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
 .hex-line{white-space:nowrap;}
 .hex-addr{color:var(--blue);margin-right:16px;}
 .hex-part{padding:4px 6px;border-radius:4px;cursor:pointer;transition:.2s;border:1px solid transparent;-webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;}
@@ -233,6 +233,14 @@ function nextScenario() {
 // Initialize
 loadScenario();
 </script>
-
+<script>
+  // Block the iOS context menu globally on the hex dump
+  document.addEventListener('DOMContentLoaded', () => {
+    const hexDump = document.getElementById('hexDump');
+    if(hexDump) {
+      hexDump.addEventListener('contextmenu', e => e.preventDefault());
+    }
+  });
+</script>
 </body>
 </html>
