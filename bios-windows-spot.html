@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · BIOS Windows · Boot Failure Hunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,77,109,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--crimson);box-shadow:0 0 12px var(--crimson);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ff9fb1;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#ff9fb1 60%,#ff4d6d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= GAME UI ================= */
+.game-board{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.score-board{display:flex;justify-content:space-between;font-family:var(--mono);font-size:14px;font-weight:800;color:#fff;margin-bottom:24px;background:rgba(0,0,0,.3);padding:12px 20px;border-radius:10px;border:1px dashed var(--stroke-2);}
+
+/* Error Screen */
+.error-screen{background:#000;border:2px solid var(--crimson);border-radius:12px;padding:30px;text-align:center;margin-bottom:24px;font-family:var(--mono);box-shadow:inset 0 0 20px rgba(255,77,109,.2);}
+.error-title{color:var(--crimson);font-size:20px;font-weight:900;margin-bottom:12px;letter-spacing:.05em;}
+.error-desc{color:var(--muted);font-size:14px;line-height:1.6;}
+
+/* Hex Dump */
+.hex-dump{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto;margin-bottom:24px;color:var(--muted);}
+.hex-line{white-space:nowrap;}
+.hex-addr{color:var(--blue);margin-right:16px;}
+.hex-part{padding:4px 6px;border-radius:4px;cursor:pointer;transition:.2s;border:1px solid transparent;}
+.hex-part:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:#fff;}
+.hex-part.fixed{background:rgba(46,230,168,.2);border-color:var(--emerald);color:var(--emerald);pointer-events:none;font-weight:900;}
+.hex-part.shake{animation:shake 0.4s;background:rgba(255,77,109,.2);border-color:var(--crimson);color:var(--crimson);}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+/* Feedback & Next */
+.feedback{text-align:center;font-size:15px;font-weight:800;color:var(--ink-2);min-height:24px;margin-bottom:20px;transition:.3s;}
+.feedback.success{color:var(--emerald);}
+.feedback.error{color:var(--crimson);}
+
+.btn-next{display:none;width:100%;padding:16px;background:var(--amber);color:#000;border:none;border-radius:12px;font-size:16px;font-weight:900;cursor:pointer;transition:.2s;}
+.btn-next.show{display:block;}
+.btn-next:hover{background:#ffc978;transform:translateY(-2px);}
+
+/* Win Screen */
+.win-screen{display:none;text-align:center;padding:30px;background:rgba(46,230,168,.1);border:1px solid var(--emerald);border-radius:16px;margin-top:20px;}
+.win-screen h2{color:var(--emerald);font-size:24px;margin-bottom:12px;font-weight:900;}
+.win-screen p{color:var(--ink-2);font-size:15px;margin-bottom:20px;}
+.btn-reset{padding:12px 24px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-windows.html" class="nav-link">← Back to BIOS Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Boot Failure Hunt</h1>
+    <p class="page-subtitle">The computer failed to boot. Read the error message and inspect the hex dump. Tap the corrupted bytes to fix the boot process.</p>
+  </header>
+
+  <div class="game-board">
+    <div class="score-board">
+      <span>Scenario: <span id="scenNum">1</span> / 3</span>
+      <span id="statusText">Status: Diagnosing...</span>
+    </div>
+
+    <!-- ERROR SCREEN -->
+    <div class="error-screen" id="errorScreen">
+      <div class="error-title" id="errorTitle">No bootable device found.</div>
+      <div class="error-desc" id="errorDesc">The BIOS could not find a valid bootable signature on the disk.</div>
+    </div>
+
+    <!-- HEX DUMP -->
+    <div class="hex-dump" id="hexDump">
+      <!-- Injected via JS -->
+    </div>
+
+    <div class="feedback" id="feedbackText">Tap the corrupted bytes in the hex dump to repair the MBR.</div>
+
+    <button class="btn-next" id="nextBtn" onclick="nextScenario()">Next Scenario ➔</button>
+
+    <!-- WIN SCREEN -->
+    <div class="win-screen" id="winScreen">
+      <h2>🛠️ System Mechanic!</h2>
+      <p>You successfully diagnosed and repaired all three boot failures. You understand the difference between BIOS errors and Windows BOOTMGR errors!</p>
+      <button class="btn-reset" onclick="location.reload()">Play Again</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ================= SCENARIOS ================= */
+const scenarios = [
+  {
+    title: "No bootable device found.",
+    desc: "The BIOS could not find a valid bootable signature on the disk.",
+    target: "boot-sig",
+    hex: `
+      <div class="hex-line"><span class="hex-addr">0x01B0:</span> 00 00 00 00 00 00 00 00 12 34 56 78 00 00 00 00</div>
+      <div class="hex-line"><span class="hex-addr">0x01F0:</span> 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <span class="hex-part" id="boot-sig" onclick="checkFix('boot-sig')">00 00</span></div>
+    `,
+    fix: `<span class="hex-part fixed" id="boot-sig">55 AA</span>`
+  },
+  {
+    title: "BOOTMGR is missing. Press Ctrl+Alt+Del to restart.",
+    desc: "The BIOS handed off control, but the Windows Boot Manager rejected the disk.",
+    target: "disk-sig",
+    hex: `
+      <div class="hex-line"><span class="hex-addr">0x01B0:</span> 00 00 00 00 00 00 00 00 <span class="hex-part" id="disk-sig" onclick="checkFix('disk-sig')">FF FF FF FF</span> 00 00 00 00</div>
+      <div class="hex-line"><span class="hex-addr">0x01F0:</span> 00 00 00 00 00 00 00 00 00 00 00 00 00 00 55 AA</div>
+    `,
+    fix: `<span class="hex-part fixed" id="disk-sig">12 34 56 78</span>`
+  },
+  {
+    title: "Operating System not found.",
+    desc: "The MBR loaded, but could not find an Active (bootable) partition to load the VBR.",
+    target: "part-flag",
+    hex: `
+      <div class="hex-line"><span class="hex-addr">0x01B0:</span> 00 00 00 00 00 00 00 00 12 34 56 78 00 00 00 00</div>
+      <div class="hex-line"><span class="hex-addr">0x01C0:</span> <span class="hex-part" id="part-flag" onclick="checkFix('part-flag')">00</span> 01 01 00 07 FE FF FF 00 08 00 00 00 00 00 00</div>
+      <div class="hex-line"><span class="hex-addr">0x01F0:</span> 00 00 00 00 00 00 00 00 00 00 00 00 00 00 55 AA</div>
+    `,
+    fix: `<span class="hex-part fixed" id="part-flag">80</span>`
+  }
+];
+
+let currentScen = 0;
+let isFixed = false;
+
+const errorTitle = document.getElementById('errorTitle');
+const errorDesc = document.getElementById('errorDesc');
+const hexDump = document.getElementById('hexDump');
+const feedbackText = document.getElementById('feedbackText');
+const nextBtn = document.getElementById('nextBtn');
+const scenNum = document.getElementById('scenNum');
+const statusText = document.getElementById('statusText');
+
+function loadScenario() {
+  isFixed = false;
+  const s = scenarios[currentScen];
+  
+  scenNum.textContent = currentScen + 1;
+  statusText.textContent = "Status: Diagnosing...";
+  errorTitle.textContent = s.title;
+  errorDesc.textContent = s.desc;
+  hexDump.innerHTML = s.hex;
+  
+  feedbackText.className = 'feedback';
+  feedbackText.textContent = "Tap the corrupted bytes in the hex dump to repair the MBR.";
+  nextBtn.className = 'btn-next';
+}
+
+function checkFix(id) {
+  if (isFixed) return;
+  
+  const s = scenarios[currentScen];
+  
+  if (id === s.target) {
+    // Success
+    isFixed = true;
+    const el = document.getElementById(id);
+    el.outerHTML = s.fix;
+    
+    // Update UI
+    statusText.textContent = "Status: FIXED";
+    errorTitle.style.color = "var(--emerald)";
+    errorTitle.textContent = "System Restored";
+    errorDesc.textContent = "The corrupted bytes have been repaired. Booting...";
+    hexDump.style.borderColor = "var(--emerald)";
+    
+    feedbackText.className = 'feedback success';
+    feedbackText.textContent = "✅ Correct! You found the exact byte causing the failure.";
+    
+    if (currentScen < scenarios.length - 1) {
+      nextBtn.className = 'btn-next show';
+    } else {
+      setTimeout(() => {
+        document.querySelector('.game-board').style.display = 'none';
+        document.getElementById('winScreen').style.display = 'block';
+      }, 2000);
+    }
+  } else {
+    // Wrong
+    const el = document.getElementById(id);
+    el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 500);
+    
+    feedbackText.className = 'feedback error';
+    feedbackText.textContent = "❌ That part of the MBR looks fine. Read the error message again carefully.";
+  }
+}
+
+function nextScenario() {
+  currentScen++;
+  if (currentScen < scenarios.length) {
+    // Reset styles
+    errorTitle.style.color = "var(--crimson)";
+    hexDump.style.borderColor = "var(--stroke-2)";
+    loadScenario();
+  }
+}
+
+// Initialize
+loadScenario();
+</script>
+
+</body>
+</html>
