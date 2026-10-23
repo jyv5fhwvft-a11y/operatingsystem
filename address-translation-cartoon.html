@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · The Post Office Cartoon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.12),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= CARTOON SCENE ================= */
+.scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:450px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+
+.scene{position:relative;width:100%;height:100%;display:flex;justify-content:space-between;align-items:center;padding:0 40px;}
+
+/* Background Grid for depth */
+.scene::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:40px 40px;perspective:500px;transform:rotateX(60deg);transform-origin:bottom;opacity:0.5;z-index:0;}
+
+.character{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:10px;transition:.5s;}
+.character-icon{font-size:70px;filter:drop-shadow(0 10px 15px rgba(0,0,0,.5));animation:float 3s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.character-label{font-family:var(--mono);font-size:12px;font-weight:800;background:rgba(255,255,255,.1);padding:4px 12px;border-radius:8px;border:1px solid var(--stroke-2);}
+
+/* The Moving Envelope */
+.envelope{position:absolute;font-size:40px;z-index:10;transition:all 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);filter:drop-shadow(0 0 15px rgba(255,255,255,.5));opacity:0;}
+.envelope.active{opacity:1;}
+
+/* Speech Bubbles */
+.speech-bubble{position:absolute;top:-60px;background:#fff;color:#000;font-family:var(--mono);font-size:12px;font-weight:900;padding:10px 15px;border-radius:12px;box-shadow:0 5px 15px rgba(0,0,0,.3);opacity:0;transform:scale(0.8);transition:.3s;}
+.speech-bubble::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-width:8px 8px 0;border-style:solid;border-color:#fff transparent transparent transparent;}
+.speech-bubble.active{opacity:1;transform:scale(1);}
+
+/* The Notebook */
+.notebook{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);font-size:50px;z-index:2;opacity:0.3;transition:.5s;}
+.notebook.active{opacity:1;filter:drop-shadow(0 0 20px rgba(255,182,72,.8));animation:bounce 0.5s;}
+@keyframes bounce{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.2)}}
+
+/* Data Output Box */
+.data-output{position:absolute;top:40%;right:50px;font-size:60px;opacity:0;transform:scale(0);transition:.5s;}
+.data-output.active{opacity:1;transform:scale(1);}
+
+/* ================= EXPLANATION PANEL ================= */
+.explanation{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;min-height:80px;text-align:center;}
+.exp-title{font-size:18px;font-weight:900;color:var(--blue);margin-bottom:8px;}
+.exp-text{font-size:15px;color:var(--ink-2);}
+
+/* Controls */
+.controls{display:flex;justify-content:center;margin-bottom:20px;}
+.btn{padding:14px 28px;border-radius:12px;border:none;font-family:var(--font);font-size:16px;font-weight:900;cursor:pointer;transition:.2s;background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(91,141,255,.8);}
+.btn:hover{background:#8fb4ff;transform:translateY(-2px);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Post Office Cartoon</h1>
+    <p class="page-subtitle">Watch the address translation process in action! The envelope represents the memory request.</p>
+  </header>
+
+  <div class="controls">
+    <button class="btn" id="playBtn" onclick="startAnimation()">▶ Play Animation</button>
+  </div>
+
+  <!-- THE SCENE -->
+  <div class="scene-wrapper">
+    <div class="scene">
+      
+      <!-- Character 1: CPU / Program -->
+      <div class="character" id="char-cpu">
+        <div class="speech-bubble" id="bubble-cpu">Send to Box 42!</div>
+        <div class="character-icon">👨‍💻</div>
+        <div class="character-label">CPU / Program</div>
+      </div>
+
+      <!-- Character 2: MMU / Clerk -->
+      <div class="character" id="char-mmu">
+        <div class="speech-bubble" id="bubble-mmu">Checking notebook...</div>
+        <div class="character-icon">🧑‍💼</div>
+        <div class="character-label">MMU / Mail Clerk</div>
+      </div>
+
+      <!-- Character 3: RAM / Warehouse -->
+      <div class="character" id="char-ram">
+        <div class="speech-bubble" id="bubble-ram">Shelf 5!</div>
+        <div class="character-icon">🏢</div>
+        <div class="character-label">RAM / Warehouse</div>
+      </div>
+
+      <!-- Notebook (Page Table) -->
+      <div class="notebook" id="notebook">📓</div>
+
+      <!-- The Moving Envelope -->
+      <div class="envelope" id="envelope" style="left: 100px; top: 150px;">✉️</div>
+
+      <!-- The Output (Data) -->
+      <div class="data-output" id="data-out">🎁</div>
+
+    </div>
+  </div>
+
+  <!-- EXPLANATION -->
+  <div class="explanation">
+    <div class="exp-title" id="exp-title">Ready to Play</div>
+    <div class="exp-text" id="exp-text">Click "Play Animation" to watch a memory request travel through the system.</div>
+  </div>
+
+</main>
+
+<script>
+const envelope = document.getElementById('envelope');
+const notebook = document.getElementById('notebook');
+const dataOut = document.getElementById('data-out');
+
+const bubbleCpu = document.getElementById('bubble-cpu');
+const bubbleMmu = document.getElementById('bubble-mmu');
+const bubbleRam = document.getElementById('bubble-ram');
+
+const expTitle = document.getElementById('exp-title');
+const expText = document.getElementById('exp-text');
+
+function startAnimation() {
+  // Reset everything
+  document.getElementById('playBtn').disabled = true;
+  document.getElementById('playBtn').textContent = "Playing...";
+  
+  envelope.style.opacity = '0';
+  envelope.style.left = '100px';
+  envelope.style.top = '150px';
+  
+  notebook.classList.remove('active');
+  dataOut.classList.remove('active');
+  bubbleCpu.classList.remove('active');
+  bubbleMmu.classList.remove('active');
+  bubbleRam.classList.remove('active');
+
+  // STEP 1: CPU sends request
+  setTimeout(() => {
+    bubbleCpu.classList.add('active');
+    expTitle.textContent = "1. The CPU requests an address";
+    expText.textContent = "The program needs data and asks for Logical Address 42 (Box 42).";
+    envelope.style.opacity = '1';
+  }, 500);
+
+  // STEP 2: Envelope moves to MMU
+  setTimeout(() => {
+    bubbleCpu.classList.remove('active');
+    envelope.style.left = '45%';
+    envelope.style.top = '160px';
+    envelope.style.transform = 'rotate(15deg)';
+  }, 2000);
+
+  // STEP 3: MMU checks Page Table
+  setTimeout(() => {
+    bubbleMmu.classList.add('active');
+    notebook.classList.add('active');
+    expTitle.textContent = "2. The MMU checks the Page Table";
+    expText.textContent = "The Mail Clerk looks up Box 42 in the secret notebook and finds it maps to Warehouse Shelf 5.";
+  }, 3500);
+
+  // STEP 4: Envelope moves to RAM
+  setTimeout(() => {
+    bubbleMmu.classList.remove('active');
+    notebook.classList.remove('active');
+    envelope.style.left = '80%';
+    envelope.style.top = '180px';
+    envelope.style.transform = 'rotate(0deg)';
+    bubbleRam.classList.add('active');
+    
+    expTitle.textContent = "3. Physical Address found";
+    expText.textContent = "The MMU translates the address and sends the request to Physical Frame 5 in the RAM warehouse.";
+  }, 5000);
+
+  // STEP 5: Data output
+  setTimeout(() => {
+    bubbleRam.classList.remove('active');
+    envelope.style.opacity = '0'; // envelope disappears into the warehouse
+    dataOut.classList.add('active');
+    expTitle.textContent = "4. Data Retrieved!";
+    expText.textContent = "The RAM grabs the data (42) and sends it back to the CPU. The memory request is complete.";
+  }, 6500);
+
+  // Reset button
+  setTimeout(() => {
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('playBtn').textContent = "▶ Play Again";
+  }, 8000);
+}
+</script>
+
+</body>
+</html>
