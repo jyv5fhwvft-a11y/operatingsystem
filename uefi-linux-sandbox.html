@@ -140,17 +140,17 @@ function runBoot(type) {
   } 
   
   else if (type === 'missing-grub') {
-    terminal.classList.add('shake');
-    setTimeout(() => terminal.classList.remove('shake'), 500);
-    
-    terminal.innerHTML = `
-      <span class="term-line t-info">[UEFI] Loading shim.efi... Verified.</span>
-      <span class="term-line t-info">[shim.efi] Launching grubx64.efi...</span>
-      <span class="term-line t-error">Failed to open \\EFI\\ubuntu\\grubx64.efi - Not Found</span>
-      <span class="term-line t-error">Failed to load image \EFI\ubuntu\grubx64.efi: Not Found</span>
-      <span class="term-line t-warn">Press any key to return to the UEFI Boot Menu...</span>
-    `;
-  } 
+        terminal.classList.add('shake');
+        setTimeout(() => terminal.classList.remove('shake'), 500);
+        
+        terminal.innerHTML = `
+          <span class="term-line t-info">[UEFI] Loading shim.efi... Verified.</span>
+          <span class="term-line t-info">[shim.efi] Launching grubx64.efi...</span>
+          <span class="term-line t-error">Failed to open \\EFI\\ubuntu\\grubx64.efi - Not Found</span>
+          <span class="term-line t-error">Failed to load image \\EFI\\ubuntu\\grubx64.efi: Not Found</span>
+          <span class="term-line t-warn">Press any key to return to the UEFI Boot Menu...</span>
+        `;
+      }
   
   else if (type === 'missing-kernel') {
     terminal.classList.add('shake');
