@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Boot Process · UEFI Linux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.12),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(46,230,168,.08),rgba(255,255,255,.02));border:1px solid rgba(46,230,168,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px, 1.5vw, 18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--emerald);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;color:#fff;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
+
+/* 5th Grader VIP Club Animation */
+.vip-club{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;}
+.vip-door{padding:16px;border-radius:12px;border:2px solid var(--stroke-2);background:rgba(255,255,255,.05);display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;font-weight:800;transition:.4s;}
+.vip-door.active{border-color:var(--emerald);background:rgba(46,230,168,.15);box-shadow:0 0 20px rgba(46,230,168,.3);color:#fff;}
+.vip-door.rejected{border-color:var(--crimson);background:rgba(255,77,109,.15);color:var(--crimson);}
+.vip-arrow{color:var(--muted);font-size:14px;}
+
+/* Technical Secure Boot Animation */
+.tech-secure{display:flex;flex-direction:column;gap:8px;width:100%;}
+.secure-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.05);border-radius:8px;font-family:var(--mono);font-size:11px;border-left:3px solid var(--stroke-2);transition:.3s;}
+.secure-row.active{border-left-color:var(--emerald);background:rgba(46,230,168,.15);transform:scale(1.02);color:#fff;font-weight:800;}
+.secure-row.error{border-left-color:var(--crimson);background:rgba(255,77,109,.15);color:var(--crimson);}
+.secure-name{color:#fff;}
+.secure-desc{color:var(--muted);}
+
+/* ================= MULTIMODAL HUB & FEYNMAN ================= */
+.hub-section{margin-top:60px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;color:#fff;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;}
+.feynman-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-top:30px;}
+.hub-card, .feynman-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover, .feynman-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon, .feynman-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title, .feynman-title{font-size:16px;font-weight:800;margin-bottom:8px;color:#fff;}
+.hub-card-text, .feynman-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(46,230,168,.15);color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
+
+@media (max-width: 850px) {
+  .analogy-grid, .hub-grid, .feynman-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Linux UEFI Boot</h1>
+    <p class="page-subtitle">The modern Linux boot process using GPT, ESP, and Secure Boot. From SEC phase to systemd.</p>
+  </header>
+
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      The Linux UEFI boot process leverages 64-bit firmware to load `.efi` executables from the EFI System Partition (ESP). It uses a Secure Boot chain (often starting with `shim.efi`) to verify the `grubx64.efi` bootloader. GRUB then loads the Linux kernel (`vmlinuz`) and initial RAM disk (`initrd`), calls `ExitBootServices()`, and hands control to the Linux kernel to start `systemd`.
+    </p>
+  </section>
+
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine a <strong>VIP Club with extreme security</strong>. 
+        <br><br>
+        To get in, you need an ID card signed by the owner (Microsoft/Canonical). The Bouncer (<code>shim.efi</code>) checks your ID. Once approved, the Bouncer gives you the Master Key (<code>grubx64.efi</code>). You use the key to open the VIP room, where the DJ (<code>systemd</code>) is waiting to start the party!
+      </div>
+      
+      <div class="anim-container">
+        <div class="vip-club" id="vipClub">
+          <div class="vip-door active" data-stage="0">🛡️ shim.efi (Bouncer)</div>
+          <div class="vip-arrow">⬇</div>
+          <div class="vip-door" data-stage="1">🔑 grubx64.efi (Master Key)</div>
+          <div class="vip-arrow">⬇</div>
+          <div class="vip-door" data-stage="2">🐧 vmlinuz (The VIP)</div>
+          <div class="vip-arrow">⬇</div>
+          <div class="vip-door" data-stage="3">⚙️ systemd (The DJ)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">⚙️ The Technical Analogy</div>
+      <div class="analogy-body">
+        Secure Boot requires a cryptographic chain of trust. UEFI verifies <code>shim.efi</code> (signed by Microsoft). <code>shim.efi</code> verifies <code>grubx64.efi</code> (signed by Canonical).
+        <br><br>
+        GRUB uses UEFI Boot Services to read <code>/boot/grub/grub.cfg</code> and load <code>vmlinuz</code> + <code>initrd</code>. Finally, GRUB calls <code>ExitBootServices()</code> before jumping to the kernel, leaving only Runtime Services for the OS to use.
+      </div>
+
+      <div class="anim-container">
+        <div class="tech-secure" id="secureTrack">
+          <div class="secure-row active" data-step="0"><span class="secure-name">UEFI Firmware</span><span class="secure-desc">Verifies shim.efi signature</span></div>
+          <div class="secure-row" data-step="1"><span class="secure-name">shim.efi</span><span class="secure-desc">Verifies grubx64.efi signature</span></div>
+          <div class="secure-row" data-step="2"><span class="secure-name">grubx64.efi</span><span class="secure-desc">Loads vmlinuz + initrd</span></div>
+          <div class="secure-row" data-step="3"><span class="secure-name">ExitBootServices()</span><span class="secure-desc">Hands off to kernel</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Explore the Linux UEFI boot process visually and step-by-step.</p>
+    
+    <div class="hub-grid">
+      <a href="uefi-linux-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Timeline</div>
+        <div class="hub-card-text">Walk through the Secure Boot chain and systemd init.</div>
+        <div class="hub-btn">Open Timeline →</div>
+      </a>
+      <a href="uefi-linux-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how shim, grub, and systemd connect.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+      <a href="uefi-linux-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A visual breakdown of the Linux ESP and Secure Boot.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ================= FEYNMAN MASTERY LAB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title" style="color:#88ffd8;">The Feynman Mastery Lab</h2>
+    <p class="hub-subtitle">Don't just read. Play, break, and test the system to prove you understand it.</p>
+    
+    <div class="feynman-grid">
+      <a href="uefi-linux-sandbox.html" class="feynman-card">
+        <span class="feynman-icon">🧪</span>
+        <div class="feynman-title">The "What If?" Sandbox</div>
+        <div class="feynman-desc">Break Secure Boot or delete grubx64.efi and see the errors.</div>
+      </a>
+      <a href="uefi-linux-puzzle.html" class="feynman-card">
+        <span class="feynman-icon">🧩</span>
+        <div class="feynman-title">The Secure Boot Puzzle</div>
+        <div class="feynman-desc">Put the Linux EFI chain (shim -> grub -> vmlinuz) in order.</div>
+      </a>
+      <a href="uefi-linux-terminal.html" class="feynman-card">
+        <span class="feynman-icon">💻</span>
+        <div class="feynman-title">The EFI Shell</div>
+        <div class="feynman-desc">Explore the ESP and use MokManager to enroll keys.</div>
+      </a>
+      <a href="uefi-linux-flashcards.html" class="feynman-card">
+        <span class="feynman-icon">⚡</span>
+        <div class="feynman-title">Rapid-Fire Flashcards</div>
+        <div class="feynman-desc">Test your knowledge on shim.efi and Linux UEFI files.</div>
+      </a>
+      <a href="uefi-linux-spot.html" class="feynman-card">
+        <span class="feynman-icon">🔍</span>
+        <div class="feynman-title">Boot Failure Hunt</div>
+        <div class="feynman-desc">Diagnose Secure Boot violations and missing ESP files.</div>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION 1: VIP CLUB (5TH GRADER) ================= */
+const vipDoors = document.querySelectorAll('.vip-door');
+let currentDoor = 0;
+
+setInterval(() => {
+  vipDoors.forEach(d => d.classList.remove('active'));
+  vipDoors[currentDoor].classList.add('active');
+  currentDoor = (currentDoor + 1) % vipDoors.length;
+}, 1500);
+
+/* ================= ANIMATION 2: SECURE TRACK (TECHNICAL) ================= */
+const secureRows = document.querySelectorAll('.secure-row');
+let currentSecure = 0;
+
+setInterval(() => {
+  secureRows.forEach(r => r.classList.remove('active'));
+  secureRows[currentSecure].classList.add('active');
+  currentSecure = (currentSecure + 1) % secureRows.length;
+}, 1400);
+</script>
+
+</body>
+</html>
+
