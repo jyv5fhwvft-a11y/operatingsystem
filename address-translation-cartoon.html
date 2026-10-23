@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CS 301 · The Post Office Cartoon (Pauseable)</title>
+<title>CS 301 · The Post Office Cartoon (RAM Edition)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -34,7 +35,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
 
 /* ================= CARTOON SCENE ================= */
-.scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:520px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+.scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:550px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
 
 .scene{position:relative;width:100%;height:100%;display:flex;justify-content:space-between;align-items:center;padding:0 40px;}
 
@@ -56,15 +57,22 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .speech-bubble::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-width:8px 8px 0;border-style:solid;border-color:#fff transparent transparent transparent;}
 .speech-bubble.active{opacity:1;transform:scale(1);}
 
-/* MMU Page Table Popup (The Conversion Table) */
+/* MMU Page Table Popup */
 .page-table-popup{position:absolute;top:110%;left:50%;transform:translateX(-50%) scale(0.8);background:#111;border:2px solid var(--amber);border-radius:8px;padding:12px;font-family:var(--mono);font-size:12px;z-index:20;opacity:0;transition:.4s;box-shadow:0 10px 30px rgba(0,0,0,.8);white-space:nowrap;}
 .page-table-popup.active{opacity:1;transform:translateX(-50%) scale(1);}
 .pt-header{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:6px;text-align:center;border-bottom:1px solid #333;padding-bottom:4px;}
 .pt-row{display:flex;justify-content:space-between;gap:15px;padding:4px 0;color:#fff;}
 .pt-row.highlight{color:var(--amber);font-weight:900;}
 
+/* RAM Memory Map Popup */
+.ram-map-popup{position:absolute;top:110%;left:50%;transform:translateX(-50%) scale(0.8);background:#111;border:2px solid var(--emerald);border-radius:8px;padding:12px;font-family:var(--mono);font-size:12px;z-index:20;opacity:0;transition:.4s;box-shadow:0 10px 30px rgba(0,0,0,.8);white-space:nowrap;}
+.ram-map-popup.active{opacity:1;transform:translateX(-50%) scale(1);}
+.ram-header{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:6px;text-align:center;border-bottom:1px solid #333;padding-bottom:4px;}
+.ram-row{display:flex;justify-content:space-between;gap:15px;padding:4px 0;color:#fff;}
+.ram-row.highlight{color:var(--emerald);font-weight:900;background:rgba(46,230,168,.1);padding:4px 8px;border-radius:4px;margin:0 -8px;}
+
 /* Data flying back */
-.flying-data{position:absolute;left:75%;top:220px;font-size:40px;z-index:10;opacity:0;filter:drop-shadow(0 0 15px rgba(46,230,168,.8));}
+.flying-data{position:absolute;left:75%;top:320px;font-size:40px;z-index:10;opacity:0;filter:drop-shadow(0 0 15px rgba(46,230,168,.8));}
 
 /* ================= EXPLANATION PANEL ================= */
 .explanation{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;min-height:80px;text-align:center;transition:.3s;}
@@ -122,9 +130,9 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
         <div class="character-icon">🧑‍💼</div>
         <div class="character-label">MMU (Mail Clerk)</div>
         
-        <!-- The Conversion Table -->
+        <!-- The MMU Conversion Table -->
         <div class="page-table-popup" id="pt-popup">
-          <div class="pt-header">Page Table Directory</div>
+          <div class="pt-header">MMU Page Table</div>
           <div class="pt-row"><span>VPN 41</span><span>→ PFN 2</span></div>
           <div class="pt-row highlight"><span>VPN 42</span><span>→ PFN 5</span></div>
           <div class="pt-row"><span>VPN 43</span><span>→ PFN 9</span></div>
@@ -133,9 +141,18 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 
       <!-- Character 3: RAM / Warehouse -->
       <div class="character" id="char-ram">
-        <div class="speech-bubble" id="bubble-ram">Here is your data!</div>
+        <div class="speech-bubble" id="bubble-ram">Found it!</div>
         <div class="character-icon">🏢</div>
         <div class="character-label">RAM (Warehouse)</div>
+
+        <!-- The RAM Memory Map -->
+        <div class="ram-map-popup" id="ram-popup">
+          <div class="ram-header">Physical RAM Layout</div>
+          <div class="ram-row"><span>PFN 2</span><span>var age</span></div>
+          <div class="ram-row"><span>PFN 3</span><span>var count</span></div>
+          <div class="ram-row highlight"><span>PFN 5</span><span>var sam = 42</span></div>
+          <div class="ram-row"><span>PFN 9</span><span>var total</span></div>
+        </div>
       </div>
 
       <!-- The Moving Envelope -->
@@ -163,6 +180,7 @@ const envelope = document.getElementById('envelope');
 const envText = document.getElementById('env-text');
 const dataOut = document.getElementById('data-out');
 const ptPopup = document.getElementById('pt-popup');
+const ramPopup = document.getElementById('ram-popup');
 
 const bubbleCpu = document.getElementById('bubble-cpu');
 const bubbleMmu = document.getElementById('bubble-mmu');
@@ -180,7 +198,6 @@ let animationTime = 0;
 let lastFrame = 0;
 let reqId = null;
 
-// Active WAAPI Animations (to pause/resume them)
 let envAnim = null;
 let dataAnim = null;
 
@@ -199,7 +216,6 @@ let timelineIndex = 0;
 function loop(timestamp) {
   if (!isPlaying) return;
   if (isPaused) {
-    // If paused, continuously update lastFrame so we don't skip time when resumed
     lastFrame = timestamp;
     reqId = requestAnimationFrame(loop);
     return;
@@ -230,7 +246,6 @@ function step1_CPU_Requests() {
   expText.textContent = "The program needs data and generates Logical Address 42 (Box 42). It hands this to the MMU.";
   
   envelope.style.opacity = '1';
-  // Animate envelope fading in
   envAnim = envelope.animate([
     { opacity: 0, transform: 'scale(0.5)' },
     { opacity: 1, transform: 'scale(1)' }
@@ -242,7 +257,6 @@ function step2_MMU_Receives() {
   expTitle.textContent = "2. The MMU receives the request";
   expText.textContent = "The Mail Clerk receives the envelope. The hardware splits the address into the VPN (Box) and Offset (Room).";
   
-  // Animate envelope flying to MMU
   envAnim = envelope.animate([
     { left: '120px', top: '220px', transform: 'rotate(0deg) scale(1)' },
     { left: '45%', top: '220px', transform: 'rotate(10deg) scale(1.1)' }
@@ -260,13 +274,11 @@ function step4_Envelope_To_RAM() {
   bubbleMmu.classList.remove('active');
   ptPopup.classList.remove('active');
   
-  // Update envelope text to Physical Address
   envText.innerHTML = "TO: PFN 5<br>OFFSET: 0";
   
   expTitle.textContent = "4. The Physical Address is assembled";
   expText.textContent = "The Clerk swaps the VPN for the Physical Frame Number (PFN). The envelope now has the real warehouse address.";
   
-  // Animate envelope flying to RAM
   envAnim = envelope.animate([
     { left: '45%', top: '220px', transform: 'rotate(10deg) scale(1.1)' },
     { left: '75%', top: '220px', transform: 'rotate(0deg) scale(1)' }
@@ -275,8 +287,9 @@ function step4_Envelope_To_RAM() {
 
 function step5_RAM_Receives() {
   bubbleRam.classList.add('active');
-  expTitle.textContent = "5. Data retrieved!";
-  expText.textContent = "The RAM chip opens the box, grabs the data (42), and sends it back to the CPU.";
+  ramPopup.classList.add('active');
+  expTitle.textContent = "5. RAM looks up PFN 5";
+  expText.textContent = "The Warehouse (RAM) checks its physical layout. PFN 5 holds the variable 'sam', which is equal to 42. It grabs the data.";
   
   // Envelope fades out
   envAnim = envelope.animate([
@@ -287,7 +300,7 @@ function step5_RAM_Receives() {
   // Data flies back
   dataOut.style.opacity = '1';
   dataAnim = dataOut.animate([
-    { left: '75%', top: '220px', opacity: 1, transform: 'scale(1)' },
+    { left: '75%', top: '320px', opacity: 1, transform: 'scale(1)' },
     { left: '15%', top: '220px', opacity: 1, transform: 'scale(1)' },
     { left: '15%', top: '220px', opacity: 0, transform: 'scale(0.5)' }
   ], { duration: 4000, fill: 'forwards', easing: 'ease-in-out' });
@@ -295,19 +308,19 @@ function step5_RAM_Receives() {
 
 function step6_Finish() {
   bubbleRam.classList.remove('active');
+  ramPopup.classList.remove('active');
   playBtn.disabled = false;
   playBtn.textContent = "▶ Play Again";
   pauseBtn.disabled = true;
   pauseBtn.textContent = "⏸ Pause";
   
   expTitle.textContent = "Animation Complete";
-  expText.textContent = "The CPU received the data and the program continues running.";
+  expText.textContent = "The CPU received the data (42) and the program continues running.";
 }
 
 /* ================= CONTROLS ================= */
 
 function startAnimation() {
-  // Reset state
   isPlaying = true;
   isPaused = false;
   animationTime = 0;
@@ -319,11 +332,9 @@ function startAnimation() {
   pauseBtn.disabled = false;
   pauseBtn.textContent = "⏸ Pause";
   
-  // Cancel existing WAAPI animations
   if (envAnim) envAnim.cancel();
   if (dataAnim) dataAnim.cancel();
   
-  // Reset DOM
   envelope.style.opacity = '0';
   envelope.style.left = '120px';
   envelope.style.top = '220px';
@@ -333,6 +344,7 @@ function startAnimation() {
   dataOut.style.left = '75%';
   
   ptPopup.classList.remove('active');
+  ramPopup.classList.remove('active');
   bubbleCpu.classList.remove('active');
   bubbleMmu.classList.remove('active');
   bubbleRam.classList.remove('active');
@@ -340,7 +352,6 @@ function startAnimation() {
   expTitle.textContent = "Starting...";
   expText.textContent = "Preparing the mailroom...";
   
-  // Start Loop
   reqId = requestAnimationFrame(loop);
 }
 
@@ -351,12 +362,10 @@ function togglePause() {
   
   if (isPaused) {
     pauseBtn.textContent = "▶ Resume";
-    // Pause WAAPI animations
     if (envAnim && envAnim.playState === 'running') envAnim.pause();
     if (dataAnim && dataAnim.playState === 'running') dataAnim.pause();
   } else {
     pauseBtn.textContent = "⏸ Pause";
-    // Resume WAAPI animations
     if (envAnim && envAnim.playState === 'paused') envAnim.play();
     if (dataAnim && dataAnim.playState === 'paused') dataAnim.play();
   }
