@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Knowledge Base Architecture Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.10),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= SECTIONS ================= */
+.section{margin-bottom:50px;}
+.section-title{font-size:20px;font-weight:900;color:#fff;border-bottom:1px solid var(--stroke);padding-bottom:12px;margin-bottom:24px;display:flex;align-items:center;gap:10px;}
+.section-title span{font-family:var(--mono);font-size:12px;color:var(--violet);letter-spacing:.1em;}
+
+/* Architecture List */
+.arch-list{display:flex;flex-direction:column;gap:8px;}
+.arch-item{background:var(--panel);border:1px solid var(--stroke);border-radius:8px;padding:12px 16px;font-family:var(--mono);font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:12px;}
+.arch-item .num{color:var(--violet);font-weight:900;}
+.arch-item .name{color:#fff;font-weight:800;}
+
+/* Topic Cards */
+.topic-group{margin-bottom:24px;}
+.topic-group h3{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;}
+.topic-card{background:rgba(255,255,255,.02);border:1px solid var(--stroke);border-radius:12px;padding:16px 20px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;transition:.2s;}
+.topic-card:hover{border-color:var(--stroke-2);background:rgba(255,255,255,.05);}
+.topic-info .title{font-size:16px;font-weight:800;color:#fff;margin-bottom:4px;}
+.topic-info .prefix{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.badge{font-family:var(--mono);font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;letter-spacing:.05em;}
+.badge.done{background:rgba(46,230,168,.15);color:var(--emerald);border:1px solid rgba(46,230,168,.4);}
+.badge.pending{background:rgba(255,182,72,.1);color:var(--amber);border:1px solid rgba(255,182,72,.3);}
+
+/* Model Grid */
+.model-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.model-card{background:var(--panel);border:1px solid var(--stroke);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;}
+.model-card .icon{font-size:20px;}
+.model-card .text{font-size:14px;font-weight:700;color:#fff;}
+
+@media (max-width: 700px) {
+  .model-grid { grid-template-columns: 1fr; }
+  .topic-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Architecture Map</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Knowledge Base Master Map</h1>
+    <p class="page-subtitle">This is the official architecture reference for the CS 301 Knowledge Base. Use this document to track completed topics and ensure consistency when adding new learning models.</p>
+  </header>
+
+  <!-- ================= PART 1: THE 9-FILE ARCHITECTURE ================= -->
+  <section class="section">
+    <h2 class="section-title"><span>PART 1</span> The 9-File Architecture</h2>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Every topic must be built using this exact 9-file structure. If a new learning model is discovered, a new file must be created for <strong>every</strong> topic below.</p>
+    
+    <div class="arch-list">
+      <div class="arch-item"><span class="num">01</span> <span class="name">[topic].html</span> (Master Hub: Definition + Analogies)</div>
+      <div class="arch-item"><span class="num">02</span> <span class="name">[topic]-steps.html</span> (Interactive Step-by-Step)</div>
+      <div class="arch-item"><span class="num">03</span> <span class="name">[topic]-mindmap.html</span> (Interactive Node Map)</div>
+      <div class="arch-item"><span class="num">04</span> <span class="name">[topic]-infographic.html</span> (Visual Flowchart)</div>
+      <div class="arch-item"><span class="num">05</span> <span class="name">[topic]-sandbox.html</span> (Feynman "What If?" Simulator)</div>
+      <div class="arch-item"><span class="num">06</span> <span class="name">[topic]-puzzle.html</span> (Feynman Drag-and-Drop Game)</div>
+      <div class="arch-item"><span class="num">07</span> <span class="name">[topic]-terminal.html</span> (Feynman OS Shell Inspector)</div>
+      <div class="arch-item"><span class="num">08</span> <span class="name">[topic]-flashcards.html</span> (Feynman Rapid-Fire Quiz)</div>
+      <div class="arch-item"><span class="num">09</span> <span class="name">[topic]-spot.html</span> (Feynman Failure Diagnosis)</div>
+    </div>
+  </section>
+
+  <!-- ================= PART 2: CURRENT TOPICS ================= -->
+  <section class="section">
+    <h2 class="section-title"><span>PART 2</span> Current Topics &amp; Status</h2>
+    
+    <!-- Boot Process -->
+    <div class="topic-group">
+      <h3>Module: Boot Process</h3>
+      
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Windows BIOS Boot</div>
+          <div class="prefix">Prefix: bios-windows-* / bios-windows.html</div>
+        </div>
+        <div class="badge done">✅ Complete (9/9)</div>
+      </div>
+
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Windows UEFI Boot</div>
+          <div class="prefix">Prefix: uefi-windows-* / uefi-windows.html</div>
+        </div>
+        <div class="badge done">✅ Complete (9/9)</div>
+      </div>
+
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Linux BIOS Boot</div>
+          <div class="prefix">Prefix: bios-linux-* / bios-linux.html</div>
+        </div>
+        <div class="badge pending">⏳ Next to Build</div>
+      </div>
+
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Linux UEFI Boot</div>
+          <div class="prefix">Prefix: uefi-linux-* / uefi-linux.html</div>
+        </div>
+        <div class="badge pending">⏳ Pending</div>
+      </div>
+    </div>
+
+    <!-- Memory Management -->
+    <div class="topic-group">
+      <h3>Module: Memory Management</h3>
+      
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Segmentation</div>
+          <div class="prefix">Prefix: segmentation-* / segmentation.html</div>
+        </div>
+        <div class="badge done">✅ Complete (9/9)</div>
+      </div>
+
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Paging</div>
+          <div class="prefix">Prefix: paging-* / paging.html</div>
+        </div>
+        <div class="badge pending">⏳ Pending</div>
+      </div>
+
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Virtual Memory</div>
+          <div class="prefix">Prefix: virtual-memory-* / virtual-memory.html</div>
+        </div>
+        <div class="badge pending">⏳ Pending</div>
+      </div>
+    </div>
+
+    <!-- Process Sync -->
+    <div class="topic-group">
+      <h3>Module: Process Synchronization</h3>
+      
+      <div class="topic-card">
+        <div class="topic-info">
+          <div class="title">Semaphore</div>
+          <div class="prefix">Prefix: semaphore-* / semaphore.html</div>
+        </div>
+        <div class="badge pending">⏳ Pending</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PART 3: LEARNING MODELS ================= -->
+  <section class="section">
+    <h2 class="section-title"><span>PART 3</span> The 11-Point Framework</h2>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">If a new learning model (like an audio player or 3D visualizer) is added, it must be appended to the Hub of every completed topic.</p>
+    
+    <div class="model-grid">
+      <div class="model-card"><span class="icon">📖</span><span class="text">Definition</span></div>
+      <div class="model-card"><span class="icon">🍎</span><span class="text">5th Grader Analogy</span></div>
+      <div class="model-card"><span class="icon">⚙️</span><span class="text">Technical Analogy</span></div>
+      <div class="model-card"><span class="icon">🧠</span><span class="text">Step-by-Step Mechanics</span></div>
+      <div class="model-card"><span class="icon">🌳</span><span class="text">Interactive Mind Map</span></div>
+      <div class="model-card"><span class="icon">📊</span><span class="text">Visual Infographic</span></div>
+      <div class="model-card"><span class="icon">🧪</span><span class="text">The Sandbox</span></div>
+      <div class="model-card"><span class="icon">🧩</span><span class="text">The Puzzle</span></div>
+      <div class="model-card"><span class="icon">💻</span><span class="text">The Terminal</span></div>
+      <div class="model-card"><span class="icon">⚡</span><span class="text">Flashcards</span></div>
+      <div class="model-card"><span class="icon">🔍</span><span class="text">Spot-the-Difference</span></div>
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>
