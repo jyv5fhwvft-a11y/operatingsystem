@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux BIOS · Flashcards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLASHCARD UI ================= */
+.quiz-container{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);position:relative;overflow:hidden;}
+.progress-bar{position:absolute;top:0;left:0;height:4px;background:var(--emerald);width:0%;transition:width 0.3s ease;}
+.q-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.1em;margin-bottom:24px;}
+.question{font-size:clamp(18px,2.5vw,24px);font-weight:800;color:#fff;line-height:1.4;margin-bottom:32px;min-height:80px;}
+
+/* Options */
+.options{display:flex;flex-direction:column;gap:12px;}
+.option{background:rgba(255,255,255,.03);border:1px solid var(--stroke-2);border-radius:12px;padding:16px 20px;font-size:15px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:.2s;display:flex;justify-content:space-between;align-items:center; -webkit-tap-highlight-color: transparent;}
+.option:hover{background:rgba(255,255,255,.08);border-color:var(--emerald);color:#fff;}
+.option.correct{background:rgba(46,230,168,.15);border-color:var(--emerald);color:var(--emerald);}
+.option.wrong{background:rgba(255,77,109,.15);border-color:var(--crimson);color:var(--crimson);}
+.option.disabled{pointer-events:none;}
+
+/* Feedback Box */
+.feedback{display:none;margin-top:24px;padding:16px;border-radius:12px;font-size:14px;line-height:1.6;}
+.feedback.show{display:block;animation:fadeIn 0.3s ease;}
+.feedback.success{background:rgba(46,230,168,.1);border:1px solid var(--emerald);color:#88ffd8;}
+.feedback.fail{background:rgba(255,77,109,.1);border:1px solid var(--crimson);color:#ff9fb1;}
+
+/* Next Button */
+.btn-next{display:none;margin-top:24px;width:100%;padding:16px;background:var(--emerald);color:#000;border:none;border-radius:12px;font-size:16px;font-weight:900;cursor:pointer;transition:.2s;}
+.btn-next:hover{background:#5fffc4;transform:translateY(-2px);}
+.btn-next.show{display:block;animation:fadeIn 0.3s ease;}
+
+/* Win Screen */
+.win-screen{display:none;text-align:center;padding:40px 20px;}
+.win-screen h2{font-size:32px;color:var(--emerald);font-weight:900;margin-bottom:16px;}
+.win-screen p{font-size:16px;color:var(--ink-2);margin-bottom:24px;}
+.btn-reset{padding:14px 28px;background:var(--amber);color:#000;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer;}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-linux.html" class="nav-link">← Back to Linux BIOS</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Rapid-Fire Recall</h1>
+    <p class="page-subtitle">Test your knowledge on GRUB stages, vmlinuz, and the Linux boot chain.</p>
+  </header>
+
+  <div class="quiz-container" id="quizBox">
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div id="quizContent">
+      <div class="q-meta">
+        <span id="qNum">Question 1 / 6</span>
+        <span id="qScore">Score: 0</span>
+      </div>
+      
+      <div class="question" id="questionText">Loading...</div>
+      
+      <div class="options" id="optionsContainer"></div>
+      
+      <div class="feedback" id="feedbackBox"></div>
+      
+      <button class="btn-next" id="nextBtn">Next Question ➔</button>
+    </div>
+
+    <div class="win-screen" id="winScreen">
+      <h2>🏆 GRUB Master!</h2>
+      <p>You've successfully memorized the Linux BIOS boot process.</p>
+      <button class="btn-reset" onclick="location.reload()">Play Again</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "In modern Linux systems, what is the bootloader responsible for loading the kernel?",
+    options: ["NTLDR", "BOOTMGR", "GRUB2", "LILO"],
+    answer: 2, 
+    explanation: "Correct. GRUB2 (GRand Unified Bootloader) is the standard bootloader for almost all modern Linux distributions."
+  },
+  {
+    q: "Which GRUB2 component contains built-in filesystem drivers so it can read /boot/grub/grub.cfg?",
+    options: ["boot.img", "core.img", "vmlinuz", "initrd.img"],
+    answer: 1,
+    explanation: "Correct. boot.img is only 512 bytes in the MBR. It loads core.img, which is larger and contains the filesystem drivers needed to navigate the disk."
+  },
+  {
+    q: "What is the compressed Linux kernel file typically called?",
+    options: ["ntoskrnl.exe", "vmlinuz", "initrd.img", "grub.cfg"],
+    answer: 1,
+    explanation: "Correct. The kernel is named vmlinuz (Virtual Memory LINUx Zipped). GRUB loads this file into memory."
+  },
+  {
+    q: "What is the purpose of the initrd.img file?",
+    options: ["It is the main OS kernel", "It is the initial RAM disk containing temporary drivers", "It stores the GRUB boot menu", "It is the Linux version of the MBR"],
+    answer: 1,
+    explanation: "Correct. The initrd (initial RAM disk) contains drivers needed to mount the real root filesystem before the full kernel takes over."
+  },
+  {
+    q: "What happens to BIOS interrupts (like INT 13h) when GRUB switches the CPU to Protected Mode?",
+    options: ["They become faster", "They are upgraded to 64-bit", "They are permanently disabled", "They are moved to RAM"],
+    answer: 2,
+    explanation: "Correct. Once the CPU enters Protected Mode, it can no longer use the 16-bit BIOS interrupts. The kernel must use its own hardware drivers from then on."
+  },
+  {
+    q: "What is the very first user-space process (PID 1) started by the Linux kernel?",
+    options: ["systemd (or init)", "grub", "smss.exe", "bash"],
+    answer: 0,
+    explanation: "Correct. systemd (or init in older systems) is PID 1. It mounts file systems, starts background services, and eventually brings up the login prompt."
+  }
+];
+
+let currentQuestion = 0;
+let score = 0;
+let canAnswer = true;
+
+const questionText = document.getElementById('questionText');
+const optionsContainer = document.getElementById('optionsContainer');
+const feedbackBox = document.getElementById('feedbackBox');
+const nextBtn = document.getElementById('nextBtn');
+const qNum = document.getElementById('qNum');
+const qScore = document.getElementById('qScore');
+const progressBar = document.getElementById('progressBar');
+const winScreen = document.getElementById('winScreen');
+const quizContent = document.getElementById('quizContent');
+
+function loadQuestion() {
+  canAnswer = true;
+  const q = questions[currentQuestion];
+  
+  qNum.textContent = `Question ${currentQuestion + 1} / ${questions.length}`;
+  qScore.textContent = `Score: ${score}`;
+  progressBar.style.width = `${(currentQuestion / questions.length) * 100}%`;
+  
+  questionText.textContent = q.q;
+  feedbackBox.className = 'feedback';
+  feedbackBox.textContent = '';
+  nextBtn.className = 'btn-next';
+  
+  optionsContainer.innerHTML = '';
+  q.options.forEach((opt, index) => {
+    const btn = document.createElement('div');
+    btn.className = 'option';
+    btn.innerHTML = `<span>${opt}</span>`;
+    btn.onclick = () => selectOption(index, btn);
+    optionsContainer.appendChild(btn);
+  });
+}
+
+function selectOption(index, btnElement) {
+  if (!canAnswer) return;
+  canAnswer = false;
+  
+  const q = questions[currentQuestion];
+  const allOptions = document.querySelectorAll('.option');
+  
+  allOptions.forEach(opt => opt.classList.add('disabled'));
+  
+  if (index === q.answer) {
+    btnElement.classList.add('correct');
+    score++;
+    qScore.textContent = `Score: ${score}`;
+    feedbackBox.className = 'feedback show success';
+    feedbackBox.innerHTML = `<strong>✅ Correct!</strong><br>${q.explanation}`;
+  } else {
+    btnElement.classList.add('wrong');
+    allOptions[q.answer].classList.add('correct');
+    feedbackBox.className = 'feedback show fail';
+    feedbackBox.innerHTML = `<strong>❌ Incorrect.</strong><br>${q.explanation}`;
+  }
+  
+  nextBtn.className = 'btn-next show';
+}
+
+nextBtn.onclick = () => {
+  currentQuestion++;
+  if (currentQuestion < questions.length) {
+    loadQuestion();
+  } else {
+    progressBar.style.width = '100%';
+    quizContent.style.display = 'none';
+    winScreen.style.display = 'block';
+  }
+};
+
+// Initialize
+loadQuestion();
+</script>
+
+</body>
+</html>
