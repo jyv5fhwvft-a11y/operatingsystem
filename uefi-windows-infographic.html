@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · UEFI Windows · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLOWCHART UI ================= */
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-bottom:40px;}
+
+/* The moving data packet */
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:12px;height:12px;background:#fff;border-radius:50%;box-shadow:0 0 15px #fff, 0 0 30px var(--blue);z-index:10;animation:flowDown 10s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 40px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+/* Nodes */
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:500px;transition:.4s;}
+.node.active{border-color:var(--blue);background:rgba(91,141,255,.1);box-shadow:0 0 30px rgba(91,141,255,.2);transform:scale(1.02);}
+
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.node-data{font-family:var(--mono);font-size:11px;color:var(--emerald);margin-top:8px;background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;display:inline-block;border:1px solid rgba(46,230,168,.2);}
+
+/* Special Node Colors */
+.node.sec {border-left: 4px solid var(--violet);}
+.node.pei {border-left: 4px solid var(--amber);}
+.node.dxe {border-left: 4px solid var(--crimson);}
+.node.bds {border-left: 4px solid var(--blue);}
+.node.boot {border-left: 4px solid #00a4ef;} /* Windows Blue */
+
+/* Arrows */
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Info Box */
+.info-box{margin-top:20px;background:rgba(255,255,255,.02);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;text-align:center;}
+.info-box h4{color:#fff;font-size:14px;margin-bottom:8px;}
+.info-box p{color:var(--muted);font-size:12px;font-family:var(--mono);}
+
+@media (max-width: 600px) {
+  .container { padding: 100px 16px 40px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-windows.html" class="nav-link">← Back to UEFI Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The UEFI River Flow</h1>
+    <p class="page-subtitle">Watch how UEFI passes control through its phases, loads the Windows boot manager, and finally hands the hardware over to the OS.</p>
+  </header>
+
+  <section class="flow-container">
+    
+    <div class="data-packet" id="packet"></div>
+
+    <!-- Power On -->
+    <div class="node">
+      <div class="node-title">Power On</div>
+      <div class="node-sub">CPU starts at 0xFFFFFFF0</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- SEC Phase -->
+    <div class="node sec" id="node-0">
+      <div class="node-title">SEC Phase</div>
+      <div class="node-sub">Temporary RAM setup + Integrity check</div>
+      <div class="node-data">PEI Foundation SHA256 verified</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- PEI Phase -->
+    <div class="node pei" id="node-1">
+      <div class="node-title">PEI Phase</div>
+      <div class="node-sub">Pre-EFI Initialization (Memory Discovery)</div>
+      <div class="node-data">16GB DDR4 initialized · HOB List at 0x70000000</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- DXE Phase -->
+    <div class="node dxe" id="node-2">
+      <div class="node-title">DXE Phase</div>
+      <div class="node-sub">Driver Execution Environment</div>
+      <div class="node-data">PCIe, NVMe, Graphics Drivers Loaded</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- BDS Phase -->
+    <div class="node bds" id="node-3">
+      <div class="node-title">BDS Phase</div>
+      <div class="node-sub">Boot Device Selection</div>
+      <div class="node-data">Reads GPT · Mounts ESP at fs0:</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Windows Boot Manager -->
+    <div class="node boot" id="node-4">
+      <div class="node-title">Windows Boot Manager</div>
+      <div class="node-sub">Executes bootmgfw.efi from \EFI\Microsoft\Boot\</div>
+      <div class="node-data">Reads BCD · Loads winload.efi</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Windows Kernel -->
+    <div class="node" id="node-5" style="border-left: 4px solid var(--emerald);">
+      <div class="node-title">Windows Kernel</div>
+      <div class="node-sub">Loads ntoskrnl.exe and hal.dll</div>
+      <div class="node-data">Calls ExitBootServices() → Full Control</div>
+    </div>
+
+    <div class="info-box">
+      <h4>💡 The Magic of UEFI</h4>
+      <p>UEFI doesn't read 512-byte sectors like BIOS. It reads files from a FAT32 partition (the ESP), runs them like standard applications (.efi), and provides a rich API (Boot Services) until the OS is ready to take over.</p>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= FLOWCHART ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4'),
+  document.getElementById('node-5')
+];
+
+let currentStep = 0;
+
+// Reset the data packet animation to sync with the highlight
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 10s infinite linear';
+}
+
+// Loop through the nodes and highlight them
+setInterval(() => {
+  // Remove active class from all
+  nodes.forEach(n => n.classList.remove('active'));
+  
+  // Add active to current
+  nodes[currentStep].classList.add('active');
+  
+  // Move to next (loop back to 0 if at end)
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  // If we start over, reset the packet animation
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 1400); // Each stage highlights for 1.4 seconds
+</script>
+
+</body>
+</html>
