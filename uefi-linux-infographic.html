@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux UEFI · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLOWCHART UI ================= */
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-bottom:40px;}
+
+/* The moving data packet */
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:12px;height:12px;background:#fff;border-radius:50%;box-shadow:0 0 15px #fff, 0 0 30px var(--emerald);z-index:10;animation:flowDown 12s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 40px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+/* Nodes */
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:500px;transition:.4s;}
+.node.active{border-color:var(--emerald);background:rgba(46,230,168,.1);box-shadow:0 0 30px rgba(46,230,168,.2);transform:scale(1.02);}
+
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.node-data{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:8px;background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;display:inline-block;border:1px solid rgba(255,182,72,.2);}
+
+/* Special Node Colors */
+.node.sec {border-left: 4px solid var(--violet);}
+.node.pei {border-left: 4px solid var(--amber);}
+.node.dxe {border-left: 4px solid var(--crimson);}
+.node.bds {border-left: 4px solid var(--blue);}
+.node.grub {border-left: 4px solid #f0a830;}
+.node.kernel {border-left: 4px solid var(--emerald);}
+
+/* Arrows */
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Info Box */
+.info-box{margin-top:20px;background:rgba(255,255,255,.02);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;text-align:center;}
+.info-box h4{color:#fff;font-size:14px;margin-bottom:8px;}
+.info-box p{color:var(--muted);font-size:12px;font-family:var(--mono);}
+
+@media (max-width: 600px) {
+  .container { padding: 100px 16px 40px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-linux.html" class="nav-link">← Back to Linux UEFI</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Linux UEFI River Flow</h1>
+    <p class="page-subtitle">Watch how UEFI passes control through its phases, verifies Secure Boot, loads GRUB, and hands off to systemd.</p>
+  </header>
+
+  <section class="flow-container">
+    
+    <div class="data-packet" id="packet"></div>
+
+    <!-- SEC -->
+    <div class="node sec" id="node-0">
+      <div class="node-title">SEC Phase</div>
+      <div class="node-sub">CPU starts at 0xFFFFFFFF · Firmware verified</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- PEI -->
+    <div class="node pei" id="node-1">
+      <div class="node-title">PEI Phase</div>
+      <div class="node-sub">Memory Initialization</div>
+      <div class="node-data">16GB DDR4 initialized · HOB List created</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- DXE -->
+    <div class="node dxe" id="node-2">
+      <div class="node-title">DXE Phase</div>
+      <div class="node-sub">Driver Execution Environment</div>
+      <div class="node-data">45 UEFI Drivers loaded · ESP discovered</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- BDS & Secure Boot -->
+    <div class="node bds" id="node-3">
+      <div class="node-title">Boot Manager (BDS) & Secure Boot</div>
+      <div class="node-sub">Loads shim.efi from ESP (fs0:)</div>
+      <div class="node-data">UEFI verifies shim.efi -> shim verifies grubx64.efi</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- GRUB2 -->
+    <div class="node grub" id="node-4">
+      <div class="node-title">GRUB2 Loader</div>
+      <div class="node-sub">grubx64.efi reads /boot/grub/grub.cfg</div>
+      <div class="node-data">Displays menu · User selects Linux kernel</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Kernel & Initrd -->
+    <div class="node kernel" id="node-5">
+      <div class="node-title">Kernel & Initrd Loading</div>
+      <div class="node-sub">Loads vmlinuz and initrd.img into RAM</div>
+      <div class="node-data">Uses UEFI LoadImage() and StartImage()</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- ExitBootServices -->
+    <div class="node" id="node-6" style="border-left: 4px solid var(--crimson);">
+      <div class="node-title">ExitBootServices()</div>
+      <div class="node-sub">GRUB2 terminates UEFI Boot Services</div>
+      <div class="node-data">Hands off system control to Linux Kernel</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- systemd -->
+    <div class="node" id="node-7" style="border-left: 4px solid var(--emerald);">
+      <div class="node-title">systemd Startup</div>
+      <div class="node-sub">Linux Kernel mounts root FS and starts PID 1</div>
+      <div class="node-data">systemd targets reached · Login prompt</div>
+    </div>
+
+    <div class="info-box">
+      <h4>🐧 The UEFI Secure Boot Advantage</h4>
+      <p>Because UEFI verifies every `.efi` file before execution using cryptographic signatures, Linux uses a "shim" to bridge the gap between Microsoft's keys (in the firmware) and the Linux distribution's keys.</p>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= FLOWCHART ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4'),
+  document.getElementById('node-5'),
+  document.getElementById('node-6'),
+  document.getElementById('node-7')
+];
+
+let currentStep = 0;
+
+// Reset the data packet animation to sync with the highlight
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 12s infinite linear';
+}
+
+// Loop through the nodes and highlight them
+setInterval(() => {
+  // Remove active class from all
+  nodes.forEach(n => n.classList.remove('active'));
+  
+  // Add active to current
+  nodes[currentStep].classList.add('active');
+  
+  // Move to next (loop back to 0 if at end)
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  // If we start over, reset the packet animation
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 1400); // Each stage highlights for 1.4 seconds
+</script>
+
+</body>
+</html>
