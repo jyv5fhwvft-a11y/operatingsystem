@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · UEFI Windows · Mind Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.10),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= MIND MAP GRID ================= */
+.mindmap-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 20px;
+  align-items: center;
+  justify-items: center;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+/* Dashed connecting circle */
+.mindmap-container::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%; height: 70%;
+  border: 2px dashed rgba(91,141,255,.2);
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The Nodes */
+.map-node {
+  background: var(--panel);
+  border: 1.5px solid var(--stroke-2);
+  border-radius: 16px;
+  padding: 16px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 220px;
+}
+.map-node:hover, .map-node.active {
+  border-color: var(--blue);
+  box-shadow: 0 0 20px rgba(91,141,255,.3);
+  transform: scale(1.05);
+  background: rgba(91,141,255,.05);
+}
+.map-node.center {
+  grid-column: 2;
+  grid-row: 2;
+  background: rgba(91,141,255,.1);
+  border-color: var(--blue);
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(91,141,255,.2);
+  cursor: default;
+}
+.map-node.center:hover { transform: none; }
+.map-node.top-left { grid-column: 1; grid-row: 1; }
+.map-node.top-right { grid-column: 3; grid-row: 1; }
+.map-node.bottom-left { grid-column: 1; grid-row: 3; }
+.map-node.bottom-right { grid-column: 3; grid-row: 3; }
+.map-node.left { grid-column: 1; grid-row: 2; }
+.map-node.right { grid-column: 3; grid-row: 2; }
+
+.node-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+.node-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+.node-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ================= INFO PANEL ================= */
+.info-panel {
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--stroke);
+  border-left: 4px solid var(--blue);
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 140px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.info-panel h3 { color: var(--blue); font-size: 18px; margin-bottom: 10px; font-weight: 900; }
+.info-panel p { color: var(--ink-2); font-size: 15px; line-height: 1.7; }
+.info-panel code { font-family: var(--mono); background: rgba(255,255,255,.1); padding: 2px 6px; border-radius: 4px; color: #fff; }
+
+/* Responsive */
+@media (max-width: 800px) {
+  .mindmap-container { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .mindmap-container::before { display: none; }
+  .map-node { grid-column: 1 !important; grid-row: auto !important; max-width: 100%; }
+  .map-node.center { order: -1; margin-bottom: 20px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-windows.html" class="nav-link">← Back to UEFI Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">UEFI Boot Mind Map</h1>
+    <p class="page-subtitle">Tap any node to see how the firmware, the disk format, and Windows boot files interact.</p>
+  </header>
+
+  <section class="mindmap-container">
+    
+    <!-- Center Node -->
+    <div class="map-node center">
+      <span class="node-icon">⚡</span>
+      <div class="node-title">Windows UEFI Boot</div>
+    </div>
+
+    <!-- Surrounding Nodes -->
+    <div class="map-node top-left" data-target="sec">
+      <span class="node-icon">🛡️</span>
+      <div class="node-title">SEC Phase</div>
+      <div class="node-sub">Security</div>
+    </div>
+
+    <div class="map-node top-right" data-target="pei">
+      <span class="node-icon">🧠</span>
+      <div class="node-title">PEI Phase</div>
+      <div class="node-sub">Memory Init</div>
+    </div>
+
+    <div class="map-node left" data-target="dxe">
+      <span class="node-icon">⚙️</span>
+      <div class="node-title">DXE Phase</div>
+      <div class="node-sub">Driver Loading</div>
+    </div>
+
+    <div class="map-node right" data-target="bds">
+      <span class="node-icon">🚦</span>
+      <div class="node-title">BDS Phase</div>
+      <div class="node-sub">Device Selection</div>
+    </div>
+
+    <div class="map-node bottom-left" data-target="esp">
+      <span class="node-icon">📂</span>
+      <div class="node-title">ESP & GPT</div>
+      <div class="node-sub">Disk Structure</div>
+    </div>
+
+    <div class="map-node bottom-right" data-target="bootmgr">
+      <span class="node-icon">🪟</span>
+      <div class="node-title">BOOTMGR</div>
+      <div class="node-sub">.efi Execution</div>
+    </div>
+
+  </section>
+
+  <!-- INFO PANEL -->
+  <section class="info-panel" id="infoPanel">
+    <h3>👆 Tap a Node</h3>
+    <p>Select any of the surrounding branches to explore how it fits into the UEFI boot process.</p>
+  </section>
+
+</main>
+
+<script>
+/* ================= MIND MAP DATA ================= */
+const nodeData = {
+  sec: {
+    title: "🛡️ SEC Phase (Security)",
+    text: "The very first phase after power-on. It sets up a temporary RAM environment (Cache-as-RAM) so the CPU has a place to work before the main system RAM is initialized. It also verifies the cryptographic integrity of the next phase (PEI) to prevent tampering."
+  },
+  pei: {
+    title: "🧠 PEI Phase (Pre-EFI Initialization)",
+    text: "The construction crew. It discovers and initializes the main system RAM (e.g., 16GB DDR4). It creates a full memory map and passes this information to the next phase using <code>Hand-Off Blocks (HOBs)</code>."
+  },
+  dxe: {
+    title: "⚙️ DXE Phase (Driver Execution Environment)",
+    text: "The hardware dispatcher. UEFI loads all necessary hardware drivers (PCIe, NVMe, Graphics, USB). It sets up <code>Boot Services</code> (used by the OS loader) and <code>Runtime Services</code> (used by the OS after boot)."
+  },
+  bds: {
+    title: "🚦 BDS Phase (Boot Device Selection)",
+    text: "The crossroads. It loads the Boot Manager, reads the boot configuration, and displays a boot menu if multiple options exist. It then locates the selected boot device."
+  },
+  esp: {
+    title: "📂 ESP & GPT (Disk Structure)",
+    text: "UEFI uses GPT (GUID Partition Table) instead of MBR. It looks for the <b>EFI System Partition (ESP)</b>, which is a FAT32 partition containing the boot files. The ESP is mounted (e.g., as <code>fs0:</code>) so UEFI can navigate it."
+  },
+  bootmgr: {
+    title: "🪟 BOOTMGR (Windows Boot Manager)",
+    text: "UEFI executes the Windows Boot Manager file (<code>bootmgfw.efi</code>) from the ESP. This file reads the BCD (Boot Configuration Data) to find Windows, loads <code>winload.efi</code>, and eventually calls <code>ExitBootServices()</code> to take full control of the machine."
+  }
+};
+
+const nodes = document.querySelectorAll('.map-node:not(.center)');
+const panel = document.getElementById('infoPanel');
+
+nodes.forEach(node => {
+  node.addEventListener('click', () => {
+    // 1. Remove active class from all nodes
+    nodes.forEach(n => n.classList.remove('active'));
+    
+    // 2. Add active class to clicked node
+    node.classList.add('active');
+    
+    // 3. Get the data for this node
+    const target = node.getAttribute('data-target');
+    const data = nodeData[target];
+    
+    // 4. Update the info panel with a fade effect
+    panel.style.opacity = 0;
+    setTimeout(() => {
+      panel.innerHTML = `<h3>${data.title}</h3><p>${data.text}</p>`;
+      panel.style.opacity = 1;
+    }, 150);
+  });
+});
+</script>
+
+</body>
+</html>
