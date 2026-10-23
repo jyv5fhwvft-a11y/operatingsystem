@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · The Address Translation Flow (5th Grader Edition)</title>
+/* Info Grid */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.info-card{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;}
+.info-card h4{color:#fff;font-size:16px;margin-bottom:8px;}
+.info-card p{font-size:14px;color:var(--ink-2);line-height:1.7;}
+.info-card code{background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;color:#fff;font-family:var(--mono);}
+
+/* ================= ANIMATION PIPELINE ================= */
+.anim-container{position:relative;background:rgba(0,0,0,.4);border:1px solid var(--stroke-2);border-radius:24px;padding:40px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;overflow:hidden;margin-bottom:40px;}
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 0 20px #fff, 0 0 40px var(--blue);z-index:10;animation:flowDown 12s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 30px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+.pipe-node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;width:100%;max-width:450px;transition:.4s;}
+.pipe-node.active{border-color:var(--blue);background:rgba(91,141,255,.1);box-shadow:0 0 30px rgba(91,141,255,.2);transform:scale(1.02);}
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:8px;}
+.node-data{font-family:var(--mono);font-size:13px;color:var(--emerald);background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;display:inline-block;border:1px solid rgba(46,230,168,.2);}
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Address Split Visual */
+.split-visual{display:flex;justify-content:center;margin:12px 0;font-family:var(--mono);font-size:14px;font-weight:900;}
+.split-part{padding:10px 20px;border:1px solid;text-align:center;}
+.split-part.vpn{background:rgba(255,182,72,.15);border-color:var(--amber);color:#ffd18a;border-radius:8px 0 0 8px;}
+.split-part.offset{background:rgba(46,230,168,.15);border-color:var(--emerald);color:#88ffd8;border-radius:0 8px 8px 0;}
+.split-part.physical{background:rgba(46,230,168,.15);border-color:var(--emerald);color:#88ffd8;}
+.split-part.offset-fix{background:rgba(46,230,168,.15);border-color:var(--emerald);color:#88ffd8;border-radius:0 8px 8px 0;}
+.bit-label{font-size:9px;color:var(--muted);display:block;margin-bottom:4px;}
+
+@media (max-width: 800px) {
+  .info-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Address Translation Flow</h1>
+    <p class="page-subtitle">How does a program ask for a variable, and how does the computer find it? Let's trace the journey using the Post Office Analogy.</p>
+  </header>
+
+  <!-- STAGE 1: THE STORY -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 1</span> The Post Office Analogy</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>Who generates the Logical Address?</h4>
+        <p>When you write a program, the <strong>Compiler</strong> acts like a friend who tells you, "Just use <strong>P.O. Box 42</strong> to send mail." The program only knows the Box number. It has no idea where the actual mailroom is or which shelf the box sits on.</p>
+      </div>
+      <div class="info-card">
+        <h4>The Hardware's Job</h4>
+        <p>The <strong>CPU</strong> is the sender. The <strong>MMU</strong> is the Mail Clerk. The <strong>Page Table</strong> is the Clerk's secret notebook. The Clerk takes your Box 42, looks in the notebook, and finds exactly where the real mail is stored in the warehouse.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 2: THE ANIMATION -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 2</span> The Hardware Journey</h2>
+    
+    <div class="anim-container">
+      <div class="data-packet" id="packet"></div>
+
+      <!-- Step 1: CPU -->
+      <div class="pipe-node" id="node-0">
+        <div class="node-title">1. CPU Asks for Data</div>
+        <div class="node-sub">The program needs to read a variable. It hands the <strong>Logical Address</strong> to the hardware.</div>
+        <div class="node-data">Logical Address: 0x0040A000</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 2: MMU Split -->
+      <div class="pipe-node" id="node-1">
+        <div class="node-title">2. The MMU Splits the Address</div>
+        <div class="node-sub">Like splitting a Box number from a Letter inside it, the MMU splits the address into a <strong>Page Number</strong> (which box) and an <strong>Offset</strong> (which letter).</div>
+        
+        <div class="split-visual">
+          <div class="split-part vpn"><span class="bit-label">PAGE NUMBER</span>0x0040A</div>
+          <div class="split-part offset"><span class="bit-label">OFFSET</span>0x000</div>
+        </div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 3: Page Table -->
+      <div class="pipe-node" id="node-2">
+        <div class="node-title">3. The Mail Clerk Checks the Notebook</div>
+        <div class="node-sub">The MMU checks the <strong>Page Table</strong> to find out where Page 0x0040A is actually stored in real RAM.</div>
+        <div class="node-data">Page 0x0040A is in Physical Frame: 0x01A05</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 4: Assemble Physical Address -->
+      <div class="pipe-node" id="node-3">
+        <div class="node-title">4. The MMU Builds the Real Address</div>
+        <div class="node-sub">The Clerk swaps the fake Box number for the real Warehouse Shelf number. The Letter inside (Offset) stays exactly the same.</div>
+        
+        <div class="split-visual">
+          <div class="split-part physical"><span class="bit-label">PHYSICAL FRAME</span>0x01A05</div>
+          <div class="split-part offset-fix"><span class="bit-label">OFFSET</span>0x000</div>
+        </div>
+        <div class="node-data">Physical Address: 0x01A05000</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 5: RAM -->
+      <div class="pipe-node" id="node-4" style="border-color:var(--emerald);">
+        <div class="node-title">5. Warehouse Delivery</div>
+        <div class="node-sub">The RAM chip grabs the data from the physical address and gives it back to the CPU.</div>
+        <div class="node-data">Data Found: 42</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPLANATIONS -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 3</span> Why do we do this?</h2>
+    <div class="info-grid">
+      <div class="info-card" style="border-left: 4px solid var(--amber);">
+        <h4>1. Security (You can't steal mail)</h4>
+        <p>Because your program only knows the Logical Address (Box 42), it <strong>physically cannot</strong> reach into the warehouse shelves. It can't read another program's memory because it doesn't know the real Physical Address.</p>
+      </div>
+      <div class="info-card" style="border-left: 4px solid var(--emerald);">
+        <h4>2. Flexibility (Moving the shelves)</h4>
+        <p>The OS can move your data to a completely different shelf in the warehouse (Virtual Memory/Swapping). Because the Clerk updates the Page Table notebook, your program still uses Box 42 and never notices the data moved!</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4')
+];
+
+let currentStep = 0;
+
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 12s infinite linear';
+}
+
+setInterval(() => {
+  nodes.forEach(n => n.classList.remove('active'));
+  nodes[currentStep].classList.add('active');
+  
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 2000); 
+</script>
+
+</body>
+</html>
