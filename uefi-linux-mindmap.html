@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux UEFI · Mind Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.10),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= MIND MAP GRID ================= */
+.mindmap-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 20px;
+  align-items: center;
+  justify-items: center;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+/* Dashed connecting circle */
+.mindmap-container::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%; height: 70%;
+  border: 2px dashed rgba(46,230,168,.2);
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The Nodes */
+.map-node {
+  background: var(--panel);
+  border: 1.5px solid var(--stroke-2);
+  border-radius: 16px;
+  padding: 16px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 220px;
+}
+.map-node:hover, .map-node.active {
+  border-color: var(--emerald);
+  box-shadow: 0 0 20px rgba(46,230,168,.3);
+  transform: scale(1.05);
+  background: rgba(46,230,168,.05);
+}
+.map-node.center {
+  grid-column: 2;
+  grid-row: 2;
+  background: rgba(46,230,168,.1);
+  border-color: var(--emerald);
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(46,230,168,.2);
+  cursor: default;
+}
+.map-node.center:hover { transform: none; }
+.map-node.top-left { grid-column: 1; grid-row: 1; }
+.map-node.top-right { grid-column: 3; grid-row: 1; }
+.map-node.bottom-left { grid-column: 1; grid-row: 3; }
+.map-node.bottom-right { grid-column: 3; grid-row: 3; }
+.map-node.left { grid-column: 1; grid-row: 2; }
+.map-node.right { grid-column: 3; grid-row: 2; }
+
+.node-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+.node-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+.node-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ================= INFO PANEL ================= */
+.info-panel {
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--stroke);
+  border-left: 4px solid var(--emerald);
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 140px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.info-panel h3 { color: var(--emerald); font-size: 18px; margin-bottom: 10px; font-weight: 900; }
+.info-panel p { color: var(--ink-2); font-size: 15px; line-height: 1.7; }
+.info-panel code { font-family: var(--mono); background: rgba(255,255,255,.1); padding: 2px 6px; border-radius: 4px; color: #fff; }
+
+/* Responsive */
+@media (max-width: 800px) {
+  .mindmap-container { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .mindmap-container::before { display: none; }
+  .map-node { grid-column: 1 !important; grid-row: auto !important; max-width: 100%; }
+  .map-node.center { order: -1; margin-bottom: 20px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-linux.html" class="nav-link">← Back to Linux UEFI</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Linux UEFI Mind Map</h1>
+    <p class="page-subtitle">Tap any node to see how Secure Boot, GRUB2, and systemd connect in the modern Linux boot process.</p>
+  </header>
+
+  <section class="mindmap-container">
+    
+    <!-- Center Node -->
+    <div class="map-node center">
+      <span class="node-icon">🐧</span>
+      <div class="node-title">Linux UEFI Boot</div>
+    </div>
+
+    <!-- Surrounding Nodes -->
+    <div class="map-node top-left" data-target="esp">
+      <span class="node-icon">📂</span>
+      <div class="node-title">ESP & GPT</div>
+      <div class="node-sub">EFI System Partition</div>
+    </div>
+
+    <div class="map-node top-right" data-target="secureboot">
+      <span class="node-icon">🛡️</span>
+      <div class="node-title">Secure Boot</div>
+      <div class="node-sub">shim.efi</div>
+    </div>
+
+    <div class="map-node left" data-target="grub">
+      <span class="node-icon">🚀</span>
+      <div class="node-title">GRUB2</div>
+      <div class="node-sub">grubx64.efi</div>
+    </div>
+
+    <div class="map-node right" data-target="kernel">
+      <span class="node-icon">📦</span>
+      <div class="node-title">vmlinuz & initrd</div>
+      <div class="node-sub">Kernel & RAM Disk</div>
+    </div>
+
+    <div class="map-node bottom-left" data-target="exitboot">
+      <span class="node-icon">🔌</span>
+      <div class="node-title">ExitBootServices()</div>
+      <div class="node-sub">The Handoff</div>
+    </div>
+
+    <div class="map-node bottom-right" data-target="systemd">
+      <span class="node-icon">⚙️</span>
+      <div class="node-title">systemd</div>
+      <div class="node-sub">PID 1 & Services</div>
+    </div>
+
+  </section>
+
+  <!-- INFO PANEL -->
+  <section class="info-panel" id="infoPanel">
+    <h3>👆 Tap a Node</h3>
+    <p>Select any of the surrounding branches to explore how it fits into the Linux UEFI boot process.</p>
+  </section>
+
+</main>
+
+<script>
+/* ================= MIND MAP DATA ================= */
+const nodeData = {
+  esp: {
+    title: "📂 ESP & GPT",
+    text: "UEFI uses GPT (GUID Partition Table) instead of MBR. It looks for the <b>EFI System Partition (ESP)</b>, a FAT32 partition containing `.efi` files. The ESP is mounted (e.g., as `fs0:`) so UEFI can navigate it and find the Linux bootloader."
+  },
+  secureboot: {
+    title: "🛡️ Secure Boot & shim.efi",
+    text: "To pass Secure Boot, Linux uses a Microsoft-signed shim (<code>shim.efi</code>). The firmware verifies shim's signature, and shim then verifies the Canonical-signed <code>grubx64.efi</code>. This creates a cryptographic chain of trust preventing malware from booting."
+  },
+  grub: {
+    title: "🚀 GRUB2 (grubx64.efi)",
+    text: "GRUB2 is the main Linux bootloader. It reads <code>/boot/grub/grub.cfg</code> using UEFI file services, displays the boot menu, and prepares to load the Linux kernel. It is much more flexible than the old BIOS GRUB because it uses UEFI's rich APIs."
+  },
+  kernel: {
+    title: "📦 vmlinuz & initrd",
+    text: "GRUB loads two critical files into memory: <code>vmlinuz</code> (the compressed Linux kernel) and <code>initrd.img</code> (the initial RAM disk, which contains temporary drivers needed to mount the real root filesystem)."
+  },
+  exitboot: {
+    title: "🔌 ExitBootServices()",
+    text: "This is the point of no return. Right before jumping to the kernel, GRUB calls <code>ExitBootServices()</code>. UEFI gives up control of memory and hardware. Only <code>Runtime Services</code> (for ACPI, time) remain available to the OS."
+  },
+  systemd: {
+    title: "⚙️ systemd (PID 1)",
+    text: "Once the Linux kernel takes over, it mounts the root filesystem and starts the first user-space process: PID 1 (usually <code>systemd</code>). Systemd then starts all the background services (networking, logging) and brings up the login screen."
+  }
+};
+
+const nodes = document.querySelectorAll('.map-node:not(.center)');
+const panel = document.getElementById('infoPanel');
+
+nodes.forEach(node => {
+  node.addEventListener('click', () => {
+    // 1. Remove active class from all nodes
+    nodes.forEach(n => n.classList.remove('active'));
+    
+    // 2. Add active class to clicked node
+    node.classList.add('active');
+    
+    // 3. Get the data for this node
+    const target = node.getAttribute('data-target');
+    const data = nodeData[target];
+    
+    // 4. Update the info panel with a fade effect
+    panel.style.opacity = 0;
+    setTimeout(() => {
+      panel.innerHTML = `<h3>${data.title}</h3><p>${data.text}</p>`;
+      panel.style.opacity = 1;
+    }, 150);
+  });
+});
+</script>
+
+</body>
+</html>
