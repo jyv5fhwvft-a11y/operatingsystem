@@ -123,20 +123,45 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     <div class="arrow-down"></div>
 
     <!-- Stage 4: MBR Visual -->
-    <div class="mbr-wrapper">
-      <div style="text-align: center; width: 100%;">
+    <!-- Stage 4: MBR Visual -->
+    <div style="width: 100%; display: flex; justify-content: center; padding: 10px 0;">
+      <div style="width: 100%; max-width: 450px; text-align: center;">
         <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:8px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
-        <div class="mbr-visual">
-          <div class="mbr-header">MASTER BOOT RECORD (512 Bytes)</div>
-          <table class="mbr-table">
-            <tr>
-              <td class="mbr-bootstrap">Bootstrap<br>Code<br>(440 B)</td>
-              <td class="mbr-disksig">Disk<br>Sig<br>(4 B)</td>
-              <td class="mbr-reserved">Res<br>(2 B)</td>
-              <td class="mbr-partition">Partition<br>Table<br>(64 B)</td>
-              <td class="mbr-bootsig">55<br>AA<br>(2 B)</td>
-            </tr>
-          </table>
+        
+        <!-- MBR Box -->
+        <div style="width: 100%; background: rgba(0,0,0,.5); border: 2px solid var(--amber); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">
+          <div style="background: rgba(255,182,72,.2); color: #ffd18a; width: 100%; text-align: center; padding: 8px; font-family: var(--mono); font-size: 11px; font-weight: 800; letter-spacing: .1em;">MASTER BOOT RECORD (512 Bytes)</div>
+          
+          <!-- Horizontal Flex Row -->
+          <div style="display: flex; flex-direction: row; height: 65px; width: 100%;">
+            
+            <div style="flex: 55; background: rgba(255,255,255,.05); border-right: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-family: var(--mono); font-size: 8px; text-align: center; writing-mode: horizontal-tb !important;">
+              <span style="white-space: nowrap;">Bootstrap Code</span>
+              <span>(440 B)</span>
+            </div>
+            
+            <div style="flex: 10; background: rgba(255,77,109,.3); border-top: 2px solid var(--crimson); border-bottom: 2px solid var(--crimson); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff9fb1; font-weight: 800; font-family: var(--mono); font-size: 8px; text-align: center; writing-mode: horizontal-tb !important;">
+              <span>Disk Sig</span>
+              <span>(4 B)</span>
+            </div>
+            
+            <div style="flex: 5; background: rgba(255,255,255,.02); border-right: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-family: var(--mono); font-size: 8px; text-align: center; writing-mode: horizontal-tb !important;">
+              <span>Res</span>
+              <span>(2 B)</span>
+            </div>
+            
+            <div style="flex: 25; background: rgba(91,141,255,.2); border-right: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #b9d0ff; font-family: var(--mono); font-size: 8px; text-align: center; writing-mode: horizontal-tb !important;">
+              <span style="white-space: nowrap;">Partition Table</span>
+              <span>(64 B)</span>
+            </div>
+            
+            <div style="flex: 5; background: rgba(46,230,168,.2); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #88ffd8; font-family: var(--mono); font-size: 8px; text-align: center; writing-mode: horizontal-tb !important;">
+              <span>55</span>
+              <span>AA</span>
+              <span>(2 B)</span>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
