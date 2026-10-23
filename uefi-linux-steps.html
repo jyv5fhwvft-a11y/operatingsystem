@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux UEFI · Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1200px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= INTERACTIVE TIMELINE ================= */
+.timeline-layout{display:grid;grid-template-columns:300px 1fr;gap:32px;align-items:start;}
+
+/* Left Sidebar (Stages) */
+.timeline-nav{display:flex;flex-direction:column;gap:8px;position:sticky;top:100px;}
+.tl-btn{background:rgba(255,255,255,.02);border:1px solid var(--stroke);border-left:4px solid var(--muted);border-radius:8px;padding:14px 16px;text-align:left;cursor:pointer;transition:.3s;display:flex;flex-direction:column;gap:4px;}
+.tl-btn:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);border-left-color:var(--emerald);}
+.tl-btn.active{background:rgba(46,230,168,.1);border-color:var(--emerald);border-left-color:var(--emerald);transform:translateX(4px);box-shadow:0 4px 20px -5px rgba(46,230,168,.3);}
+.tl-num{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.1em;}
+.tl-btn.active .tl-num{color:var(--emerald);}
+.tl-name{font-size:14px;font-weight:700;color:var(--ink-2);}
+.tl-btn.active .tl-name{color:#fff;}
+
+/* Right Panel (Content) */
+.timeline-content{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:40px;min-height:500px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);position:relative;overflow:hidden;}
+.tc-header{margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed rgba(255,255,255,.15);}
+.tc-stage{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--emerald);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.tc-title{font-size:24px;font-weight:900;color:#fff;line-height:1.2;}
+
+.tc-section{margin-bottom:20px;}
+.tc-label{font-family:var(--mono);font-size:11px;font-weight:900;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:block;}
+.tc-text{font-size:15px;color:var(--ink-2);line-height:1.6;}
+.tc-list{list-style:none;padding-left:0;margin-top:8px;}
+.tc-list li{font-size:14px;color:var(--ink-2);margin-bottom:6px;padding-left:20px;position:relative;}
+.tc-list li::before{content:'▹';position:absolute;left:0;color:var(--emerald);}
+.tc-code{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;font-family:var(--mono);font-size:13px;color:#88ffd8;margin-top:8px;}
+
+/* Next Button */
+.btn-next-stage{margin-top:30px;padding:12px 24px;background:var(--emerald);color:#000;border:none;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:8px;}
+.btn-next-stage:hover{background:#5fffc4;transform:translateY(-2px);}
+.btn-next-stage:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.3s ease; }
+
+@media (max-width: 900px) {
+  .timeline-layout { grid-template-columns: 1fr; }
+  .timeline-nav { flex-direction: row; overflow-x: auto; padding-bottom: 10px; position: static; }
+  .tl-btn { min-width: 150px; border-left: none; border-bottom: 4px solid var(--muted); }
+  .tl-btn.active { transform: translateY(-4px); border-bottom-color: var(--emerald); border-left-color: transparent; }
+  .timeline-content { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-linux.html" class="nav-link">← Back to Linux UEFI</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Linux UEFI Timeline</h1>
+    <p class="page-subtitle">Click through the stages to trace the Secure Boot chain, GRUB2 execution, and the handoff to systemd.</p>
+  </header>
+
+  <div class="timeline-layout">
+    
+    <!-- LEFT NAVIGATION -->
+    <div class="timeline-nav" id="timelineNav">
+      <button class="tl-btn active" data-stage="0"><span class="tl-num">STAGE 0</span><span class="tl-name">SEC Phase</span></button>
+      <button class="tl-btn" data-stage="1"><span class="tl-num">STAGE 1</span><span class="tl-name">PEI Phase</span></button>
+      <button class="tl-btn" data-stage="2"><span class="tl-num">STAGE 2</span><span class="tl-name">DXE Phase</span></button>
+      <button class="tl-btn" data-stage="3"><span class="tl-num">STAGE 3</span><span class="tl-name">Boot Manager</span></button>
+      <button class="tl-btn" data-stage="4"><span class="tl-num">STAGE 4</span><span class="tl-name">Secure Boot (shim.efi)</span></button>
+      <button class="tl-btn" data-stage="5"><span class="tl-num">STAGE 5</span><span class="tl-name">GRUB2 Loader</span></button>
+      <button class="tl-btn" data-stage="6"><span class="tl-num">STAGE 6</span><span class="tl-name">Kernel & Initrd</span></button>
+      <button class="tl-btn" data-stage="7"><span class="tl-num">STAGE 7</span><span class="tl-name">systemd Startup</span></button>
+    </div>
+
+    <!-- RIGHT CONTENT PANEL -->
+    <div class="timeline-content" id="timelineContent">
+      <!-- Content injected via JS -->
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+/* ================= STAGE DATA ================= */
+const stages = [
+  {
+    stage: "Stage 0",
+    title: "SEC Phase (Security)",
+    what: "CPU starts executing from firmware ROM.",
+    actual: [
+      "CPU begins execution at reset vector.",
+      "SEC phase verifies firmware integrity.",
+      "Initializes minimal temporary RAM (Cache-as-RAM).",
+      "Sets up stack and enters protected mode."
+    ],
+    code: "Reset Vector: 0xFFFFFFFF\nCPU Mode: 32-bit protected mode\nTemporary RAM initialized",
+    passed: "Verified firmware environment."
+  },
+  {
+    stage: "Stage 1",
+    title: "PEI Phase (Pre-EFI Init)",
+    what: "Minimal hardware brought online.",
+    actual: [
+      "Memory Controller Hub (MCH) initialized.",
+      "Memory discovery and testing (MRC).",
+      "Permanent RAM becomes available.",
+      "PEI Foundation loads modular components (PEIMs).",
+      "HOB (Hand-Off Block) list prepared for DXE."
+    ],
+    code: "DRAM initialized: 16384MB\nCPU: Intel i7-10700K, 8 cores\n25+ PEIMs executed successfully",
+    passed: "Working memory and core hardware + HOB list."
+  },
+  {
+    stage: "Stage 2",
+    title: "DXE Phase (Driver Execution)",
+    what: "Full driver environment established.",
+    actual: [
+      "DXE Foundation loads and initializes.",
+      "Architectural protocols installed (CPU, Timer, Interrupt).",
+      "Boot Services and Runtime Services Tables created.",
+      "DXE Dispatcher loads 45+ UEFI drivers.",
+      "GPT Disk Detection: Reads Protective MBR, locates EFI System Partition (ESP)."
+    ],
+    code: "Boot Services Table at 0x7ABC0000\nESP: Partition 1 (C12A7328...)\n45 UEFI drivers loaded",
+    passed: "Complete UEFI service framework + ESP access."
+  },
+  {
+    stage: "Stage 3",
+    title: "Boot Manager Execution",
+    what: "UEFI Boot Manager takes control.",
+    actual: [
+      "Reads BootOrder and Boot#### variables from NVRAM.",
+      "Uses Boot Services: LocateHandleBuffer(), LoadImage(), StartImage().",
+      "Displays boot menu if multiple options available.",
+      "Selected Boot Option: 'Ubuntu' -> \\EFI\\ubuntu\\shim.efi."
+    ],
+    code: "BootOrder: [0000, 0001]\nBoot0001: 'Ubuntu' -> \\EFI\\ubuntu\\shim.efi",
+    passed: "Control to selected bootloader (shim.efi)."
+  },
+  {
+    stage: "Stage 4",
+    title: "Secure Boot Chain (shim.efi)",
+    what: "Linux Secure Boot process begins.",
+    actual: [
+      "UEFI verifies shim.efi signature (signed by Microsoft UEFI CA).",
+      "shim.efi verifies grubx64.efi signature (signed by Canonical CA).",
+      "If using MokManager, custom keys can be enrolled here.",
+      "shim.efi passes control to grubx64.efi."
+    ],
+    code: "shim.efi: Microsoft-signed\ngrubx64.efi: Canonical-signed\nSecure Boot: All signatures verified",
+    passed: "Secure Boot-compliant Linux bootloading."
+  },
+  {
+    stage: "Stage 5",
+    title: "GRUB2 Loader",
+    what: "GRUB2 displays menu and prepares kernel.",
+    actual: [
+      "grubx64.efi uses UEFI Boot Services to read /boot/grub/grub.cfg.",
+      "Displays boot menu with kernel options.",
+      "Loads selected Linux kernel (vmlinuz) using Boot Services.",
+      "Loads initial RAM disk (initrd.img)."
+    ],
+    code: "Config: /boot/grub/grub.cfg\nKernel: vmlinuz-5.15.0-91-generic\nInitrd: initrd.img-5.15.0-91-generic",
+    passed: "Kernel and initrd in memory."
+  },
+  {
+    stage: "Stage 6",
+    title: "ExitBootServices() Handoff",
+    what: "GRUB2 hands control to Linux kernel.",
+    actual: [
+      "GRUB2 calls ExitBootServices() before jumping to kernel.",
+      "UEFI Boot Services become unavailable forever.",
+      "Kernel entry point receives UEFI system table pointer (Runtime Services remain).",
+      "Kernel receives memory map and command line parameters."
+    ],
+    code: "ExitBootServices() called\nKernel entry: efi_stub_entry()\nRuntime Services: Preserved for ACPI/time",
+    passed: "Full control to Linux kernel."
+  },
+  {
+    stage: "Stage 7",
+    title: "Kernel Init & systemd",
+    what: "Linux kernel boots and starts systemd.",
+    actual: [
+      "Kernel decompresses and initializes subsystems.",
+      "Mounts root filesystem from initrd.",
+      "Starts systemd as PID 1.",
+      "systemd starts all system services and targets."
+    ],
+    code: "Init system: systemd (PID 1)\nRoot FS: Ext4 on /dev/nvme0n1p2\nTarget: graphical.target reached",
+    passed: "Running Linux system with user login."
+  }
+];
+
+/* ================= RENDER LOGIC ================= */
+const btns = document.querySelectorAll('.tl-btn');
+const content = document.getElementById('timelineContent');
+
+function renderStage(index) {
+  const data = stages[index];
+  
+  let actualHtml = '';
+  if (Array.isArray(data.actual)) {
+    actualHtml = `<ul class="tc-list">${data.actual.map(item => `<li>${item}</li>`).join('')}</ul>`;
+  } else {
+    actualHtml = `<p class="tc-text">${data.actual}</p>`;
+  }
+
+  let codeHtml = '';
+  if (data.code) {
+    codeHtml = `<div class="tc-section"><span class="tc-label">Example Data</span><div class="tc-code">${data.code.replace(/\n/g, '<br>')}</div></div>`;
+  }
+
+  const isLast = index === stages.length - 1;
+  const nextBtnHtml = `<button class="btn-next-stage" onclick="nextStage(${index})" ${isLast ? 'disabled' : ''}>Next Stage ➔</button>`;
+
+  content.innerHTML = `
+    <div class="fade-in">
+      <div class="tc-header">
+        <div class="tc-stage">${data.stage}</div>
+        <div class="tc-title">${data.title}</div>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Happens</span>
+        <p class="tc-text">${data.what}</p>
+      </div>
+      <div class="tc-section">
+        <span class="tc-label">What Actually Occurs</span>
+        ${actualHtml}
+      </div>
+      ${codeHtml}
+      <div class="tc-section" style="background:rgba(46,230,168,.05); padding:16px; border-radius:8px; border-left:3px solid var(--emerald);">
+        <span class="tc-label" style="color:var(--emerald);">Information Passed to Next Step</span>
+        <p class="tc-text" style="color:#fff; font-weight:600;">${data.passed}</p>
+      </div>
+      ${nextBtnHtml}
+    </div>
+  `;
+}
+
+/* ================= EVENT LISTENERS ================= */
+btns.forEach((btn, index) => {
+  btn.addEventListener('click', () => {
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderStage(index);
+  });
+});
+
+function nextStage(currentIndex) {
+  const nextIndex = currentIndex + 1;
+  if (nextIndex < stages.length) {
+    btns[nextIndex].click();
+    if (window.innerWidth <= 900) {
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+    }
+  }
+}
+
+// Initialize first stage
+renderStage(0);
+</script>
+
+</body>
+</html>
