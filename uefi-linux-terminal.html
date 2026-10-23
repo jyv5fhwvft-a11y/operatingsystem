@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux UEFI · EFI Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= TERMINAL UI ================= */
+.terminal{background:#000;border:1px solid var(--stroke-2);border-radius:16px;overflow:hidden;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);margin-bottom:30px; font-family: var(--mono);}
+.term-body{padding:24px;font-size:13.5px;line-height:1.6;min-height:400px;max-height:500px;overflow-y:auto;color:#d1d5db;}
+.term-line{display:block;margin-bottom:4px;white-space:pre-wrap;}
+
+/* Text Colors */
+.t-prompt{color:#fff;font-weight:700;}
+.t-cmd{color:#fff;}
+.t-error{color:var(--crimson);}
+.t-success{color:var(--emerald);}
+.t-warn{color:var(--amber);}
+.t-file{color:var(--blue); font-weight: 800;}
+
+/* Input Line */
+.term-input-line{display:flex;gap:10px;margin-top:10px;}
+.term-input-line span{color:#fff;font-weight:700;}
+.term-input{background:transparent;border:none;outline:none;color:#fff;font-family:var(--mono);font-size:13.5px;flex-grow:1;caret-color:#fff;}
+
+/* Helper Box */
+.helper-box{background:rgba(255,255,255,.04);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;}
+.helper-box h4{color:#fff;margin-bottom:12px;font-size:16px;}
+.helper-box p{font-size:14px;margin-bottom:16px;color:var(--ink-2);}
+.helper-grid{display:flex; gap:10px; flex-wrap:wrap;}
+.helper-btn{background:var(--emerald);color:#000;border:none;padding:10px 16px;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;transition:.2s;}
+.helper-btn:hover{background:#5fffc4;transform:translateY(-2px);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-linux.html" class="nav-link">← Back to Linux UEFI</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The UEFI Shell</h1>
+    <p class="page-subtitle">You are in the UEFI firmware environment. Navigate the ESP, inspect the Secure Boot chain, and manually launch GRUB.</p>
+  </header>
+
+  <div class="terminal">
+    <div class="term-body" id="termBody">
+      <span class="term-line">UEFI Interactive Shell v2.2</span>
+      <span class="term-line">EDK II</span>
+      <span class="term-line">UEFI v2.80 (American Megatrends, 0x00500000)</span>
+      <br>
+      <span class="term-line">Type <span class="t-success">help</span> for a list of commands.</span>
+      <br>
+      <div class="term-input-line">
+        <span id="currentPrompt">Shell></span>
+        <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </div>
+
+  <!-- HELPER UI -->
+  <div class="helper-box">
+    <h4>💡 Linux ESP Guide</h4>
+    <p>Type these commands in order to explore the Ubuntu ESP and boot the system:</p>
+    <div class="helper-grid">
+      <button class="helper-btn" onclick="typeCmd('map')">1. map</button>
+      <button class="helper-btn" onclick="typeCmd('fs0:')">2. fs0:</button>
+      <button class="helper-btn" onclick="typeCmd('cd \\EFI\\ubuntu')">3. cd \EFI\ubuntu</button>
+      <button class="helper-btn" onclick="typeCmd('ls')">4. ls</button>
+      <button class="helper-btn" onclick="typeCmd('shim.efi')">5. shim.efi</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const termInput = document.getElementById('termInput');
+const termBody = document.getElementById('termBody');
+const currentPrompt = document.getElementById('currentPrompt');
+let isRunning = false;
+let currentPath = 'Shell>';
+
+// Focus input on click
+termBody.addEventListener('click', () => termInput.focus());
+
+// Handle Enter key
+termInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const cmd = termInput.value.trim();
+    if (cmd) {
+      runCommand(cmd);
+      termInput.value = '';
+    }
+  }
+});
+
+function typeCmd(cmd) {
+  if (isRunning) return;
+  termInput.value = cmd;
+  termInput.focus();
+}
+
+function runCommand(cmd) {
+  if (isRunning) return;
+  isRunning = true;
+  termInput.disabled = true;
+
+  // Show the typed command
+  const cmdLine = document.createElement('div');
+  cmdLine.className = 'term-input-line';
+  cmdLine.innerHTML = `<span>${currentPrompt}</span> <span class="t-cmd">${cmd}</span>`;
+  termBody.insertBefore(cmdLine, termBody.lastElementChild);
+
+  setTimeout(() => {
+    const lowerCmd = cmd.toLowerCase();
+    
+    if (lowerCmd === 'help') {
+      printOutput(`Available commands:<br>map - Lists mapping between file systems and devices.<br>fs0: - Switches to the EFI System Partition.<br>ls - Lists the contents of the current directory.<br>cd - Changes the current directory.<br>clear - Clears the screen.`);
+    } 
+    else if (lowerCmd === 'map') {
+      printOutput(`Mapping table<br>FS0: Alias(s):F0a0:;PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)/Ctrl(0x0)/HD(1,GPT,C12A7328...)<br>FS1: Alias(s):F1a0:;PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)/Ctrl(0x0)/HD(2,GPT,EBD0A0A2...)<br>BLK0: Alias(s):PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)/Ctrl(0x0)/HD(1,GPT,C12A7328...)<br>BLK1: Alias(s):PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)/Ctrl(0x0)/HD(2,GPT,EBD0A0A2...)`);
+    } 
+    else if (lowerCmd === 'fs0:') {
+      currentPath = 'fs0:\\>';
+      currentPrompt.textContent = currentPath;
+      printOutput(`FS0:\\>`);
+    } 
+    else if (lowerCmd === 'ls') {
+      if (currentPath === 'Shell>') {
+        printOutput(`ls: No mapping found. Type 'map' and then 'fs0:' to mount the partition.`);
+      } else if (currentPath === 'fs0:\\>') {
+        printOutput(`Directory of: fs0:\\<br><br>  01/15/2024  10:00 AM  <DIR>          <span class="t-dir">EFI</span>`);
+      } else if (currentPath === 'fs0:\\EFI\\ubuntu>') {
+        printOutput(`Directory of: fs0:\\EFI\\ubuntu<br><br>  01/15/2024  10:00 AM       1,200,000 <span class="t-file">grubx64.efi</span><br>  01/15/2024  10:00 AM         850,000 <span class="t-file">shim.efi</span><br>  01/15/2024  10:00 AM         120,000 <span class="t-file">mmx64.efi</span>`);
+      } else {
+        printOutput(`Directory of: ${currentPath.replace('>','')}<br><br>  01/15/2024  10:00 AM  <DIR>          <span class="t-dir">ubuntu</span>`);
+      }
+    } 
+    else if (lowerCmd.startsWith('cd ')) {
+      const target = cmd.substring(3).trim().toLowerCase();
+      if (currentPath === 'Shell>') {
+        printOutput(`cd: No mapping found. Type 'fs0:' first.`);
+      } else if (target === '\\efi\\ubuntu') {
+        currentPath = 'fs0:\\EFI\\ubuntu>';
+        currentPrompt.textContent = currentPath;
+        printOutput(`FS0:\\EFI\\ubuntu>`);
+      } else if (target === '\\efi') {
+        currentPath = 'fs0:\\EFI>';
+        currentPrompt.textContent = currentPath;
+        printOutput(`FS0:\\EFI>`);
+      } else {
+        printOutput(`cd: Directory not found: ${target}`);
+      }
+    }
+    else if (lowerCmd === 'shim.efi' || lowerCmd === 'grubx64.efi') {
+      if (currentPath === 'fs0:\\EFI\\ubuntu>') {
+        printOutput(`<span class="t-warn">Loading ${cmd}...</span>`);
+        if (lowerCmd === 'shim.efi') {
+          printOutput(`Verifying shim.efi signature against UEFI db... <span class="t-success">OK (Microsoft UEFI CA)</span>`);
+          printOutput(`<span class="t-warn">shim.efi is now verifying grubx64.efi...</span>`);
+          printOutput(`Verifying grubx64.efi signature... <span class="t-success">OK (Canonical Ltd.)</span>`);
+          printOutput(`Launching GRUB2 Bootloader...`);
+        } else {
+          printOutput(`Launching GRUB2 Bootloader (Secure Boot disabled)...`);
+        }
+        
+        setTimeout(() => {
+          printOutput(`<br><span class="t-success">GNU GRUB version 2.06</span>`);
+          printOutput(`*Ubuntu`);
+          printOutput(`Advanced options for Ubuntu`);
+          printOutput(`Windows Boot Manager (on /dev/nvme0n1p1)`);
+          printOutput(`UEFI Firmware Settings`);
+          printOutput(`<br><span class="t-success">Booting 'Ubuntu'...</span>`);
+          printOutput(`Loading Linux 5.15.0-91-generic ...`);
+          printOutput(`Loading initial ramdisk ...`);
+          printOutput(`<br><span class="t-dim">[    0.000000] Linux version 5.15.0-91-generic</span>`);
+          printOutput(`<span class="t-dim">[    1.234567] Decompressing Linux... done.</span>`);
+          printOutput(`<span class="t-success">[  OK  ] Started systemd.</span>`);
+          printOutput(`<span class="t-success">Welcome to Ubuntu 22.04.3 LTS</span>`);
+          
+          setTimeout(() => {
+            termBody.innerHTML = `<span class="term-line t-success" style="font-size:18px; font-weight:900; margin-top:50px; text-align:center;">Login prompt ready...</span>`;
+            termInput.style.display = 'none';
+            document.getElementById('currentPrompt').style.display = 'none';
+          }, 2000);
+
+        }, 1000);
+        return; // Stop here so we don't reset input below
+      } else {
+        printOutput(`<span class="t-error">${cmd}: Command not found. Make sure you are in the \\EFI\\ubuntu directory.</span>`);
+      }
+    }
+    else if (lowerCmd === 'clear') {
+      termBody.innerHTML = '';
+      addInputLine();
+      isRunning = false;
+      termInput.disabled = false;
+      termInput.focus();
+      return;
+    } else {
+      printOutput(`<span class="t-error">Command not found: ${cmd}</span>`);
+    }
+
+    resetInput();
+  }, 300);
+}
+
+function printOutput(html) {
+  const output = document.createElement('div');
+  output.innerHTML = `<span class="term-line">${html}</span>`;
+  termBody.insertBefore(output, termBody.lastElementChild);
+}
+
+function resetInput() {
+  isRunning = false;
+  termInput.disabled = false;
+  if (!document.querySelector('.term-input-line:last-of-type')) {
+    addInputLine();
+  }
+  termInput.focus();
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function addInputLine() {
+  const inputLine = document.createElement('div');
+  inputLine.className = 'term-input-line';
+  inputLine.innerHTML = `
+    <span id="currentPrompt">${currentPath}</span>
+    <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">
+  `;
+  termBody.appendChild(inputLine);
+  
+  const newInput = inputLine.querySelector('input');
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const cmd = newInput.value.trim();
+      if (cmd) {
+        runCommand(cmd);
+        newInput.value = '';
+      }
+    }
+  });
+  newInput.focus();
+}
+</script>
+
+</body>
+</html>
