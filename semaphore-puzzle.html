@@ -1,0 +1,159 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Semaphore · Puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= PUZZLE GAME ================= */
+.game-board{display:flex;flex-direction:column;gap:12px;margin-bottom:40px;}
+.slot{background:rgba(255,255,255,.02);border:2px dashed var(--stroke-2);border-radius:12px;padding:20px;min-height:80px;display:flex;align-items:center;justify-content:center;transition:.3s;position:relative;}
+.slot-number{position:absolute;left:-15px;top:50%;transform:translateY(-50%);width:30px;height:30px;background:var(--bg);border:2px solid var(--stroke-2);border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:900;color:var(--muted);}
+.slot.correct{border:2px solid var(--violet);background:rgba(160,107,255,.1);}
+.slot.correct .slot-number{border-color:var(--violet);color:var(--violet);}
+
+/* Puzzle Pieces */
+.pieces-area{display:flex;flex-direction:column;gap:12px;margin-top:40px;}
+.piece{background:var(--panel);border:1px solid var(--stroke-2);border-radius:12px;padding:16px 20px;cursor:pointer;transition:.2s;font-size:15px;font-weight:600;text-align:center;box-shadow:0 4px 10px rgba(0,0,0,.3);}
+.piece:hover{background:rgba(255,255,255,.08);transform:translateY(-2px);border-color:var(--violet);}
+.piece.placed{opacity:0;pointer-events:none;transform:scale(0.8);}
+
+/* Animations */
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.wrong-answer{animation:shake 0.4s;border-color:var(--crimson) !important;color:var(--crimson);}
+
+/* Win Screen */
+.win-screen{display:none;text-align:center;padding:40px;background:rgba(160,107,255,.1);border:1px solid var(--violet);border-radius:16px;margin-top:40px;}
+.win-screen h2{color:var(--violet);font-size:24px;margin-bottom:12px;font-weight:900;}
+.win-screen p{color:var(--ink-2);font-size:15px;}
+.btn-reset{margin-top:20px;padding:10px 20px;background:var(--emerald);color:#000;border:none;border-radius:8px;font-weight:800;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="semaphore.html" class="nav-link">← Back to Semaphore</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Sync Puzzle</h1>
+    <p class="page-subtitle">Tap the scrambled pieces at the bottom and put the Producer's steps in the correct order to safely add an item to the buffer.</p>
+  </header>
+
+  <!-- SLOTS TO FILL -->
+  <div class="game-board" id="gameBoard">
+    <div class="slot" data-slot="1"><div class="slot-number">1</div></div>
+    <div class="slot" data-slot="2"><div class="slot-number">2</div></div>
+    <div class="slot" data-slot="3"><div class="slot-number">3</div></div>
+    <div class="slot" data-slot="4"><div class="slot-number">4</div></div>
+    <div class="slot" data-slot="5"><div class="slot-number">5</div></div>
+  </div>
+
+  <!-- SCRAMBLED PIECES -->
+  <div class="pieces-area" id="piecesArea">
+    <div class="piece" data-id="4" data-order="4">Producer calls <code>signal(mutex)</code> to release the lock on the buffer.</div>
+    <div class="piece" data-id="1" data-order="1">Producer calls <code>wait(empty)</code> to check if there are empty slots in the buffer.</div>
+    <div class="piece" data-id="5" data-order="5">Producer calls <code>signal(full)</code> to notify the Consumer that an item is ready.</div>
+    <div class="piece" data-id="3" data-order="3">Producer inserts the new item into the shared buffer.</div>
+    <div class="piece" data-id="2" data-order="2">Producer calls <code>wait(mutex)</code> to lock the buffer so no one else can touch it.</div>
+  </div>
+
+  <!-- WIN SCREEN (Hidden by default) -->
+  <div class="win-screen" id="winScreen">
+    <h2>🎉 Producer Mastered!</h2>
+    <p>You correctly ordered the Producer's operations. Notice how it checks for space first, locks the buffer, modifies it, unlocks it, and finally signals the consumer.</p>
+    <button class="btn-reset" onclick="location.reload()">Play Again</button>
+  </div>
+
+</main>
+
+<script>
+const pieces = document.querySelectorAll('.piece');
+const slots = document.querySelectorAll('.slot');
+const winScreen = document.getElementById('winScreen');
+const gameBoard = document.getElementById('gameBoard');
+const piecesArea = document.getElementById('piecesArea');
+
+let currentSlot = 1; // The slot we are currently trying to fill (1 to 5)
+let placedCount = 0;
+
+pieces.forEach(piece => {
+  piece.addEventListener('click', function() {
+    // Prevent clicking if already placed
+    if (this.classList.contains('placed')) return;
+
+    const pieceOrder = parseInt(this.getAttribute('data-order'));
+    const currentSlotElement = document.querySelector(`.slot[data-slot="${currentSlot}"]`);
+
+    // CHECK IF THE ANSWER IS CORRECT
+    if (pieceOrder === currentSlot) {
+      // Success!
+      currentSlotElement.classList.add('correct');
+      currentSlotElement.innerHTML += `<span style="font-size:14px;font-weight:800;color:#fff;text-align:left;padding-left:20px;">${this.innerHTML}</span>`;
+      
+      // Hide the piece
+      this.classList.add('placed');
+      
+      // Move to next slot
+      currentSlot++;
+      placedCount++;
+
+      // Check for Win
+      if (placedCount === 5) {
+        gameBoard.style.display = 'none';
+        piecesArea.style.display = 'none';
+        winScreen.style.display = 'block';
+      }
+    } else {
+      // Wrong answer - Shake the piece and the slot
+      this.classList.add('wrong-answer');
+      currentSlotElement.classList.add('wrong-answer');
+      
+      setTimeout(() => {
+        this.classList.remove('wrong-answer');
+        currentSlotElement.classList.remove('wrong-answer');
+      }, 500);
+    }
+  });
+});
+</script>
+
+</body>
+</html>
