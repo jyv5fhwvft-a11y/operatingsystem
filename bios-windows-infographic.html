@@ -122,23 +122,23 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     <div class="arrow-down"></div>
 
     <!-- Stage 4: MBR Visual -->
-<div class="node" id="node-3" style="padding: 0; border:none; background:transparent; box-shadow:none; transform:none; display: block; width: 100%; text-align: center; overflow: visible;">
+
+
+    <div class="node" id="node-3" style="padding: 0; border:none; background:transparent; box-shadow:none; transform:none; display: block; width: 100%; text-align: center; overflow: visible;">
       <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:12px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
       
       <div style="width: 100%; max-width: 500px; margin: 0 auto; background: rgba(0,0,0,.5); border: 2px solid var(--amber); border-radius: 12px; overflow: hidden; box-sizing: border-box;">
         <div style="background: rgba(255,182,72,.2); color: #ffd18a; width: 100%; text-align: center; padding: 8px; font-family: var(--mono); font-size: 11px; font-weight: 800; letter-spacing: .1em; box-sizing: border-box;">MASTER BOOT RECORD (512 Bytes)</div>
         
-        <div style="display: flex; flex-direction: row; width: 100%; height: 65px; box-sizing: border-box;">
-          <div style="flex: 55; background: rgba(255,255,255,.05); display: flex; flex-direction: column; justify-content: center; align-items: center; border-right: 1px solid rgba(255,255,255,.1); font-family: var(--mono); font-size: 9px; color: #fff; text-align: center; padding: 2px; line-height: 1.1; box-sizing: border-box;">Bootstrap<br>Code<br>(440 B)</div>
-          
-          <div style="flex: 10; background: rgba(255,77,109,.3); border-top: 2px solid var(--crimson); border-bottom: 2px solid var(--crimson); display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: var(--mono); font-size: 9px; color: #ff9fb1; font-weight: 800; text-align: center; padding: 2px; line-height: 1.1; box-sizing: border-box; box-shadow: inset 0 0 10px rgba(255,77,109,.5);">Disk<br>Sig<br>(4 B)</div>
-          
-          <div style="flex: 5; background: rgba(255,255,255,.02); display: flex; flex-direction: column; justify-content: center; align-items: center; border-right: 1px solid rgba(255,255,255,.1); font-family: var(--mono); font-size: 9px; color: #fff; text-align: center; padding: 2px; line-height: 1.1; box-sizing: border-box;">Res<br>(2 B)</div>
-          
-          <div style="flex: 25; background: rgba(91,141,255,.2); display: flex; flex-direction: column; justify-content: center; align-items: center; border-right: 1px solid rgba(255,255,255,.1); font-family: var(--mono); font-size: 9px; color: #b9d0ff; text-align: center; padding: 2px; line-height: 1.1; box-sizing: border-box;">Partition<br>Table<br>(64 B)</div>
-          
-          <div style="flex: 5; background: rgba(46,230,168,.2); display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: var(--mono); font-size: 9px; color: #88ffd8; text-align: center; padding: 2px; line-height: 1.1; box-sizing: border-box;">55<br>AA<br>(2 B)</div>
-        </div>
+        <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-family: var(--mono); font-size: 9px; color: #fff; text-align: center; line-height: 1.2;">
+          <tr>
+            <td style="width: 55%; background: rgba(255,255,255,.05); border-right: 1px solid rgba(255,255,255,.1); padding: 12px 2px;">Bootstrap<br>Code<br>(440 B)</td>
+            <td style="width: 10%; background: rgba(255,77,109,.3); border-top: 2px solid var(--crimson); border-bottom: 2px solid var(--crimson); color: #ff9fb1; font-weight: 800; padding: 12px 2px; box-shadow: inset 0 0 10px rgba(255,77,109,.5);">Disk<br>Sig<br>(4 B)</td>
+            <td style="width: 5%; background: rgba(255,255,255,.02); border-right: 1px solid rgba(255,255,255,.1); padding: 12px 2px; font-size: 8px;">Res<br>(2 B)</td>
+            <td style="width: 25%; background: rgba(91,141,255,.2); border-right: 1px solid rgba(255,255,255,.1); color: #b9d0ff; padding: 12px 2px;">Partition<br>Table<br>(64 B)</td>
+            <td style="width: 5%; background: rgba(46,230,168,.2); color: #88ffd8; padding: 12px 2px; font-size: 8px;">55<br>AA<br>(2 B)</td>
+          </tr>
+        </table>
       </div>
     </div>
     
