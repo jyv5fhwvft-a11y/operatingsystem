@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · The Complete Address Translation Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.12),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:60px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= STORY SECTIONS ================= */
+.section{margin-bottom:50px;}
+.section-title{font-size:22px;font-weight:900;color:#fff;border-bottom:1px solid var(--stroke);padding-bottom:12px;margin-bottom:24px;display:flex;align-items:center;gap:12px;}
+.section-title span{font-family:var(--mono);font-size:12px;color:var(--blue);letter-spacing:.1em;background:rgba(91,141,255,.1);padding:4px 8px;border-radius:6px;border:1px solid rgba(91,141,255,.3);}
+
+/* Code Block */
+.code-block{background:#080d17;border:1px solid var(--stroke);border-radius:16px;padding:20px;font-family:var(--mono);font-size:14px;line-height:1.8;color:#c6d3ea;overflow-x:auto;}
+.c-kw{color:var(--crimson);} .c-type{color:var(--emerald);} .c-var{color:var(--amber);} .c-com{color:var(--muted); font-style:italic;} .c-num{color:var(--amber);}
+
+/* Info Grid */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.info-card{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;}
+.info-card h4{color:#fff;font-size:16px;margin-bottom:8px;}
+.info-card p{font-size:14px;color:var(--ink-2);line-height:1.7;}
+
+/* ================= ANIMATION PIPELINE ================= */
+.anim-container{position:relative;background:rgba(0,0,0,.4);border:1px solid var(--stroke-2);border-radius:24px;padding:40px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;overflow:hidden;margin-bottom:40px;}
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 0 20px #fff, 0 0 40px var(--blue);z-index:10;animation:flowDown 12s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 30px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+.pipe-node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;width:100%;max-width:400px;transition:.4s;}
+.pipe-node.active{border-color:var(--blue);background:rgba(91,141,255,.1);box-shadow:0 0 30px rgba(91,141,255,.2);transform:scale(1.02);}
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-data{font-family:var(--mono);font-size:13px;color:var(--emerald);margin-top:8px;background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;display:inline-block;border:1px solid rgba(46,230,168,.2);}
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Bitwise Split Visual */
+.bit-split{display:flex;justify-content:center;margin:20px 0;font-family:var(--mono);font-size:16px;font-weight:900;}
+.bit-part{padding:10px 20px;border:1px solid;text-align:center;}
+.bit-part.vpn{background:rgba(255,182,72,.15);border-color:var(--amber);color:#ffd18a;border-radius:8px 0 0 8px;}
+.bit-part.offset{background:rgba(46,230,168,.15);border-color:var(--emerald);color:#88ffd8;border-radius:0 8px 8px 0;}
+.bit-label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px;}
+
+@media (max-width: 800px) {
+  .info-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Complete Address Translation Flow</h1>
+    <p class="page-subtitle">From C code to physical RAM. A step-by-step trace of how a single variable is generated, translated, and fetched by the hardware.</p>
+  </header>
+
+  <!-- STAGE 1: THE CODE -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 1</span> The Real Program</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>Who generates the Logical Address?</h4>
+        <p>When you write a program in C, the <strong>Compiler</strong> generates the machine code. It assumes your program owns the entire memory and starts at address 0. It assigns your variables specific logical addresses.</p>
+      </div>
+      <div class="code-block">
+<span class="c-kw">#include</span> &lt;stdio.h&gt;
+
+<span class="c-type">int</span> <span class="c-fn">main</span>() {
+    <span class="c-type">int</span> <span class="c-var">secret_number</span> = <span class="c-num">42</span>; <span class="c-com">// Compiler assigns this to Logical Address 0x0040A000</span>
+    
+    <span class="c-type">int</span> *<span class="c-var">ptr</span> = &<span class="c-var">secret_number</span>;
+    
+    <span class="c-fn">printf</span>(<span class="c-str">"%d"</span>, *<span class="c-var">ptr</span>); <span class="c-com">// CPU must fetch data from 0x0040A000</span>
+    <span class="c-kw">return</span> <span class="c-num">0</span>;
+}
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 2: THE ANIMATION -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 2</span> The Hardware Journey</h2>
+    
+    <div class="anim-container">
+      <div class="data-packet" id="packet"></div>
+
+      <!-- Step 1: CPU -->
+      <div class="pipe-node" id="node-0">
+        <div class="node-title">1. CPU Execution</div>
+        <div class="node-sub">The CPU executes the `printf` instruction and asks for data at the Logical Address.</div>
+        <div class="node-data">Logical Address: 0x0040A000</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 2: MMU Split -->
+      <div class="pipe-node" id="node-1">
+        <div class="node-title">2. MMU Splits the Address</div>
+        <div class="node-sub">The MMU divides the 32-bit logical address into a Page Number (VPN) and an Offset.</div>
+        
+        <div class="bit-split">
+          <div class="bit-part vpn"><span class="bit-label">VIRTUAL PAGE NUMBER (VPN)</span>0x0040A</div>
+          <div class="bit-part offset"><span class="bit-label">OFFSET</span>0x000</div>
+        </div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 3: Page Table -->
+      <div class="pipe-node" id="node-2">
+        <div class="node-title">3. Page Table Lookup</div>
+        <div class="node-sub">The MMU looks up the VPN (0x0040A) in the OS Page Table to find the Physical Frame Number.</div>
+        <div class="node-data">VPN 0x0040A → Physical Frame: 0x01A05</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 4: Assemble Physical Address -->
+      <div class="pipe-node" id="node-3">
+        <div class="node-title">4. MMU Builds Physical Address</div>
+        <div class="node-sub">The MMU replaces the VPN with the Physical Frame Number. The Offset stays exactly the same.</div>
+        
+        <div class="bit-split">
+          <div class="bit-part vpn" style="background:rgba(46,230,168,.15); border-color:var(--emerald); color:#88ffd8;"><span class="bit-label">PHYSICAL FRAME</span>0x01A05</div>
+          <div class="bit-part offset"><span class="bit-label">OFFSET</span>0x000</div>
+        </div>
+        <div class="node-data">Physical Address: 0x01A05000</div>
+      </div>
+      <div class="arrow-down"></div>
+
+      <!-- Step 5: RAM -->
+      <div class="pipe-node" id="node-4" style="border-color:var(--emerald);">
+        <div class="node-title">5. RAM Access</div>
+        <div class="node-sub">The Memory Controller sends the physical address to the RAM chip.</div>
+        <div class="node-data">RAM returns the value: 42</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPLANATIONS -->
+  <section class="section">
+    <h2 class="section-title"><span>STAGE 3</span> Why do we do this?</h2>
+    <div class="info-grid">
+      <div class="info-card" style="border-left: 4px solid var(--amber);">
+        <h4>1. Security (Isolation)</h4>
+        <p>Because the CPU only generates logical addresses, your C program has absolutely no idea that the data actually lives at physical address <code>0x01A05000</code>. It cannot read another program's memory because it doesn't know the physical address.</p>
+      </div>
+      <div class="info-card" style="border-left: 4px solid var(--emerald);">
+        <h4>2. Flexibility (Virtual Memory)</h4>
+        <p>The OS can move <code>secret_number</code> around in physical RAM (e.g., swap it to the hard drive and bring it back to a different physical frame). Because the Page Table is updated, the logical address <code>0x0040A000</code> remains exactly the same to the program.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4')
+];
+
+let currentStep = 0;
+
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 12s infinite linear';
+}
+
+setInterval(() => {
+  nodes.forEach(n => n.classList.remove('active'));
+  nodes[currentStep].classList.add('active');
+  
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 2000); 
+</script>
+
+</body>
+</html>
