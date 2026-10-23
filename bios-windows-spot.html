@@ -46,7 +46,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .hex-dump{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto;margin-bottom:24px;color:var(--muted);}
 .hex-line{white-space:nowrap;}
 .hex-addr{color:var(--blue);margin-right:16px;}
-.hex-part{padding:4px 6px;border-radius:4px;cursor:pointer;transition:.2s;border:1px solid transparent;}
+.hex-part{padding:4px 6px;border-radius:4px;cursor:pointer;transition:.2s;border:1px solid transparent;-webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;}
 .hex-part:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:#fff;}
 .hex-part.fixed{background:rgba(46,230,168,.2);border-color:var(--emerald);color:var(--emerald);pointer-events:none;font-weight:900;}
 .hex-part.shake{animation:shake 0.4s;background:rgba(255,77,109,.2);border-color:var(--crimson);color:var(--crimson);}
