@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · UEFI Windows · Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= SANDBOX UI ================= */
+.sandbox-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:30px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+
+/* Control Panel */
+.control-panel{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.btn{padding:16px;border:none;border-radius:12px;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;transition:.3s;text-align:center;line-height:1.4;}
+.btn:hover{transform:translateY(-3px);}
+.btn-normal{background:var(--emerald);color:#000;box-shadow:0 8px 20px -8px rgba(46,230,168,.8);}
+.btn-secure{background:var(--crimson);color:#fff;box-shadow:0 8px 20px -8px rgba(255,77,109,.8);}
+.btn-missing{background:var(--amber);color:#000;box-shadow:0 8px 20px -8px rgba(255,182,72,.8);}
+.btn-bcd{background:var(--violet);color:#fff;box-shadow:0 8px 20px -8px rgba(160,107,255,.8);}
+
+/* ================= TERMINAL OUTPUT ================= */
+.terminal{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:24px;font-family:var(--mono);font-size:13px;min-height:220px;display:flex;flex-direction:column;justify-content:flex-start;box-shadow:inset 0 0 20px rgba(0,0,0,.5);}
+.term-line{display:block;margin-bottom:8px;line-height:1.6;}
+.t-error{color:var(--crimson);font-weight:800;}
+.t-success{color:var(--emerald);font-weight:800;}
+.t-info{color:var(--blue);}
+.t-warn{color:var(--amber);}
+.t-dim{color:var(--muted);}
+
+/* Animations */
+.shake{animation:shake 0.4s;}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+@media (max-width: 700px) {
+  .control-panel { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="uefi-windows.html" class="nav-link">← Back to UEFI Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The UEFI Failure Sandbox</h1>
+    <p class="page-subtitle">UEFI relies on security and files. Break the system by clicking the scenarios below and watch how the firmware reacts.</p>
+  </header>
+
+  <div class="sandbox-box">
+    
+    <div class="control-panel">
+      <button class="btn btn-normal" onclick="runBoot('normal')">🟢 Normal UEFI Boot</button>
+      <button class="btn btn-secure" onclick="runBoot('secure-boot')">🛡️ Secure Boot Violation (Tampered EFI)</button>
+      <button class="btn btn-missing" onclick="runBoot('missing-file')">📂 Delete bootmgfw.efi</button>
+      <button class="btn btn-bcd" onclick="runBoot('bcd-corrupt')">📝 Corrupt BCD Configuration</button>
+    </div>
+
+    <!-- TERMINAL OUTPUT -->
+    <div class="terminal" id="terminal">
+      <span class="term-line t-info">UEFI Firmware v2.8 initialized. Awaiting boot selection...</span>
+      <span class="term-line t-dim">Press one of the scenario buttons above to initiate boot.</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ================= SANDBOX LOGIC ================= */
+const terminal = document.getElementById('terminal');
+
+function runBoot(type) {
+  terminal.className = 'terminal';
+  terminal.innerHTML = '';
+  
+  if (type === 'normal') {
+    terminal.innerHTML = `
+      <span class="term-line t-info">[SEC] Verifying PEI... OK</span>
+      <span class="term-line t-info">[PEI] Memory initialized. 16GB detected.</span>
+      <span class="term-line t-info">[DXE] Drivers loaded.</span>
+      <span class="term-line t-info">[BDS] Searching for bootmgfw.efi on ESP...</span>
+      <span class="term-line t-warn">[BOOTMGR] Reading BCD... Windows 11 found.</span>
+      <span class="term-line t-success">Windows Kernel loading... Handoff successful.</span>
+    `;
+  } 
+  
+  else if (type === 'secure-boot') {
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    terminal.innerHTML = `
+      <span class="term-line t-info">[SEC] Verifying PEI... OK</span>
+      <span class="term-line t-info">[PEI] Memory initialized.</span>
+      <span class="term-line t-info">[DXE] Drivers loaded.</span>
+      <span class="term-line t-info">[BDS] Attempting to load bootmgfw.efi...</span>
+      <span class="term-line t-error">[SECURITY] Secure Boot Violation!</span>
+      <span class="term-line t-error">The digital signature of bootmgfw.efi is invalid or missing.</span>
+      <span class="term-line t-dim">System halted. The bootloader has been blocked by the firmware.</span>
+    `;
+  } 
+  
+  else if (type === 'missing-file') {
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    terminal.innerHTML = `
+      <span class="term-line t-info">[DXE] Drivers loaded.</span>
+      <span class="term-line t-info">[BDS] Searching for bootmgfw.efi on ESP (fs0:\EFI\Microsoft\Boot\)...</span>
+      <span class="term-line t-error">[ERROR] File not found.</span>
+      <span class="term-line t-error">bootmgfw.efi is missing.</span>
+      <span class="term-line t-dim">System halts. The UEFI firmware cannot find an OS loader.</span>
+      <span class="term-line t-dim">"Boot device not found. Please install an operating system on your hard disk."</span>
+    `;
+  } 
+  
+  else if (type === 'bcd-corrupt') {
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    terminal.innerHTML = `
+      <span class="term-line t-info">[BDS] Loading bootmgfw.efi... SUCCESS</span>
+      <span class="term-line t-warn">[BOOTMGR] Reading BCD (Boot Configuration Data)...</span>
+      <span class="term-line t-error">[ERROR] BCD file is corrupted or missing!</span>
+      <span class="term-line t-dim">winload.efi could not be located.</span>
+      <span class="term-line t-error">"Your PC needs to be repaired. The Boot Configuration Data for your PC is missing or contains errors."</span>
+    `;
+  }
+}
+</script>
+
+</body>
+</html>
