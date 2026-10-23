@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Logical Address · Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,77,109,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= SANDBOX UI ================= */
+.sandbox-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:30px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;}
+
+/* Controls */
+.control-panel{display:flex;flex-direction:column;gap:16px;background:rgba(0,0,0,.3);padding:24px;border-radius:16px;border:1px dashed rgba(255,255,255,.15);}
+.input-group{display:flex;flex-direction:column;gap:6px;}
+.input-group label{font-size:12px;color:var(--muted);font-family:var(--mono);font-weight:800;}
+.input-group input{padding:12px;border-radius:8px;border:1px solid var(--stroke-2);background:rgba(0,0,0,.5);color:#fff;font-family:var(--mono);font-size:16px;outline:none;}
+.input-group input:focus{border-color:var(--emerald);box-shadow:0 0 10px rgba(46,230,168,.2);}
+.btn-action{padding:16px;background:var(--violet);color:#fff;border:none;border-radius:10px;font-family:var(--font);font-size:15px;font-weight:900;cursor:pointer;transition:.2s;margin-top:10px;}
+.btn-action:hover{background:#b585ff;transform:translateY(-2px);}
+
+/* Terminal Output */
+.terminal{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:24px;font-family:var(--mono);font-size:13px;min-height:260px;display:flex;flex-direction:column;justify-content:flex-start;box-shadow:inset 0 0 20px rgba(0,0,0,.5);}
+.term-line{display:block;margin-bottom:8px;line-height:1.6; white-space: pre-wrap;}
+.t-error{color:var(--crimson);font-weight:800;}
+.t-success{color:var(--emerald);font-weight:800;}
+.t-info{color:var(--blue);}
+.t-warn{color:var(--amber);}
+.t-dim{color:var(--muted);}
+
+/* Animations */
+.shake{animation:shake 0.4s;}
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+@media (max-width: 800px) {
+  .sim-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="logical-address.html" class="nav-link">← Back to Logical Address</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Base & Bound Sandbox</h1>
+    <p class="page-subtitle">You are the OS. Set the hardware registers, then request a logical address. Will the MMU grant access or crash the program?</p>
+  </header>
+
+  <div class="sandbox-box">
+    <div class="sim-grid">
+      
+      <!-- CONTROLS -->
+      <div class="control-panel">
+        <div class="input-group">
+          <label>Base Register (Starting Physical Address)</label>
+          <input type="number" id="baseVal" value="1000">
+        </div>
+        
+        <div class="input-group">
+          <label>Bound Register (Program Size)</label>
+          <input type="number" id="boundVal" value="500">
+        </div>
+
+        <div class="input-group">
+          <label>Requested Logical Address</label>
+          <input type="number" id="logicalVal" value="250">
+        </div>
+        
+        <button class="btn-action" onclick="runTranslation()">Request Memory Access</button>
+      </div>
+
+      <!-- TERMINAL -->
+      <div class="terminal" id="terminal">
+        <span class="term-line t-info">[Hardware] CPU and MMU powered on.</span>
+        <span class="term-line t-dim">Base: 1000 | Bound: 500</span>
+        <span class="term-line t-dim">Press "Request Memory Access" to continue.</span>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ================= SANDBOX LOGIC ================= */
+const terminal = document.getElementById('terminal');
+const baseVal = document.getElementById('baseVal');
+const boundVal = document.getElementById('boundVal');
+const logicalVal = document.getElementById('logicalVal');
+
+function runTranslation() {
+  terminal.className = 'terminal';
+  
+  const base = parseInt(baseVal.value);
+  const bound = parseInt(boundVal.value);
+  const logical = parseInt(logicalVal.value);
+  
+  // Validate inputs
+  if (isNaN(base) || isNaN(bound) || isNaN(logical)) {
+    terminal.innerHTML = `<span class="term-line t-error">Error: Please enter valid numbers.</span>`;
+    return;
+  }
+
+  terminal.innerHTML = `
+    <span class="term-line t-info">[CPU] Requesting logical address ${logical}...</span>
+    <span class="term-line t-info">[MMU] Checking bounds: Is ${logical} < ${bound}?</span>
+  `;
+
+  setTimeout(() => {
+    if (logical >= bound || logical < 0) {
+      // FAULT
+      terminal.classList.add('shake');
+      setTimeout(() => terminal.classList.remove('shake'), 500);
+      
+      const output = document.createElement('div');
+      output.innerHTML = `
+        <span class="term-line t-error">[MMU] Bound check FAILED: ${logical} >= ${bound}</span>
+        <span class="term-line t-error">[OS] Segmentation Fault (SIGSEGV) at logical address ${logical}</span>
+        <span class="term-line t-dim">The process was terminated to protect memory.</span>
+      `;
+      terminal.appendChild(output);
+    } else {
+      // SUCCESS
+      const physical = base + logical;
+      const output = document.createElement('div');
+      output.innerHTML = `
+        <span class="term-line t-success">[MMU] Bound check PASSED: ${logical} < ${bound}</span>
+        <span class="term-line t-warn">[MMU] Calculating Physical: Base (${base}) + Logical (${logical})</span>
+        <span class="term-line t-success">[RAM] Accessing physical address: ${physical}</span>
+        <span class="term-line t-dim">Read/Write successful.</span>
+      `;
+      terminal.appendChild(output);
+    }
+  }, 600);
+}
+</script>
+
+</body>
+</html>
