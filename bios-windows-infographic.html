@@ -59,18 +59,20 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
 
 /* MBR Special Visual */
-.mbr-body{display:flex;height:60px;width:100%;}
-.mbr-section{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid rgba(255,255,255,.1);font-family:var(--mono);font-size:10px;color:#fff;text-align:center;padding:4px;flex-shrink:0;}
-.mbr-section:last-child{border-right:none;}
-.mbr-bootstrap{width:55%;background:rgba(255,255,255,.05);}
-.mbr-disksig{width:10%;background:rgba(255,77,109,.3);border:1px solid var(--crimson);color:#ff9fb1;font-weight:800;box-shadow:inset 0 0 15px rgba(255,77,109,.5);}
-.mbr-reserved{width:5%;background:rgba(255,255,255,.02);}
-.mbr-partition{width:25%;background:rgba(91,141,255,.2);color:#b9d0ff;}
-.mbr-bootsig{width:5%;background:rgba(46,230,168,.2);color:#88ffd8;}
 
-@media (max-width: 600px) {
-  .mbr-visual { min-width: 480px; overflow-x: auto; }
-}
+  
+
+/* MBR Special Visual (Using CSS Grid for iPad Compatibility) */
+.mbr-visual{width:100%;max-width:500px;min-width:320px;background:rgba(0,0,0,.5);border:2px solid var(--amber);border-radius:12px;overflow:hidden;margin:10px 0;z-index:2;}
+.mbr-header{background:rgba(255,182,72,.2);color:#ffd18a;text-align:center;padding:8px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.1em;}
+.mbr-body{display:grid;grid-template-columns:55% 10% 5% 25% 5%;height:60px;width:100%;}
+.mbr-section{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid rgba(255,255,255,.1);font-family:var(--mono);font-size:10px;color:#fff;text-align:center;padding:4px;line-height:1.2;overflow:hidden;}
+.mbr-section:last-child{border-right:none;}
+.mbr-bootstrap{background:rgba(255,255,255,.05);}
+.mbr-disksig{background:rgba(255,77,109,.3);border:1px solid var(--crimson);color:#ff9fb1;font-weight:800;box-shadow:inset 0 0 15px rgba(255,77,109,.5);}
+.mbr-reserved{background:rgba(255,255,255,.02);}
+.mbr-partition{background:rgba(91,141,255,.2);color:#b9d0ff;}
+.mbr-bootsig{background:rgba(46,230,168,.2);color:#88ffd8;}
   
 </style>
 </head>
@@ -120,17 +122,20 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     <div class="arrow-down"></div>
 
     <!-- Stage 4: MBR Visual -->
-    <div class="node" id="node-3" style="padding: 10px; border:none; background:transparent; box-shadow:none; transform:none;display: flex; flex-direction: column; align-items: center;">
+
+    <div class="node" id="node-3" style="padding: 10px; border:none; background:transparent; box-shadow:none; transform:none; display: block; width: 100%; text-align: center;">
       <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:8px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
       
-      <div class="mbr-visual">
-        <div class="mbr-header">MASTER BOOT RECORD (512 Bytes)</div>
-        <div class="mbr-body">
-          <div class="mbr-section mbr-bootstrap">Bootstrap Code<br>(440 B)</div>
-          <div class="mbr-section mbr-disksig">Disk Sig<br>(4 B)</div>
-          <div class="mbr-section mbr-reserved">Res<br>(2 B)</div>
-          <div class="mbr-section mbr-partition">Partition Table<br>(64 B)</div>
-          <div class="mbr-section mbr-bootsig">55 AA<br>(2 B)</div>
+      <div style="display: flex; justify-content: center; width: 100%; overflow-x: auto; padding-bottom: 10px;">
+        <div class="mbr-visual">
+          <div class="mbr-header">MASTER BOOT RECORD (512 Bytes)</div>
+          <div class="mbr-body">
+            <div class="mbr-section mbr-bootstrap">Bootstrap Code<br>(440 B)</div>
+            <div class="mbr-section mbr-disksig">Disk Sig<br>(4 B)</div>
+            <div class="mbr-section mbr-reserved">Res<br>(2 B)</div>
+            <div class="mbr-section mbr-partition">Partition Table<br>(64 B)</div>
+            <div class="mbr-section mbr-bootsig">55 AA<br>(2 B)</div>
+          </div>
         </div>
       </div>
     </div>
