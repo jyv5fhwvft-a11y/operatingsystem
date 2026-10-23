@@ -16,7 +16,10 @@
   --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh;padding-bottom:80px;line-height:1.6;
+  /* Removed overflow-x:hidden to stop the iOS rotation bug */
+}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
 
 /* ================= NAVIGATION BAR ================= */
@@ -28,15 +31,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .nav-link:hover{color:#ffd18a;}
 
 /* ================= MAIN LAYOUT ================= */
-.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 24px 40px;}
+.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 16px 40px;}
 .page-header{text-align:center;margin-bottom:40px;}
 .page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
 
 /* ================= FLOWCHART UI ================= */
-.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:20px;padding-bottom:40px;}
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:20px;padding-bottom:40px;width:100%;}
 
-/* The moving data packet */
 .data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:14px;height:14px;background:#fff;border-radius:50%;box-shadow:0 0 20px #fff, 0 0 40px var(--amber);z-index:10;animation:flowDown 10s infinite linear;opacity:0;}
 
 @keyframes flowDown {
@@ -47,7 +49,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 }
 
 /* Nodes */
-.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:400px;transition:.4s;}
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 20px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:400px;transition:.4s;}
 .node.active{border-color:var(--amber);background:rgba(255,182,72,.1);box-shadow:0 0 30px rgba(255,182,72,.2);transform:scale(1.05);}
 
 .node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
@@ -58,22 +60,21 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .arrow-down{width:2px;height:30px;background:var(--stroke-2);position:relative;z-index:1;}
 .arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
 
-/* MBR Special Visual */
-
-  
-
-/* MBR Special Visual (Using CSS Grid for iPad Compatibility) */
-.mbr-visual{width:100%;max-width:500px;min-width:320px;background:rgba(0,0,0,.5);border:2px solid var(--amber);border-radius:12px;overflow:hidden;margin:10px 0;z-index:2;}
+/* MBR Special Visual (100% Width Safe) */
+.mbr-wrapper{width: 100%; display: flex; justify-content: center; margin: 10px 0; padding: 0 4px;}
+.mbr-visual{width:100%;max-width:400px;background:rgba(0,0,0,.5);border:2px solid var(--amber);border-radius:12px;overflow:hidden;z-index:2;}
 .mbr-header{background:rgba(255,182,72,.2);color:#ffd18a;text-align:center;padding:8px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.1em;}
-.mbr-body{display:grid;grid-template-columns:55% 10% 5% 25% 5%;height:60px;width:100%;}
-.mbr-section{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid rgba(255,255,255,.1);font-family:var(--mono);font-size:10px;color:#fff;text-align:center;padding:4px;line-height:1.2;overflow:hidden;}
-.mbr-section:last-child{border-right:none;}
-.mbr-bootstrap{background:rgba(255,255,255,.05);}
-.mbr-disksig{background:rgba(255,77,109,.3);border:1px solid var(--crimson);color:#ff9fb1;font-weight:800;box-shadow:inset 0 0 15px rgba(255,77,109,.5);}
-.mbr-reserved{background:rgba(255,255,255,.02);}
-.mbr-partition{background:rgba(91,141,255,.2);color:#b9d0ff;}
-.mbr-bootsig{background:rgba(46,230,168,.2);color:#88ffd8;}
-  
+
+/* HTML Table Layout */
+.mbr-table {width: 100%; border-collapse: collapse; table-layout: fixed;}
+.mbr-table td {padding: 12px 2px; text-align: center; font-family: var(--mono); font-size: 9px; line-height: 1.2; border-right: 1px solid rgba(255,255,255,.1); color: #fff;}
+.mbr-table td:last-child {border-right: none;}
+
+.mbr-bootstrap{background:rgba(255,255,255,.05); width: 55%;}
+.mbr-disksig{background:rgba(255,77,109,.3); border-top: 2px solid var(--crimson); border-bottom: 2px solid var(--crimson); color: #ff9fb1 !important; font-weight: 800; width: 10%;}
+.mbr-reserved{background:rgba(255,255,255,.02); width: 5%;}
+.mbr-partition{background:rgba(91,141,255,.2); color: #b9d0ff !important; width: 25%;}
+.mbr-bootsig{background:rgba(46,230,168,.2); color: #88ffd8 !important; width: 5%;}
 </style>
 </head>
 <body>
@@ -99,14 +100,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     
     <div class="data-packet" id="packet"></div>
 
-    <!-- Stage 1: Power On -->
+    <!-- Stage 1 -->
     <div class="node" id="node-0">
       <div class="node-title">Power On</div>
       <div class="node-sub">CPU wakes up in 16-bit Real Mode</div>
     </div>
     <div class="arrow-down"></div>
 
-    <!-- Stage 2: BIOS ROM -->
+    <!-- Stage 2 -->
     <div class="node" id="node-1" style="border-color:var(--amber);">
       <div class="node-title">BIOS ROM</div>
       <div class="node-sub">POST checks hardware</div>
@@ -114,7 +115,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     </div>
     <div class="arrow-down"></div>
 
-    <!-- Stage 3: Boot Order -->
+    <!-- Stage 3 -->
     <div class="node" id="node-2">
       <div class="node-title">Boot Order (CMOS)</div>
       <div class="node-sub">Reads boot priority: HDD, CD-ROM, USB</div>
@@ -122,29 +123,26 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     <div class="arrow-down"></div>
 
     <!-- Stage 4: MBR Visual -->
-
-
-    <div class="node" id="node-3" style="padding: 0; border:none; background:transparent; box-shadow:none; transform:none; display: block; width: 100%; text-align: center; overflow: visible;">
-      <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:12px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
-      
-      <div style="width: 100%; max-width: 500px; margin: 0 auto; background: rgba(0,0,0,.5); border: 2px solid var(--amber); border-radius: 12px; overflow: hidden; box-sizing: border-box;">
-        <div style="background: rgba(255,182,72,.2); color: #ffd18a; width: 100%; text-align: center; padding: 8px; font-family: var(--mono); font-size: 11px; font-weight: 800; letter-spacing: .1em; box-sizing: border-box;">MASTER BOOT RECORD (512 Bytes)</div>
-        
-        <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-family: var(--mono); font-size: 9px; color: #fff; text-align: center; line-height: 1.2;">
-          <tr>
-            <td style="width: 55%; background: rgba(255,255,255,.05); border-right: 1px solid rgba(255,255,255,.1); padding: 12px 2px;">Bootstrap<br>Code<br>(440 B)</td>
-            <td style="width: 10%; background: rgba(255,77,109,.3); border-top: 2px solid var(--crimson); border-bottom: 2px solid var(--crimson); color: #ff9fb1; font-weight: 800; padding: 12px 2px; box-shadow: inset 0 0 10px rgba(255,77,109,.5);">Disk<br>Sig<br>(4 B)</td>
-            <td style="width: 5%; background: rgba(255,255,255,.02); border-right: 1px solid rgba(255,255,255,.1); padding: 12px 2px; font-size: 8px;">Res<br>(2 B)</td>
-            <td style="width: 25%; background: rgba(91,141,255,.2); border-right: 1px solid rgba(255,255,255,.1); color: #b9d0ff; padding: 12px 2px;">Partition<br>Table<br>(64 B)</td>
-            <td style="width: 5%; background: rgba(46,230,168,.2); color: #88ffd8; padding: 12px 2px; font-size: 8px;">55<br>AA<br>(2 B)</td>
-          </tr>
-        </table>
+    <div class="mbr-wrapper">
+      <div style="text-align: center; width: 100%;">
+        <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:8px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
+        <div class="mbr-visual">
+          <div class="mbr-header">MASTER BOOT RECORD (512 Bytes)</div>
+          <table class="mbr-table">
+            <tr>
+              <td class="mbr-bootstrap">Bootstrap<br>Code<br>(440 B)</td>
+              <td class="mbr-disksig">Disk<br>Sig<br>(4 B)</td>
+              <td class="mbr-reserved">Res<br>(2 B)</td>
+              <td class="mbr-partition">Partition<br>Table<br>(64 B)</td>
+              <td class="mbr-bootsig">55<br>AA<br>(2 B)</td>
+            </tr>
+          </table>
+        </div>
       </div>
     </div>
-    
     <div class="arrow-down"></div>
 
-    <!-- Stage 5: VBR -->
+    <!-- Stage 5 -->
     <div class="node" id="node-4">
       <div class="node-title">Volume Boot Record (VBR)</div>
       <div class="node-sub">MBR scans partition table, finds active partition (0x80)</div>
@@ -152,7 +150,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     </div>
     <div class="arrow-down"></div>
 
-    <!-- Stage 6: BOOTMGR -->
+    <!-- Stage 6 -->
     <div class="node" id="node-5" style="border-color:var(--blue);">
       <div class="node-title">Windows BOOTMGR</div>
       <div class="node-sub">Validates Disk Signature against BCD</div>
@@ -160,7 +158,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
     </div>
     <div class="arrow-down"></div>
 
-    <!-- Stage 7: Kernel -->
+    <!-- Stage 7 -->
     <div class="node" id="node-6" style="border-color:var(--emerald);">
       <div class="node-title">Windows Kernel (ntoskrnl.exe)</div>
       <div class="node-sub">Switches CPU to 32-bit Protected Mode</div>
@@ -172,12 +170,11 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 </main>
 
 <script>
-/* ================= FLOWCHART ANIMATION LOGIC ================= */
 const nodes = [
   document.getElementById('node-0'),
   document.getElementById('node-1'),
   document.getElementById('node-2'),
-  document.getElementById('node-3'),
+  document.querySelector('.mbr-wrapper'),
   document.getElementById('node-4'),
   document.getElementById('node-5'),
   document.getElementById('node-6')
@@ -185,30 +182,24 @@ const nodes = [
 
 let currentStep = 0;
 
-// Reset the data packet animation to sync with the highlight
 function resetPacket() {
   const packet = document.getElementById('packet');
   packet.style.animation = 'none';
-  packet.offsetHeight; /* trigger reflow */
+  packet.offsetHeight; 
   packet.style.animation = 'flowDown 10s infinite linear';
 }
 
-// Loop through the nodes and highlight them
 setInterval(() => {
-  // Remove active class from all
-  nodes.forEach(n => n.classList.remove('active'));
+  nodes.forEach(n => { if(n) n.classList.remove('active'); });
   
-  // Add active to current
-  nodes[currentStep].classList.add('active');
+  if(nodes[currentStep]) nodes[currentStep].classList.add('active');
   
-  // Move to next (loop back to 0 if at end)
   currentStep = (currentStep + 1) % nodes.length;
   
-  // If we start over, reset the packet animation
   if (currentStep === 0) {
     resetPacket();
   }
-}, 1400); // Each stage highlights for 1.4 seconds
+}, 1400); 
 </script>
 
 </body>
