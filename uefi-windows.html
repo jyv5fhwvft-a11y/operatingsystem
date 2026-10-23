@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Boot Process · UEFI Windows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(91,141,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.12),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#b9d0ff;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#b9d0ff 60%,#5b8dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(91,141,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,141,255,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--blue);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px, 1.5vw, 18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--emerald);}
+.analogy-box.tech{border-top:4px solid var(--blue);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;color:#fff;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
+
+/* 5th Grader Smart Home Animation */
+.smart-home{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:10px;width:200px;height:200px;position:relative;}
+.shub{background:rgba(255,255,255,.05);border:1px solid var(--stroke-2);border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:800;color:var(--muted);transition:.3s;}
+.shub.center{grid-column:2;grid-row:2;background:rgba(91,141,255,.2);border-color:var(--blue);color:#fff;font-size:12px;box-shadow:0 0 20px rgba(91,141,255,.5);animation:pulseCenter 2s infinite;}
+@keyframes pulseCenter { 0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(91,141,255,.5); } 50% { transform: scale(1.1); box-shadow: 0 0 40px rgba(91,141,255,.9); } }
+.shub.active{background:rgba(46,230,168,.2);border-color:var(--emerald);color:var(--emerald);box-shadow:0 0 15px rgba(46,230,168,.5);}
+
+/* Technical Phases Animation */
+.phase-track{display:flex;flex-direction:column;gap:8px;width:100%;}
+.phase-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.05);border-radius:8px;font-family:var(--mono);font-size:11px;border-left:3px solid var(--stroke-2);transition:.3s;}
+.phase-row.active{border-left-color:var(--blue);background:rgba(91,141,255,.15);transform:scale(1.02);color:#fff;font-weight:800;}
+.phase-name{color:#fff;}
+.phase-desc{color:var(--muted);}
+
+/* ================= MULTIMODAL HUB & FEYNMAN ================= */
+.hub-section{margin-top:60px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;color:#fff;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;}
+.feynman-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-top:30px;}
+.hub-card, .feynman-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover, .feynman-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon, .feynman-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title, .feynman-title{font-size:16px;font-weight:800;margin-bottom:8px;color:#fff;}
+.hub-card-text, .feynman-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(91,141,255,.15);color:#b9d0ff;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
+
+@media (max-width: 850px) {
+  .analogy-grid, .hub-grid, .feynman-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Windows UEFI Boot</h1>
+    <p class="page-subtitle">The modern 32/64-bit firmware interface. From pressing the power button to the Windows login screen using GPT and EFI files.</p>
+  </header>
+
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      The UEFI (Unified Extensible Firmware Interface) boot process is the modern standard for initializing hardware and loading an OS. Unlike the legacy BIOS, UEFI runs in 32-bit or 64-bit mode from the start, uses the GPT (GUID Partition Table), and loads `.efi` executable files from a dedicated EFI System Partition (ESP) rather than relying on 512-byte MBR sectors.
+    </p>
+  </section>
+
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine a <strong>Modern Smart Home</strong>. 
+        <br><br>
+        Instead of an old fuse box that has to test every wire one by one (Legacy BIOS), you have a central smart hub. As soon as power hits, the hub wakes up, checks the security system (SEC), turns on the lights and HVAC (PEI/DXE), and brings up a menu on the wall (BDS). You tap "Open Windows," and the smart home instantly launches the Windows app from the cloud (EFI partition)!
+      </div>
+      
+      <div class="anim-container">
+        <div class="smart-home" id="smartHome">
+          <div class="shub"></div>
+          <div class="shub" id="shub-1">SEC</div>
+          <div class="shub"></div>
+          <div class="shub" id="shub-0">PEI</div>
+          <div class="shub center">UEFI</div>
+          <div class="shub" id="shub-2">DXE</div>
+          <div class="shub"></div>
+          <div class="shub" id="shub-3">BDS</div>
+          <div class="shub"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">⚙️ The Technical Analogy</div>
+      <div class="analogy-body">
+        UEFI boots through distinct phases: <strong>SEC</strong> (Security), <strong>PEI</strong> (Pre-EFI Initialization), <strong>DXE</strong> (Driver Execution Environment), and <strong>BDS</strong> (Boot Device Selection).
+        <br><br>
+        Once BDS selects the boot device, UEFI reads the GPT, finds the EFI System Partition (ESP), and executes <code>bootmgfw.efi</code>. Windows BOOTMGR then reads the BCD, loads <code>winload.efi</code>, and finally calls <code>ExitBootServices()</code> to take full control of the hardware.
+      </div>
+
+      <div class="anim-container">
+        <div class="phase-track" id="phaseTrack">
+          <div class="phase-row active" data-phase="0"><span class="phase-name">SEC</span><span class="phase-desc">Security & Temp RAM</span></div>
+          <div class="phase-row" data-phase="1"><span class="phase-name">PEI</span><span class="phase-desc">Memory Init</span></div>
+          <div class="phase-row" data-phase="2"><span class="phase-name">DXE</span><span class="phase-desc">Driver Loading</span></div>
+          <div class="phase-row" data-phase="3"><span class="phase-name">BDS</span><span class="phase-desc">Boot Device Select</span></div>
+          <div class="phase-row" data-phase="4"><span class="phase-name">BOOTMGR</span><span class="phase-desc">Load .efi file</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Explore the UEFI boot process visually and step-by-step.</p>
+    
+    <div class="hub-grid">
+      <a href="uefi-windows-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Timeline</div>
+        <div class="hub-card-text">Walk through all the UEFI phases from Power On to Login.</div>
+        <div class="hub-btn">Open Timeline →</div>
+      </a>
+      <a href="uefi-windows-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how the ESP, BCD, and winload.efi connect.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+      <a href="uefi-windows-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A visual breakdown of the EFI partition and ExitBootServices.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ================= FEYNMAN MASTERY LAB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title" style="color:#b9d0ff;">The Feynman Mastery Lab</h2>
+    <p class="hub-subtitle">Don't just read. Play, break, and test the system to prove you understand it.</p>
+    
+    <div class="feynman-grid">
+      <a href="uefi-windows-sandbox.html" class="feynman-card">
+        <span class="feynman-icon">🧪</span>
+        <div class="feynman-title">The "What If?" Sandbox</div>
+        <div class="feynman-desc">Corrupt the EFI file or break Secure Boot to see how Windows fails.</div>
+      </a>
+      <a href="uefi-windows-puzzle.html" class="feynman-card">
+        <span class="feynman-icon">🧩</span>
+        <div class="feynman-title">The Phase Puzzle</div>
+        <div class="feynman-desc">Put the UEFI phases (SEC, PEI, DXE, BDS) in the correct order.</div>
+      </a>
+      <a href="uefi-windows-terminal.html" class="feynman-card">
+        <span class="feynman-icon">💻</span>
+        <div class="feynman-title">The ESP Inspector</div>
+        <div class="feynman-desc">Explore the EFI System Partition using a simulated UEFI Shell.</div>
+      </a>
+      <a href="uefi-windows-flashcards.html" class="feynman-card">
+        <span class="feynman-icon">⚡</span>
+        <div class="feynman-title">Rapid-Fire Flashcards</div>
+        <div class="feynman-desc">Test your knowledge on UEFI phases, GPT, and ExitBootServices.</div>
+      </a>
+      <a href="uefi-windows-spot.html" class="feynman-card">
+        <span class="feynman-icon">🔍</span>
+        <div class="feynman-title">Boot Failure Hunt</div>
+        <div class="feynman-desc">Diagnose UEFI boot failures by inspecting the ESP and BCD.</div>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION 1: SMART HOME (5TH GRADER) ================= */
+const shubs = [
+  document.getElementById('shub-0'),
+  document.getElementById('shub-1'),
+  document.getElementById('shub-2'),
+  document.getElementById('shub-3')
+];
+let currentShub = 0;
+
+setInterval(() => {
+  shubs.forEach(s => s.classList.remove('active'));
+  shubs[currentShub].classList.add('active');
+  currentShub = (currentShub + 1) % shubs.length;
+}, 1200);
+
+/* ================= ANIMATION 2: PHASE TRACK (TECHNICAL) ================= */
+const phaseRows = document.querySelectorAll('.phase-row');
+let currentPhase = 0;
+
+setInterval(() => {
+  phaseRows.forEach(r => r.classList.remove('active'));
+  phaseRows[currentPhase].classList.add('active');
+  currentPhase = (currentPhase + 1) % phaseRows.length;
+}, 1400);
+</script>
+
+</body>
+</html>
