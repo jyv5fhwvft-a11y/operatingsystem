@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Process Sync · Semaphore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.12),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(160,107,255,.08),rgba(255,255,255,.02));border:1px solid rgba(160,107,255,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--violet);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px, 1.5vw, 18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--violet);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;color:#fff;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
+
+/* 5th Grader Bouncer Animation */
+.club-scene{display:flex;align-items:center;justify-content:center;gap:20px;width:100%;}
+.bouncer{font-size:40px;animation:bouncePulse 2s infinite;}
+@keyframes bouncePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.counter-box{background:rgba(255,182,72,.15);border:2px solid var(--amber);padding:12px 20px;border-radius:12px;font-family:var(--mono);font-size:24px;font-weight:900;color:#ffd18a;box-shadow:0 0 20px rgba(255,182,72,.3);}
+.club-line{display:flex;flex-direction:column;gap:5px;align-items:center;}
+.thread-dot{width:16px;height:16px;border-radius:50%;background:var(--muted);transition:.4s;}
+
+/* Technical Block Animation */
+.tech-block{display:flex;flex-direction:column;gap:8px;width:100%;}
+.tb-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.05);border-radius:8px;font-family:var(--mono);font-size:11px;border-left:3px solid var(--stroke-2);transition:.3s;}
+.tb-row.active{border-left-color:var(--violet);background:rgba(160,107,255,.15);transform:scale(1.02);color:#fff;font-weight:800;}
+.tb-name{color:#fff;}
+.tb-desc{color:var(--muted);}
+
+/* ================= MULTIMODAL HUB & FEYNMAN ================= */
+.hub-section{margin-top:60px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;color:#fff;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;}
+.feynman-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-top:30px;}
+.hub-card, .feynman-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover, .feynman-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon, .feynman-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title, .feynman-title{font-size:16px;font-weight:800;margin-bottom:8px;color:#fff;}
+.hub-card-text, .feynman-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(160,107,255,.15);color:#c9a7ff;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
+
+@media (max-width: 850px) {
+  .analogy-grid, .hub-grid, .feynman-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Sync Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Semaphore</h1>
+    <p class="page-subtitle">A synchronization primitive used to control access to shared resources and prevent race conditions in concurrent systems.</p>
+  </header>
+
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      A Semaphore is an integer variable that is accessed only through two standard atomic operations: <code>wait()</code> (or P) and <code>signal()</code> (or V). It is used to manage concurrent processes by acting as a counter for available resources (Counting Semaphore) or as a simple lock (Binary Semaphore / Mutex).
+    </p>
+  </section>
+
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine a <strong>Nightclub Bouncer</strong> with a clicker. The club has a strict capacity of 3 people (the Semaphore value). 
+        <br><br>
+        When a person arrives, the bouncer clicks the counter down (<code>wait()</code>). When the counter hits 0, the club is full, and new people must wait outside in line. When someone leaves the club, the bouncer clicks the counter up (<code>signal()</code>), allowing the next person in line to enter.
+      </div>
+      
+      <div class="anim-container">
+        <div class="club-scene">
+          <div class="bouncer">🕴️</div>
+          <div class="counter-box" id="clubCounter">3</div>
+          <div class="club-line">
+            <div class="thread-dot" style="background:var(--emerald);"></div>
+            <div class="thread-dot" style="background:var(--emerald);"></div>
+            <div class="thread-dot" style="background:var(--emerald);"></div>
+            <div class="thread-dot" style="background:var(--muted);"></div>
+            <div class="thread-dot" style="background:var(--muted);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">⚙️ The Technical Analogy</div>
+      <div class="analogy-body">
+        A semaphore is an integer variable in the kernel. The OS guarantees that checking and modifying this integer is <strong>atomic</strong> (using hardware instructions like TestAndSet).
+        <br><br>
+        <code>wait(S)</code>: Decrements S. If S < 0, the calling thread blocks (goes to sleep).<br>
+        <code>signal(S)</code>: Increments S. If S <= 0, it wakes up a blocked thread.
+      </div>
+
+      <div class="anim-container">
+        <div class="tech-block" id="techTrack">
+          <div class="tb-row active" data-step="0"><span class="tb-name">wait(S)</span><span class="tb-desc">S = S - 1</span></div>
+          <div class="tb-row" data-step="1"><span class="tb-name">if (S < 0)</span><span class="tb-desc">Block thread in queue</span></div>
+          <div class="tb-row" data-step="2"><span class="tb-name">signal(S)</span><span class="tb-desc">S = S + 1</span></div>
+          <div class="tb-row" data-step="3"><span class="tb-name">if (S <= 0)</span><span class="tb-desc">Wake up a blocked thread</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Explore Semaphores visually and step-by-step.</p>
+    
+    <div class="hub-grid">
+      <a href="semaphore-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Mechanics</div>
+        <div class="hub-card-text">Walk through the atomic wait() and signal() operations.</div>
+        <div class="hub-btn">Open Timeline →</div>
+      </a>
+      <a href="semaphore-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how Semaphores relate to Mutexes and Deadlocks.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+      <a href="semaphore-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A visual comparison of Counting vs Binary Semaphores.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ================= FEYNMAN MASTERY LAB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title" style="color:#c9a7ff;">The Feynman Mastery Lab</h2>
+    <p class="hub-subtitle">Don't just read. Play, break, and test the system to prove you understand it.</p>
+    
+    <div class="feynman-grid">
+      <a href="semaphore-sandbox.html" class="feynman-card">
+        <span class="feynman-icon">🧪</span>
+        <div class="feynman-title">The "What If?" Sandbox</div>
+        <div class="feynman-desc">Simulate a Deadlock by breaking the wait()/signal() order.</div>
+      </a>
+      <a href="semaphore-puzzle.html" class="feynman-card">
+        <span class="feynman-icon">🧩</span>
+        <div class="feynman-title">The Sync Puzzle</div>
+        <div class="feynman-desc">Put the steps of the Producer-Consumer problem in order.</div>
+      </a>
+      <a href="semaphore-terminal.html" class="feynman-card">
+        <span class="feynman-icon">💻</span>
+        <div class="feynman-title">The POSIX Terminal</div>
+        <div class="feynman-desc">Use sem_wait() and sem_post() in a simulated C environment.</div>
+      </a>
+      <a href="semaphore-flashcards.html" class="feynman-card">
+        <span class="feynman-icon">⚡</span>
+        <div class="feynman-title">Rapid-Fire Flashcards</div>
+        <div class="feynman-desc">Test your knowledge on atomicity and semaphore counters.</div>
+      </a>
+      <a href="semaphore-spot.html" class="feynman-card">
+        <span class="feynman-icon">🔍</span>
+        <div class="feynman-title">Deadlock Diagnosis</div>
+        <div class="feynman-desc">Find the missing signal() that caused the system to freeze.</div>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION 1: BOUNCER (5TH GRADER) ================= */
+const clubCounter = document.getElementById('clubCounter');
+const threadDots = document.querySelectorAll('.thread-dot');
+let currentCount = 3;
+
+setInterval(() => {
+  currentCount--;
+  if (currentCount < 0) {
+    currentCount = 3;
+    // Reset all dots to green
+    threadDots.forEach(d => d.style.background = 'var(--emerald)');
+    threadDots.forEach((d, i) => {
+      if(i >= 3) d.style.background = 'var(--muted)';
+    });
+  } else {
+    // Turn one dot grey
+    let greenDots = Array.from(threadDots).filter(d => d.style.background === 'var(--emerald)' || d.style.background === '');
+    if(greenDots.length > 0 && currentCount < 3){
+       // Just visual sync, simplified
+    }
+  }
+  clubCounter.textContent = currentCount;
+  clubCounter.style.color = currentCount === 0 ? 'var(--crimson)' : '#ffd18a';
+  clubCounter.style.borderColor = currentCount === 0 ? 'var(--crimson)' : 'var(--amber)';
+}, 1500);
+
+/* ================= ANIMATION 2: TECH TRACK ================= */
+const tbRows = document.querySelectorAll('.tb-row');
+let currentTb = 0;
+
+setInterval(() => {
+  tbRows.forEach(r => r.classList.remove('active'));
+  tbRows[currentTb].classList.add('active');
+  currentTb = (currentTb + 1) % tbRows.length;
+}, 1400);
+</script>
+
+</body>
+</html>
