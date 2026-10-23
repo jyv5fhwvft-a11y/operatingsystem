@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · BIOS Windows · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:800px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLOWCHART UI ================= */
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:20px;padding-bottom:40px;}
+
+/* The moving data packet */
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:14px;height:14px;background:#fff;border-radius:50%;box-shadow:0 0 20px #fff, 0 0 40px var(--amber);z-index:10;animation:flowDown 10s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 40px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+/* Nodes */
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px 24px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:400px;transition:.4s;}
+.node.active{border-color:var(--amber);background:rgba(255,182,72,.1);box-shadow:0 0 30px rgba(255,182,72,.2);transform:scale(1.05);}
+
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.node-code{font-family:var(--mono);font-size:12px;color:var(--emerald);margin-top:8px;background:rgba(0,0,0,.3);padding:4px 8px;border-radius:4px;display:inline-block;}
+
+/* Arrows */
+.arrow-down{width:2px;height:30px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* MBR Special Visual */
+.mbr-visual{width:100%;max-width:500px;background:rgba(0,0,0,.5);border:2px solid var(--amber);border-radius:12px;overflow:hidden;margin:10px 0;z-index:2;}
+.mbr-header{background:rgba(255,182,72,.2);color:#ffd18a;text-align:center;padding:8px;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.1em;}
+.mbr-body{display:flex;height:60px;}
+.mbr-section{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid rgba(255,255,255,.1);font-family:var(--mono);font-size:10px;color:#fff;text-align:center;padding:4px;}
+.mbr-section:last-child{border-right:none;}
+.mbr-bootstrap{flex:440;background:rgba(255,255,255,.05);}
+.mbr-disksig{flex:40;background:rgba(255,77,109,.3);border:1px solid var(--crimson);color:#ff9fb1;font-weight:800;box-shadow:inset 0 0 15px rgba(255,77,109,.5);}
+.mbr-reserved{flex:20;background:rgba(255,255,255,.02);}
+.mbr-partition{flex:640;background:rgba(91,141,255,.2);color:#b9d0ff;}
+.mbr-bootsig{flex:20;background:rgba(46,230,168,.2);color:#88ffd8;}
+
+@media (max-width: 600px) {
+  .mbr-body { flex-direction: column; height: auto; }
+  .mbr-section { border-right: none; border-bottom: 1px solid rgba(255,255,255,.1); padding: 8px; }
+  .mbr-bootstrap, .mbr-disksig, .mbr-reserved, .mbr-partition, .mbr-bootsig { flex: auto; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Boot Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-windows.html" class="nav-link">← Back to BIOS Windows</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Boot River Flow</h1>
+    <p class="page-subtitle">Watch how the CPU transitions control from the BIOS ROM, down into the disk, and eventually into the Windows Kernel.</p>
+  </header>
+
+  <section class="flow-container">
+    
+    <div class="data-packet" id="packet"></div>
+
+    <!-- Stage 1: Power On -->
+    <div class="node" id="node-0">
+      <div class="node-title">Power On</div>
+      <div class="node-sub">CPU wakes up in 16-bit Real Mode</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 2: BIOS ROM -->
+    <div class="node" id="node-1" style="border-color:var(--amber);">
+      <div class="node-title">BIOS ROM</div>
+      <div class="node-sub">POST checks hardware</div>
+      <div class="node-code">Jumps to 0xFFFF0</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 3: Boot Order -->
+    <div class="node" id="node-2">
+      <div class="node-title">Boot Order (CMOS)</div>
+      <div class="node-sub">Reads boot priority: HDD, CD-ROM, USB</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 4: MBR Visual -->
+    <div class="node" id="node-3" style="padding: 10px; border:none; background:transparent; box-shadow:none; transform:none;">
+      <div style="font-family:var(--mono); font-size:12px; font-weight:800; color:#fff; margin-bottom:8px;">⬇️ Load MBR into RAM at 0x7C00 ⬇️</div>
+      
+      <div class="mbr-visual">
+        <div class="mbr-header">MASTER BOOT RECORD (512 Bytes)</div>
+        <div class="mbr-body">
+          <div class="mbr-section mbr-bootstrap">Bootstrap Code<br>(440 B)</div>
+          <div class="mbr-section mbr-disksig">Disk Sig<br>(4 B)</div>
+          <div class="mbr-section mbr-reserved">Res<br>(2 B)</div>
+          <div class="mbr-section mbr-partition">Partition Table<br>(64 B)</div>
+          <div class="mbr-section mbr-bootsig">55 AA<br>(2 B)</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 5: VBR -->
+    <div class="node" id="node-4">
+      <div class="node-title">Volume Boot Record (VBR)</div>
+      <div class="node-sub">MBR scans partition table, finds active partition (0x80)</div>
+      <div class="node-code">Loads VBR at 0x7C00</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 6: BOOTMGR -->
+    <div class="node" id="node-5" style="border-color:var(--blue);">
+      <div class="node-title">Windows BOOTMGR</div>
+      <div class="node-sub">Validates Disk Signature against BCD</div>
+      <div class="node-code">Loads winload.exe</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Stage 7: Kernel -->
+    <div class="node" id="node-6" style="border-color:var(--emerald);">
+      <div class="node-title">Windows Kernel (ntoskrnl.exe)</div>
+      <div class="node-sub">Switches CPU to 32-bit Protected Mode</div>
+      <div class="node-code">Runs at 0x80000000</div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= FLOWCHART ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4'),
+  document.getElementById('node-5'),
+  document.getElementById('node-6')
+];
+
+let currentStep = 0;
+
+// Reset the data packet animation to sync with the highlight
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 10s infinite linear';
+}
+
+// Loop through the nodes and highlight them
+setInterval(() => {
+  // Remove active class from all
+  nodes.forEach(n => n.classList.remove('active'));
+  
+  // Add active to current
+  nodes[currentStep].classList.add('active');
+  
+  // Move to next (loop back to 0 if at end)
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  // If we start over, reset the packet animation
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 1400); // Each stage highlights for 1.4 seconds
+</script>
+
+</body>
+</html>
