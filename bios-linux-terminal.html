@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Linux BIOS · GRUB Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= TERMINAL UI ================= */
+.terminal{background:#000;border:1px solid var(--stroke-2);border-radius:16px;overflow:hidden;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);margin-bottom:30px; font-family: var(--mono);}
+.term-body{padding:24px;font-size:13.5px;line-height:1.6;min-height:400px;max-height:500px;overflow-y:auto;color:#d1d5db;}
+.term-line{display:block;margin-bottom:4px;white-space:pre-wrap;}
+
+/* Text Colors */
+.t-prompt{color:#fff;font-weight:700;}
+.t-cmd{color:#fff;}
+.t-error{color:var(--crimson);}
+.t-success{color:var(--emerald);}
+.t-warn{color:var(--amber);}
+
+/* Input Line */
+.term-input-line{display:flex;gap:10px;margin-top:10px;}
+.term-input-line span{color:var(--emerald);font-weight:700;}
+.term-input{background:transparent;border:none;outline:none;color:#fff;font-family:var(--mono);font-size:13.5px;flex-grow:1;caret-color:var(--emerald);}
+
+/* Helper Box */
+.helper-box{background:rgba(255,255,255,.04);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;}
+.helper-box h4{color:#fff;margin-bottom:12px;font-size:16px;}
+.helper-box p{font-size:14px;margin-bottom:16px;color:var(--ink-2);}
+.helper-grid{display:flex; gap:10px; flex-wrap:wrap;}
+.helper-btn{background:var(--emerald);color:#000;border:none;padding:10px 16px;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;transition:.2s;}
+.helper-btn:hover{background:#5fffc4;transform:translateY(-2px);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="bios-linux.html" class="nav-link">← Back to Linux BIOS</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The GRUB Rescue Shell</h1>
+    <p class="page-subtitle">GRUB failed to load its configuration file! You are stuck at the rescue prompt. Manually locate the kernel and boot the system.</p>
+  </header>
+
+  <div class="terminal">
+    <div class="term-body" id="termBody">
+      <span class="term-line">GNU GRUB version 2.06</span>
+      <span class="term-line">Minimal BASH-like line editing is supported. For the first word, TAB lists possible command completions.</span>
+      <br>
+      <span class="term-line">grub></span>
+      <br>
+      <div class="term-input-line">
+        <span id="currentPrompt">grub></span>
+        <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </div>
+
+  <!-- HELPER UI -->
+  <div class="helper-box">
+    <h4>💡 Manual Boot Commands</h4>
+    <p>Click these buttons in order to manually boot the Linux kernel:</p>
+    <div class="helper-grid">
+      <button class="helper-btn" onclick="typeCmd('ls')">1. ls</button>
+      <button class="helper-btn" onclick="typeCmd('ls (hd0,msdos1)/boot/')">2. ls /boot/</button>
+      <button class="helper-btn" onclick="typeCmd('set root=(hd0,msdos1)')">3. set root</button>
+      <button class="helper-btn" onclick="typeCmd('linux /boot/vmlinuz root=/dev/sda1')">4. linux</button>
+      <button class="helper-btn" onclick="typeCmd('initrd /boot/initrd.img')">5. initrd</button>
+      <button class="helper-btn" onclick="typeCmd('boot')">6. boot</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const termInput = document.getElementById('termInput');
+const termBody = document.getElementById('termBody');
+const currentPrompt = document.getElementById('currentPrompt');
+let isRunning = false;
+let state = 0; // Tracks how far along the student is
+
+// Focus input on click
+termBody.addEventListener('click', () => termInput.focus());
+
+// Handle Enter key
+termInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const cmd = termInput.value.trim();
+    if (cmd) {
+      runCommand(cmd);
+      termInput.value = '';
+    }
+  }
+});
+
+function typeCmd(cmd) {
+  if (isRunning) return;
+  termInput.value = cmd;
+  termInput.focus();
+}
+
+function runCommand(cmd) {
+  if (isRunning) return;
+  isRunning = true;
+  termInput.disabled = true;
+
+  // Show the typed command
+  const cmdLine = document.createElement('div');
+  cmdLine.className = 'term-input-line';
+  cmdLine.innerHTML = `<span>grub></span> <span class="t-cmd">${cmd}</span>`;
+  termBody.insertBefore(cmdLine, termBody.lastElementChild);
+
+  setTimeout(() => {
+    const lowerCmd = cmd.toLowerCase();
+    
+    if (lowerCmd === 'ls') {
+      printOutput(`(hd0) (hd0,msdos1) (hd0,msdos2) (fd0)`);
+      state = 1;
+    } 
+    else if (lowerCmd.includes('ls (hd0,msdos1)/boot/')) {
+      if (state < 1) {
+        printOutput(`<span class="t-error">Error: Unknown device.</span>`);
+      } else {
+        printOutput(`./ ../ grub/ vmlinuz-5.15.0-91-generic initrd.img-5.15.0-91-generic System.map-5.15.0-91-generic`);
+        state = 2;
+      }
+    } 
+    else if (lowerCmd === 'set root=(hd0,msdos1)') {
+      if (state < 1) {
+        printOutput(`<span class="t-error">Error: Unknown device.</span>`);
+      } else {
+        printOutput(`<span class="t-success">root is set to (hd0,msdos1)</span>`);
+        state = 3;
+      }
+    }
+    else if (lowerCmd.startsWith('linux /boot/vmlinuz')) {
+      if (state < 3) {
+        printOutput(`<span class="t-error">Error: you need to load the kernel first. (Hint: set root first)</span>`);
+      } else {
+        printOutput(`<span class="t-success">Kernel loaded at 0x1000000</span>`);
+        printOutput(`Command line: root=/dev/sda1 ro quiet splash`);
+        state = 4;
+      }
+    }
+    else if (lowerCmd.startsWith('initrd /boot/initrd.img')) {
+      if (state < 4) {
+        printOutput(`<span class="t-error">Error: no loaded kernel. (Hint: run the 'linux' command first)</span>`);
+      } else {
+        printOutput(`<span class="t-success">Initial RAM disk loaded at 0x20000000</span>`);
+        state = 5;
+      }
+    }
+    else if (lowerCmd === 'boot') {
+      if (state < 5) {
+        printOutput(`<span class="t-error">Error: No kernel loaded.</span>`);
+      } else {
+        printOutput(`<span class="t-warn">Booting Linux kernel...</span>`);
+        printOutput(`[    0.000000] Linux version 5.15.0-91-generic`);
+        printOutput(`[    0.000000] Command line: root=/dev/sda1 ro quiet splash`);
+        printOutput(`[    1.234567] Decompressing Linux... done.`);
+        printOutput(`[    2.345678] Mounting root filesystem...`);
+        printOutput(`<span class="t-success">[  OK  ] Started systemd.</span>`);
+        printOutput(`<span class="t-success">[  OK  ] Reached target Multi-User System.</span>`);
+        printOutput(`<span class="t-success">Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-91-generic x86_64)</span>`);
+        
+        setTimeout(() => {
+          termBody.innerHTML = `<span class="term-line t-success" style="font-size:18px; font-weight:900; margin-top:50px; text-align:center;">Login prompt ready...</span>`;
+          termInput.style.display = 'none';
+          document.getElementById('currentPrompt').style.display = 'none';
+        }, 2000);
+      }
+    }
+    else {
+      printOutput(`<span class="t-error">Unknown command '${cmd}'.</span>`);
+    }
+
+    resetInput();
+  }, 300);
+}
+
+function printOutput(html) {
+  const output = document.createElement('div');
+  output.innerHTML = `<span class="term-line">${html}</span>`;
+  termBody.insertBefore(output, termBody.lastElementChild);
+}
+
+function resetInput() {
+  isRunning = false;
+  termInput.disabled = false;
+  if (!document.querySelector('.term-input-line:last-of-type')) {
+    addInputLine();
+  }
+  termInput.focus();
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function addInputLine() {
+  const inputLine = document.createElement('div');
+  inputLine.className = 'term-input-line';
+  inputLine.innerHTML = `
+    <span>grub></span>
+    <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">
+  `;
+  termBody.appendChild(inputLine);
+  
+  const newInput = inputLine.querySelector('input');
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const cmd = newInput.value.trim();
+      if (cmd) {
+        runCommand(cmd);
+        newInput.value = '';
+      }
+    }
+  });
+  newInput.focus();
+}
+</script>
+
+</body>
+</html>
