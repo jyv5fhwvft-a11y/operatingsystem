@@ -70,10 +70,11 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .mbr-partition{flex:640;background:rgba(91,141,255,.2);color:#b9d0ff;}
 .mbr-bootsig{flex:20;background:rgba(46,230,168,.2);color:#88ffd8;}
 
+
+
 @media (max-width: 600px) {
-  .mbr-body { flex-direction: column; height: auto; }
-  .mbr-section { border-right: none; border-bottom: 1px solid rgba(255,255,255,.1); padding: 8px; }
-  .mbr-bootstrap, .mbr-disksig, .mbr-reserved, .mbr-partition, .mbr-bootsig { flex: auto; }
+  .mbr-visual { min-width: 500px; overflow-x: auto; }
+  .mbr-body { flex-direction: row; }
 }
 </style>
 </head>
