@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Logical Address · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLOWCHART UI ================= */
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-bottom:40px;}
+
+/* The moving data packet */
+.data-packet{position:absolute;left:50%;top:0;transform:translateX(-50%);width:12px;height:12px;background:#fff;border-radius:50%;box-shadow:0 0 15px #fff, 0 0 30px var(--amber);z-index:10;animation:flowDown 8s infinite linear;opacity:0;}
+
+@keyframes flowDown {
+  0% { top: 40px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+/* Nodes */
+.node{background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;padding:16px;text-align:center;position:relative;z-index:2;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);width:100%;max-width:500px;transition:.4s;}
+.node.active{border-color:var(--emerald);background:rgba(46,230,168,.1);box-shadow:0 0 30px rgba(46,230,168,.2);transform:scale(1.02);}
+
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.node-data{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:8px;background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;display:inline-block;border:1px solid rgba(255,182,72,.2);}
+
+/* Special Node Colors */
+.node.cpu {border-left: 4px solid var(--blue);}
+.node.check {border-left: 4px solid var(--crimson);}
+.node.math {border-left: 4px solid var(--violet);}
+.node.ram {border-left: 4px solid var(--emerald);}
+
+/* Arrows */
+.arrow-down{width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;}
+.arrow-down::after{content:'';position:absolute;bottom:0;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--stroke-2);}
+
+/* Info Box */
+.info-box{margin-top:20px;background:rgba(255,255,255,.02);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;text-align:center;}
+.info-box h4{color:#fff;font-size:14px;margin-bottom:8px;}
+.info-box p{color:var(--muted);font-size:12px;font-family:var(--mono);}
+
+@media (max-width: 600px) {
+  .container { padding: 100px 16px 40px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Memory Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="logical-address.html" class="nav-link">← Back to Logical Address</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Address Translation River</h1>
+    <p class="page-subtitle">Follow a single memory request from the CPU, through the MMU's security check, and into physical RAM.</p>
+  </header>
+
+  <section class="flow-container">
+    
+    <div class="data-packet" id="packet"></div>
+
+    <!-- CPU -->
+    <div class="node cpu" id="node-0">
+      <div class="node-title">1. CPU Request</div>
+      <div class="node-sub">Program asks for a variable at Logical Address</div>
+      <div class="node-data">Logical Address = 150</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Check Bound -->
+    <div class="node check" id="node-1">
+      <div class="node-title">2. MMU Security Check</div>
+      <div class="node-sub">Is Logical Address < Bound Register?</div>
+      <div class="node-data">150 < 1000 (PASS) ✓</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Add Base -->
+    <div class="node math" id="node-2">
+      <div class="node-title">3. MMU Translation Math</div>
+      <div class="node-sub">Add Base Register to Logical Address</div>
+      <div class="node-data">Base (4000) + Logical (150) = 4150</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- RAM -->
+    <div class="node ram" id="node-3">
+      <div class="node-title">4. Physical RAM Access</div>
+      <div class="node-sub">RAM controller receives the physical address</div>
+      <div class="node-data">Read/Write at Physical Address 4150</div>
+    </div>
+
+    <div class="info-box">
+      <h4>🛡️ The Power of the Bound Register</h4>
+      <p>If the CPU had requested Logical Address 1500 (which is greater than the Bound of 1000), the MMU would have halted the process at Step 2 with a Segmentation Fault before it ever reached RAM.</p>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= FLOWCHART ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3')
+];
+
+let currentStep = 0;
+
+// Reset the data packet animation to sync with the highlight
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 8s infinite linear';
+}
+
+// Loop through the nodes and highlight them
+setInterval(() => {
+  // Remove active class from all
+  nodes.forEach(n => n.classList.remove('active'));
+  
+  // Add active to current
+  nodes[currentStep].classList.add('active');
+  
+  // Move to next (loop back to 0 if at end)
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  // If we start over, reset the packet animation
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 1400); // Each stage highlights for 1.4 seconds
+</script>
+
+</body>
+</html>
