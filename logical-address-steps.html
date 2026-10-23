@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Logical Address · Mechanics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6; -webkit-user-select: none; user-select: none;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:16px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= INTERACTIVE SIMULATOR ================= */
+.simulator-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;}
+
+/* Left side: Controls */
+.control-panel{background:rgba(0,0,0,.3);padding:24px;border-radius:16px;border:1px dashed rgba(255,255,255,.15);display:flex;flex-direction:column;gap:16px;}
+.control-title{font-family:var(--mono);font-size:12px;font-weight:900;color:var(--muted);letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase;text-align:center;}
+.input-group{display:flex;flex-direction:column;gap:4px;}
+.input-group label{font-size:12px;color:var(--muted);font-family:var(--mono);font-weight:700;}
+.input-group input{padding:10px 14px;border-radius:8px;border:1px solid var(--stroke-2);background:rgba(0,0,0,.5);color:#fff;font-family:var(--mono);font-size:14px;outline:none;transition:.2s;}
+.input-group input:focus{border-color:var(--emerald);box-shadow:0 0 10px rgba(46,230,168,.2);}
+
+.btn-sim{padding:14px;border:none;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:900;cursor:pointer;transition:.2s;display:flex;justify-content:center;margin-top:8px;}
+.btn-sim:hover{transform:translateY(-2px);}
+.btn-translate{background:var(--emerald);color:#000;box-shadow:0 8px 20px -8px rgba(46,230,168,.8);}
+
+/* Right side: Visualization */
+.visual-panel{display:flex;flex-direction:column;gap:16px;}
+
+/* Pipeline */
+.pipeline{display:flex;flex-direction:column;align-items:center;gap:8px;background:rgba(0,0,0,.2);padding:20px;border-radius:16px;border:1px solid var(--stroke);}
+.pipe-box{background:rgba(255,255,255,.05);border:1.5px solid var(--stroke-2);border-radius:10px;padding:12px 20px;font-family:var(--mono);font-size:14px;font-weight:800;text-align:center;width:100%;transition:.3s;}
+.pipe-box.logical{border-color:var(--amber);color:#ffd18a;}
+.pipe-box.mmu{border-color:var(--violet);color:#c9a7ff;}
+.pipe-box.physical{border-color:var(--emerald);color:#88ffd8;opacity:0.3;}
+.pipe-box.physical.active{opacity:1;box-shadow:0 0 20px rgba(46,230,168,.3);}
+.pipe-box.fault{border-color:var(--crimson);color:var(--crimson);opacity:1;animation:shake 0.4s;}
+
+/* Result Box */
+.result-box{padding:20px;border-radius:12px;text-align:center;font-family:var(--mono);background:rgba(0,0,0,.4);border:1px solid var(--stroke-2);}
+.result-label{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+.result-val{font-size:24px;font-weight:900;color:#fff;}
+
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+@media (max-width: 800px) {
+  .sim-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Memory Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="logical-address.html" class="nav-link">← Back to Logical Address</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Address Translation Simulator</h1>
+    <p class="page-subtitle">Act as the MMU. Change the values below and click Translate to see how logical addresses map to physical RAM.</p>
+  </header>
+
+  <section class="simulator-box">
+    <div class="sim-grid">
+      
+      <!-- CONTROLS -->
+      <div class="control-panel">
+        <div class="control-title">Hardware Registers</div>
+        
+        <div class="input-group">
+          <label>Base Register (Decimal)</label>
+          <input type="number" id="inputBase" value="4000" min="0">
+        </div>
+        
+        <div class="input-group">
+          <label>Bound Register (Limit)</label>
+          <input type="number" id="inputBound" value="1000" min="0">
+        </div>
+
+        <div class="input-group">
+          <label>Logical Address (Requested)</label>
+          <input type="number" id="inputLogical" value="150" min="0">
+        </div>
+        
+        <button class="btn-sim btn-translate" onclick="translateAddress()">Run Translation</button>
+      </div>
+
+      <!-- VISUALIZATION -->
+      <div class="visual-panel">
+        
+        <div class="pipeline">
+          <div class="pipe-box logical" id="pipeLogical">CPU: Requesting 150</div>
+          <div class="pipe-box mmu" id="pipeMmu">MMU: Checking Bound...</div>
+          <div class="pipe-box physical" id="pipePhysical">RAM: Waiting...</div>
+        </div>
+
+        <div class="result-box" id="resultBox">
+          <div class="result-label">Physical Address</div>
+          <div class="result-val" id="resultVal">--</div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= EXPLANATION STEPS ================= -->
+  <section class="step-list" style="display:flex; flex-direction:column; gap:16px;">
+    
+    <div style="display:flex; gap:20px; background:rgba(255,255,255,.02); border:1px solid var(--stroke); padding:20px; border-radius:16px;">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,182,72,.2);color:#ffd18a;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:var(--mono);flex-shrink:0;">1</div>
+      <div>
+        <h4 style="font-size:16px;font-weight:800;margin-bottom:6px;color:#fff;">The CPU Generates a Logical Address</h4>
+        <p style="font-size:14px;color:var(--ink-2);line-height:1.6;">The program asks for data at a specific logical address (e.g., <code>150</code>). It assumes it owns the whole machine and starts at 0.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:20px; background:rgba(255,255,255,.02); border:1px solid var(--stroke); padding:20px; border-radius:16px;">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(160,107,255,.2);color:#c9a7ff;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:var(--mono);flex-shrink:0;">2</div>
+      <div>
+        <h4 style="font-size:16px;font-weight:800;margin-bottom:6px;color:#fff;">The MMU Checks the Bound</h4>
+        <p style="font-size:14px;color:var(--ink-2);line-height:1.6;">The Memory Management Unit checks if the logical address is smaller than the Bound Register. If it is larger (e.g., <code>1500</code>), it throws a <strong>Segmentation Fault</b> and kills the program.</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:20px; background:rgba(255,255,255,.02); border:1px solid var(--stroke); padding:20px; border-radius:16px;">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(46,230,168,.2);color:#88ffd8;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:var(--mono);flex-shrink:0;">3</div>
+      <div>
+        <h4 style="font-size:16px;font-weight:800;margin-bottom:6px;color:#fff;">The MMU Calculates the Physical Address</h4>
+        <p style="font-size:14px;color:var(--ink-2);line-height:1.6;">If the check passes, the MMU adds the Base Register to the Logical Address (<code>4000 + 150 = 4150</code>). This new physical address is sent to the RAM chip.</p>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ================= SIMULATOR LOGIC ================= */
+const inputBase = document.getElementById('inputBase');
+const inputBound = document.getElementById('inputBound');
+const inputLogical = document.getElementById('inputLogical');
+const pipeLogical = document.getElementById('pipeLogical');
+const pipeMmu = document.getElementById('pipeMmu');
+const pipePhysical = document.getElementById('pipePhysical');
+const resultBox = document.getElementById('resultBox');
+const resultVal = document.getElementById('resultVal');
+
+function translateAddress() {
+  const base = parseInt(inputBase.value);
+  const bound = parseInt(inputBound.value);
+  const logical = parseInt(inputLogical.value);
+
+  // Reset visuals
+  pipePhysical.classList.remove('active', 'fault');
+  resultBox.style.borderColor = 'var(--stroke-2)';
+  resultVal.style.color = '#fff';
+  
+  // Step 1: CPU requests
+  pipeLogical.textContent = `CPU: Requesting ${logical}`;
+  
+  // Step 2: MMU Check
+  pipeMmu.textContent = `MMU: ${logical} < ${bound}?`;
+  
+  setTimeout(() => {
+    if (logical >= bound || logical < 0 || isNaN(logical)) {
+      // FAULT
+      pipeMmu.textContent = `MMU: ${logical} >= ${bound} (FAIL)`;
+      pipeMmu.style.borderColor = 'var(--crimson)';
+      pipeMmu.style.color = 'var(--crimson)';
+      
+      pipePhysical.textContent = `RAM: Access Denied`;
+      pipePhysical.classList.add('fault');
+      
+      resultBox.style.borderColor = 'var(--crimson)';
+      resultVal.textContent = "SEGFAULT (SIGSEGV)";
+      resultVal.style.color = "var(--crimson)";
+    } else {
+      // SUCCESS
+      pipeMmu.style.borderColor = 'var(--violet)';
+      pipeMmu.style.color = '#c9a7ff';
+      pipeMmu.textContent = `MMU: Bound check passed.`;
+      
+      setTimeout(() => {
+        const physical = base + logical;
+        pipePhysical.textContent = `RAM: Accessing ${physical}`;
+        pipePhysical.classList.add('active');
+        
+        resultBox.style.borderColor = 'var(--emerald)';
+        resultVal.textContent = physical;
+        resultVal.style.color = "var(--emerald)";
+      }, 400);
+    }
+  }, 600);
+  
+  // Reset previous state after a delay
+  setTimeout(() => {
+    pipeMmu.style.borderColor = 'var(--violet)';
+    pipeMmu.style.color = '#c9a7ff';
+    pipePhysical.style.borderColor = 'var(--emerald)';
+    pipePhysical.style.color = '#88ffd8';
+  }, 2500);
+}
+
+// Initialize
+translateAddress();
+</script>
+
+</body>
+</html>
