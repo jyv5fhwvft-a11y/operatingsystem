@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Memory · Logical Address Space</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(46,230,168,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.12),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 12px var(--emerald);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#88ffd8;}
+
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#88ffd8 60%,#2ee6a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= DEFINITION CARD ================= */
+.definition-card{background:linear-gradient(150deg,rgba(46,230,168,.08),rgba(255,255,255,.02));border:1px solid rgba(46,230,168,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--emerald);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px, 1.5vw, 18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
+
+/* ================= ANALOGY GRID ================= */
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--emerald);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;color:#fff;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
+
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
+
+/* 5th Grader Hotel Animation */
+.hotel-scene{display:flex;align-items:center;justify-content:center;gap:15px;width:100%;}
+.hotel-key{background:rgba(255,182,72,.15);border:2px solid var(--amber);padding:10px 15px;border-radius:10px;font-family:var(--mono);font-size:12px;font-weight:800;color:#ffd18a;text-align:center;}
+.hotel-desk{font-size:30px;animation:pulseDesk 2s infinite;}
+@keyframes pulseDesk{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.hotel-door{background:rgba(46,230,168,.15);border:2px solid var(--emerald);padding:10px 15px;border-radius:10px;font-family:var(--mono);font-size:12px;font-weight:800;color:#88ffd8;text-align:center;}
+
+/* Technical MMU Animation */
+.tech-mmu{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;}
+.mmu-box{background:rgba(255,255,255,.05);border:1px solid var(--stroke-2);padding:12px;border-radius:10px;text-align:center;font-family:var(--mono);font-size:11px;flex:1;}
+.mmu-arrow{color:var(--emerald);font-size:20px;animation:moveArrow 1.5s infinite ease-in-out;}
+@keyframes moveArrow{0%,100%{transform:translateX(0);opacity:0.5}50%{transform:translateX(5px);opacity:1}}
+.mmu-box.logical{border-color:var(--amber);color:#ffd18a;}
+.mmu-box.hardware{border-color:var(--blue);color:#b9d0ff;}
+.mmu-box.physical{border-color:var(--emerald);color:#88ffd8;}
+
+/* ================= MULTIMODAL HUB & FEYNMAN ================= */
+.hub-section{margin-top:60px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;color:#fff;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;}
+.feynman-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-top:30px;}
+.hub-card, .feynman-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover, .feynman-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon, .feynman-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title, .feynman-title{font-size:16px;font-weight:800;margin-bottom:8px;color:#fff;}
+.hub-card-text, .feynman-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(46,230,168,.15);color:#88ffd8;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
+
+@media (max-width: 850px) {
+  .analogy-grid, .hub-grid, .feynman-grid { grid-template-columns: 1fr; }
+  .definition-card { padding: 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Memory Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Logical Address Space</h1>
+    <p class="page-subtitle">The virtual memory illusion. How programs are compiled to start at address 0, and how the MMU translates that to physical RAM.</p>
+  </header>
+
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      The Logical Address Space (or Virtual Address Space) is the set of all addresses generated by a program's CPU instructions. Programs are compiled assuming they own the entire memory and start at address 0. The Memory Management Unit (MMU) intercepts these logical addresses and translates them into physical addresses in actual RAM using methods like Base/Bound registers, Paging, or Segmentation.
+    </p>
+  </section>
+
+  <div class="analogy-grid">
+    
+    <!-- 5TH GRADER -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🍎 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine a massive hotel. Every guest is given a room key that says <strong>"Room 100"</strong>. The guest thinks they are in the 100th room on the first floor. 
+        <br><br>
+        However, the front desk manager (the OS) secretly assigned them to <strong>Room 504</strong> on the 5th floor. When the guest asks for "Room 100", the front desk quietly redirects them to 504. They are living in a logical illusion!
+      </div>
+      
+      <div class="anim-container">
+        <div class="hotel-scene">
+          <div class="hotel-key">Guest Key<br>Logical: 100</div>
+          <div class="hotel-desk">🛎️</div>
+          <div class="hotel-door">Actual Room<br>Physical: 504</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">⚙️ The Technical Analogy</div>
+      <div class="analogy-body">
+        The CPU generates a <strong>Logical Address</strong> (e.g., <code>0x0010</code>). It sends this to the MMU. 
+        <br><br>
+        The MMU takes the Base Register (e.g., <code>0x4000</code>) and adds it to the Logical Address: <code>0x4000 + 0x0010 = 0x4010</code>. This is the <strong>Physical Address</strong> sent to the RAM chip. If the logical address exceeds the Bound Register, it throws a Segmentation Fault.
+      </div>
+
+      <div class="anim-container">
+        <div class="tech-mmu" id="mmuTrack">
+          <div class="mmu-box logical">CPU<br>Logical: 0x10</div>
+          <div class="mmu-arrow">➔</div>
+          <div class="mmu-box hardware">MMU<br>Base: 0x4000</div>
+          <div class="mmu-arrow">➔</div>
+          <div class="mmu-box physical">RAM<br>Physical: 0x4010</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MULTIMODAL LEARNING HUB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Explore Logical Addressing visually and step-by-step.</p>
+    
+    <div class="hub-grid">
+      <a href="logical-address-steps.html" class="hub-card">
+        <div class="hub-icon">🧠</div>
+        <div class="hub-card-title">Step-by-Step Mechanics</div>
+        <div class="hub-card-text">Walk through the Base + Offset translation math.</div>
+        <div class="hub-btn">Open Timeline →</div>
+      </a>
+      <a href="logical-address-mindmap.html" class="hub-card">
+        <div class="hub-icon">🌳</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how Logical Addresses connect to Paging and Segmentation.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+      <a href="logical-address-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A visual breakdown of the CPU -> MMU -> RAM pipeline.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ================= FEYNMAN MASTERY LAB ================= -->
+  <section class="hub-section">
+    <h2 class="hub-title" style="color:#88ffd8;">The Feynman Mastery Lab</h2>
+    <p class="hub-subtitle">Don't just read. Play, break, and test the system to prove you understand it.</p>
+    
+    <div class="feynman-grid">
+      <a href="logical-address-sandbox.html" class="feynman-card">
+        <span class="feynman-icon">🧪</span>
+        <div class="feynman-title">The "What If?" Sandbox</div>
+        <div class="feynman-desc">Change the Base Register and see how the physical address shifts.</div>
+      </a>
+      <a href="logical-address-puzzle.html" class="feynman-card">
+        <span class="feynman-icon">🧩</span>
+        <div class="feynman-title">The Translation Puzzle</div>
+        <div class="feynman-desc">Put the steps of address translation in the correct order.</div>
+      </a>
+      <a href="logical-address-terminal.html" class="feynman-card">
+        <span class="feynman-icon">💻</span>
+        <div class="feynman-title">The /proc/self/maps</div>
+        <div class="feynman-desc">Use the terminal to see the logical address space of a real Linux process.</div>
+      </a>
+      <a href="logical-address-flashcards.html" class="feynman-card">
+        <span class="feynman-icon">⚡</span>
+        <div class="feynman-title">Rapid-Fire Flashcards</div>
+        <div class="feynman-desc">Test your knowledge on Base/Bound registers and the MMU.</div>
+      </a>
+      <a href="logical-address-spot.html" class="feynman-card">
+        <span class="feynman-icon">🔍</span>
+        <div class="feynman-title">Fault Diagnosis</div>
+        <div class="feynman-desc">Find the bug that caused the program to throw a Segmentation Fault.</div>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= ANIMATION 1: HOTEL (5TH GRADER) ================= */
+const hotelKey = document.querySelector('.hotel-key');
+const hotelDoor = document.querySelector('.hotel-door');
+let isMapped = false;
+
+setInterval(() => {
+  if (!isMapped) {
+    hotelDoor.style.transform = 'scale(1.1)';
+    hotelDoor.style.boxShadow = '0 0 20px rgba(46,230,168,.5)';
+    hotelKey.style.opacity = '0.3';
+  } else {
+    hotelDoor.style.transform = 'scale(1)';
+    hotelDoor.style.boxShadow = 'none';
+    hotelKey.style.opacity = '1';
+  }
+  isMapped = !isMapped;
+}, 1500);
+
+/* ================= ANIMATION 2: MMU TRACK (TECHNICAL) ================= */
+const mmuBoxes = document.querySelectorAll('.mmu-box');
+let currentMmu = 0;
+
+setInterval(() => {
+  mmuBoxes.forEach(b => b.style.transform = 'scale(1)');
+  mmuBoxes[currentMmu].style.transform = 'scale(1.1)';
+  mmuBoxes[currentMmu].style.boxShadow = '0 0 15px currentColor';
+  
+  // Reset previous box shadow
+  let prev = (currentMmu - 1 + mmuBoxes.length) % mmuBoxes.length;
+  mmuBoxes[prev].style.boxShadow = 'none';
+
+  currentMmu = (currentMmu + 1) % mmuBoxes.length;
+}, 1400);
+</script>
+
+</body>
+</html>
