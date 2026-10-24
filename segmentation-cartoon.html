@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · The Segmentation Cartoon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(255,182,72,.1),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(91,141,255,.1),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#ffd18a;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#ffd18a 60%,#ffb648);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= CARTOON SCENE ================= */
+.scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:550px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+.scene{position:relative;width:100%;height:100%;padding:0;}
+
+/* Background Grid */
+.scene::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:40px 40px;perspective:500px;transform:rotateX(60deg);transform-origin:bottom;z-index:0;}
+
+/* Characters */
+.character{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px;z-index:10;}
+.char-icon{width:70px;height:70px;border-radius:50%;display:grid;place-items:center;font-size:32px;box-shadow:0 5px 15px rgba(0,0,0,.5);}
+.char-name{font-family:var(--mono);font-size:11px;font-weight:800;background:rgba(255,255,255,.1);padding:4px 10px;border-radius:6px;border:1px solid var(--stroke-2);}
+
+.char-cpu {left: 40px; top: 240px;}
+.char-mmu {left: 45%; top: 240px; transform: translateX(-50%);}
+.char-ram {right: 40px; top: 240px;}
+
+/* The Moving Segment Packet */
+.packet{position:absolute;left: 120px; top: 260px; background:var(--panel); border:2px solid var(--amber); border-radius:8px; padding:12px; font-family:var(--mono); font-size:12px; font-weight:900; z-index:15; opacity:0; box-shadow:0 10px 20px rgba(0,0,0,.5); text-align:center; color:#fff;}
+
+/* Speech Bubbles */
+.speech-bubble{position:absolute;top:-60px;background:#fff;color:#000;font-family:var(--mono);font-size:11px;font-weight:900;padding:10px 14px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,.3);opacity:0;transform:scale(0.8);transition:.3s;min-width:120px;text-align:center;pointer-events:none;}
+.speech-bubble::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-width:8px 8px 0;border-style:solid;border-color:#fff transparent transparent transparent;}
+.speech-bubble.active{opacity:1;transform:scale(1);}
+
+/* Segment Table Popup (MMU) */
+.seg-table{position:absolute;top:100%;left:50%;transform:translateX(-50%) scale(0.8);background:#111;border:2px solid var(--amber);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;z-index:20;opacity:0;transition:.4s;box-shadow:0 10px 30px rgba(0,0,0,.8);white-space:nowrap;}
+.seg-table.active{opacity:1;transform:translateX(-50%) scale(1);}
+.st-header{color:var(--muted);font-size:9px;text-transform:uppercase;margin-bottom:6px;text-align:center;border-bottom:1px solid #333;padding-bottom:4px;display:flex;gap:15px;}
+.st-row{display:flex;gap:15px;padding:4px 0;color:#fff;justify-content:space-between;}
+.st-row.highlight{color:var(--amber);font-weight:900;}
+
+/* RAM Map Popup */
+.ram-map{position:absolute;top:100%;left:50%;transform:translateX(-50%) scale(0.8);background:#111;border:2px solid var(--emerald);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;z-index:20;opacity:0;transition:.4s;box-shadow:0 10px 30px rgba(0,0,0,.8);white-space:nowrap;}
+.ram-map.active{opacity:1;transform:translateX(-50%) scale(1);}
+.rm-header{color:var(--muted);font-size:9px;text-transform:uppercase;margin-bottom:6px;text-align:center;border-bottom:1px solid #333;padding-bottom:4px;}
+.rm-row{display:flex;gap:15px;padding:4px 0;color:#fff;justify-content:space-between;}
+.rm-row.code{color:var(--blue);}
+.rm-row.data{color:var(--amber);}
+.rm-row.stack{color:var(--violet);}
+.rm-row.highlight{background:rgba(46,230,168,.1);color:var(--emerald);font-weight:900;padding:4px 8px;border-radius:4px;margin:0 -8px;}
+
+/* Flying Data */
+.flying-data{position:absolute;right: 120px; top: 260px; font-size:36px; z-index:15; opacity:0; filter:drop-shadow(0 0 15px rgba(46,230,168,.8));}
+
+/* ================= EXPLANATION PANEL ================= */
+.explanation{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;min-height:80px;text-align:center;transition:.3s;}
+.exp-title{font-size:18px;font-weight:900;color:var(--amber);margin-bottom:8px;}
+.exp-text{font-size:15px;color:var(--ink-2);}
+
+/* Controls */
+.controls{display:flex;justify-content:center;gap:16px;margin-bottom:20px;}
+.btn{padding:14px 28px;border-radius:12px;border:none;font-family:var(--font);font-size:16px;font-weight:900;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:8px;}
+.btn-primary{background:var(--amber);color:#000;box-shadow:0 8px 20px -8px rgba(255,182,72,.8);}
+.btn-primary:hover{background:#ffd18a;transform:translateY(-2px);}
+.btn-warning{background:var(--violet);color:#fff;box-shadow:0 8px 20px -8px rgba(160,107,255,.8);}
+.btn-warning:hover{background:#b585ff;transform:translateY(-2px);}
+.btn-secondary{background:rgba(255,255,255,.1);color:#fff;border:1px solid var(--stroke-2);}
+.btn-secondary:hover{background:rgba(255,255,255,.15);transform:translateY(-2px);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="segmentation.html" class="nav-link">← Back to Segmentation</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The School Building Cartoon</h1>
+    <p class="page-subtitle">Watch how a Segmentation hardware divides memory into variable-sized logical chunks.</p>
+  </header>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="playBtn" onclick="startAnimation()">▶ Play Animation</button>
+    <button class="btn btn-warning" id="pauseBtn" onclick="togglePause()" disabled>⏸ Pause</button>
+    <button class="btn btn-secondary" onclick="resetAnimation()">🔄 Reset</button>
+  </div>
+
+  <!-- THE SCENE -->
+  <div class="scene-wrapper">
+    <div class="scene">
+      
+      <!-- Character 1: CPU -->
+      <div class="character char-cpu">
+        <div class="speech-bubble" id="bubble-cpu">I need a variable in Segment 1!</div>
+        <div class="char-icon">👨‍💻</div>
+        <div class="char-name">CPU</div>
+      </div>
+
+      <!-- Character 2: MMU -->
+      <div class="character char-mmu">
+        <div class="speech-bubble" id="bubble-mmu">Checking limits...</div>
+        <div class="char-icon">🧑‍💼</div>
+        <div class="char-name">MMU</div>
+        
+        <!-- Segment Table -->
+        <div class="seg-table" id="seg-table">
+          <div class="st-header"><span>Seg</span><span>Base</span><span>Limit</span></div>
+          <div class="st-row"><span>0 (Code)</span><span>1000</span><span>300</span></div>
+          <div class="st-row highlight"><span>1 (Data)</span><span>1500</span><span>200</span></div>
+          <div class="st-row"><span>2 (Stack)</span><span>2000</span><span>350</span></div>
+        </div>
+      </div>
+
+      <!-- Character 3: RAM -->
+      <div class="character char-ram">
+        <div class="speech-bubble" id="bubble-ram">Got it!</div>
+        <div class="char-icon">🏢</div>
+        <div class="char-name">RAM</div>
+
+        <!-- RAM Map -->
+        <div class="ram-map" id="ram-map">
+          <div class="rm-header">Physical RAM</div>
+          <div class="rm-row code"><span>1000-1300</span><span>Code</span></div>
+          <div class="rm-row highlight"><span>1500-1700</span><span>Data (var x)</span></div>
+          <div class="rm-row stack"><span>2000-2350</span><span>Stack</span></div>
+        </div>
+      </div>
+
+      <!-- The Moving Packet -->
+      <div class="packet" id="packet">
+        SEG: 1<br>OFF: 50
+      </div>
+
+      <!-- Data flying back -->
+      <div class="flying-data" id="data-out">📦</div>
+
+    </div>
+  </div>
+
+  <!-- EXPLANATION -->
+  <div class="explanation" id="exp-box">
+    <div class="exp-title" id="exp-title">Ready to Play</div>
+    <div class="exp-text" id="exp-text">Click "Play Animation" to watch the hardware translate a segmented address.</div>
+  </div>
+
+</main>
+
+<script>
+/* ================= TIMELINE ENGINE & WAAPI LOGIC ================= */
+const packet = document.getElementById('packet');
+const dataOut = document.getElementById('data-out');
+const segTable = document.getElementById('seg-table');
+const ramMap = document.getElementById('ram-map');
+
+const bubbleCpu = document.getElementById('bubble-cpu');
+const bubbleMmu = document.getElementById('bubble-mmu');
+const bubbleRam = document.getElementById('bubble-ram');
+
+const expTitle = document.getElementById('exp-title');
+const expText = document.getElementById('exp-text');
+
+const playBtn = document.getElementById('playBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+
+let isPlaying = false;
+let isPaused = false;
+let animationTime = 0;
+let lastFrame = 0;
+let reqId = null;
+
+let anims = [];
+
+// Timeline
+const timeline = [
+  { time: 2000, action: step1_CPU_Requests },
+  { time: 7000, action: step2_MMU_Receives },
+  { time: 12000, action: step3_MMU_Translates },
+  { time: 18000, action: step4_Packet_To_RAM },
+  { time: 23000, action: step5_RAM_Receives },
+  { time: 28000, action: step6_Finish }
+];
+
+let timelineIndex = 0;
+
+function loop(timestamp) {
+  if (!isPlaying) return;
+  if (isPaused) {
+    lastFrame = timestamp;
+    reqId = requestAnimationFrame(loop);
+    return;
+  }
+
+  if (!lastFrame) lastFrame = timestamp;
+  let delta = timestamp - lastFrame;
+  animationTime += delta;
+  lastFrame = timestamp;
+
+  while (timelineIndex < timeline.length && animationTime >= timeline[timelineIndex].time) {
+    timeline[timelineIndex].action();
+    timelineIndex++;
+  }
+
+  if (timelineIndex < timeline.length) {
+    reqId = requestAnimationFrame(loop);
+  } else {
+    isPlaying = false;
+  }
+}
+
+/* ================= ANIMATION STEPS ================= */
+
+function step1_CPU_Requests() {
+  bubbleCpu.classList.add('active');
+  expTitle.textContent = "1. CPU Requests Data";
+  expText.textContent = "The program wants a variable. It generates a Logical Address: Segment 1, Offset 50.";
+  
+  packet.style.opacity = '1';
+  anims.push(packet.animate([
+    { opacity: 0, transform: 'scale(0.5)' },
+    { opacity: 1, transform: 'scale(1)' }
+  ], { duration: 800, fill: 'forwards' }));
+}
+
+function step2_MMU_Receives() {
+  bubbleCpu.classList.remove('active');
+  expTitle.textContent = "2. MMU Looks up the Segment";
+  expText.textContent = "The packet flies to the MMU. The MMU reads the Segment Table to find Segment 1.";
+  
+  anims.push(packet.animate([
+    { left: '120px', top: '260px' },
+    { left: '45%', top: '260px', marginLeft: '-60px' }
+  ], { duration: 3000, fill: 'forwards', easing: 'ease-in-out' }));
+}
+
+function step3_MMU_Translates() {
+  bubbleMmu.classList.add('active');
+  segTable.classList.add('active');
+  expTitle.textContent = "3. Limit Check & Math";
+  expText.textContent = "MMU checks the Limit (50 < 200). It passes! It then calculates Physical Address: Base (1500) + Offset (50) = 1550.";
+  
+  packet.innerHTML = "PHYS: 1550<br>(1500 + 50)";
+  packet.style.borderColor = "var(--emerald)";
+}
+
+function step4_Packet_To_RAM() {
+  bubbleMmu.classList.remove('active');
+  segTable.classList.remove('active');
+  expTitle.textContent = "4. Packet travels to RAM";
+  expText.textContent = "The MMU hands the Physical Address back to the memory bus, which routes it to the RAM chip.";
+  
+  anims.push(packet.animate([
+    { left: '45%', top: '260px', marginLeft: '-60px' },
+    { left: '75%', top: '260px', marginLeft: '-60px' }
+  ], { duration: 4000, fill: 'forwards', easing: 'ease-in-out' }));
+}
+
+function step5_RAM_Receives() {
+  bubbleRam.classList.add('active');
+  ramMap.classList.add('active');
+  expTitle.textContent = "5. RAM Fetches Data";
+  expText.textContent = "RAM looks at address 1550. It is inside the Data Segment block. It grabs the value and sends it back.";
+  
+  anims.push(packet.animate([
+    { opacity: 1, transform: 'scale(1)' },
+    { opacity: 0, transform: 'scale(0.5)' }
+  ], { duration: 500, fill: 'forwards' }));
+  
+  dataOut.style.opacity = '1';
+  anims.push(dataOut.animate([
+    { right: '120px', top: '260px', opacity: 1, transform: 'scale(1)' },
+    { right: '80%', top: '260px', opacity: 1, transform: 'scale(1)' },
+    { right: '80%', top: '260px', opacity: 0, transform: 'scale(0.5)' }
+  ], { duration: 4000, fill: 'forwards', easing: 'ease-in-out' }));
+}
+
+function step6_Finish() {
+  bubbleRam.classList.remove('active');
+  ramMap.classList.remove('active');
+  playBtn.disabled = false;
+  playBtn.textContent = "▶ Play Again";
+  pauseBtn.disabled = true;
+  pauseBtn.textContent = "⏸ Pause";
+  
+  expTitle.textContent = "Animation Complete";
+  expText.textContent = "The CPU received the data. Segmentation successfully isolated the Data segment!";
+}
+
+/* ================= CONTROLS ================= */
+
+function resetAnimation() {
+  isPlaying = false;
+  isPaused = false;
+  if (reqId) cancelAnimationFrame(reqId);
+
+  anims.forEach(a => a.cancel());
+  anims = [];
+
+  timelineIndex = 0;
+  animationTime = 0;
+  lastFrame = 0;
+
+  playBtn.disabled = false;
+  playBtn.textContent = "▶ Play Animation";
+  pauseBtn.disabled = true;
+  pauseBtn.textContent = "⏸ Pause";
+
+  packet.style.opacity = '0';
+  packet.style.left = '120px';
+  packet.style.top = '260px';
+  packet.style.marginLeft = '0';
+  packet.style.borderColor = 'var(--amber)';
+  packet.innerHTML = "SEG: 1<br>OFF: 50";
+  
+  dataOut.style.opacity = '0';
+  dataOut.style.right = '120px';
+  dataOut.style.top = '260px';
+  
+  segTable.classList.remove('active');
+  ramMap.classList.remove('active');
+  bubbleCpu.classList.remove('active');
+  bubbleMmu.classList.remove('active');
+  bubbleRam.classList.remove('active');
+
+  expTitle.textContent = "Ready to Play";
+  expText.textContent = "Click 'Play Animation' to watch the hardware translate a segmented address.";
+}
+
+function startAnimation() {
+  resetAnimation(); 
+  
+  isPlaying = true;
+  playBtn.disabled = true;
+  playBtn.textContent = "Playing...";
+  pauseBtn.disabled = false;
+  pauseBtn.textContent = "⏸ Pause";
+  
+  expTitle.textContent = "Starting...";
+  expText.textContent = "Waiting for CPU...";
+  
+  reqId = requestAnimationFrame(loop);
+}
+
+function togglePause() {
+  if (!isPlaying) return;
+  
+  isPaused = !isPaused;
+  
+  if (isPaused) {
+    pauseBtn.textContent = "▶ Resume";
+    anims.forEach(a => { if (a.playState === 'running') a.pause(); });
+  } else {
+    pauseBtn.textContent = "⏸ Pause";
+    anims.forEach(a => { if (a.playState === 'paused') a.play(); });
+  }
+}
+</script>
+
+</body>
+</html>
