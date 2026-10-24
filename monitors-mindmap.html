@@ -45,19 +45,19 @@ nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:cen
   justify-items:center;
   margin-bottom:40px;
   position:relative;
-  padding: 20px 0;
+  padding: 40px 0; /* Added padding for the oval */
 }
 
-/* The crosshair background connecting the nodes */
+/* The dashed ellipse background (matches Semaphore) */
 .mindmap-container::before{
   content:"";
   position:absolute;
   top:50%;left:50%;
   transform:translate(-50%,-50%);
-  width:70%;height:70%;
-  background:
-    linear-gradient(to right, transparent 49.5%, var(--stroke-2) 49.5%, var(--stroke-2) 50.5%, transparent 50.5%),
-    linear-gradient(to bottom, transparent 49.5%, var(--stroke-2) 49.5%, var(--stroke-2) 50.5%, transparent 50.5%);
+  width:75%;
+  height:80%;
+  border:2px dashed rgba(160,107,255,.3);
+  border-radius:50%;
   z-index:0;
   pointer-events:none;
 }
@@ -66,8 +66,8 @@ nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:cen
 .map-node{
   position:relative;
   z-index:1;
-  background:var(--panel);
-  border:1.5px solid var(--stroke-2);
+  background:rgba(255,255,255,.02);
+  border:1px solid var(--stroke);
   border-radius:16px;
   padding:16px;
   text-align:center;
@@ -85,6 +85,7 @@ nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:cen
   background:rgba(255,255,255,.06);
   border-color:var(--violet);
   transform:translateY(-2px);
+  box-shadow: 0 0 20px rgba(160,107,255,.15);
 }
 .map-node.active{
   border-color:var(--violet);
@@ -103,6 +104,7 @@ nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:cen
   border-color:var(--violet);
   box-shadow:0 0 30px rgba(160,107,255,.3);
   cursor:default;
+  z-index:2; /* Keeps center node above the dashed line */
 }
 .map-node.center:hover{transform:none;}
 
@@ -133,12 +135,13 @@ nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:cen
 
 /* ================= RESPONSIVE ================= */
 @media (max-width:800px){
-  .mindmap-container{grid-template-columns:1fr;grid-template-rows:auto;}
+  .mindmap-container{grid-template-columns:1fr;grid-template-rows:auto; padding: 0;}
   .mindmap-container::before{display:none;}
   .map-node{grid-column:1 !important;grid-row:auto !important;max-width:100%;}
   .map-node.center{order:-1;margin-bottom:20px;}
 }
 </style>
+  
 </head>
 <body>
 
