@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · The Semaphore Cartoon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f;--panel:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc;--ink-2:#c4cfe6;--muted:#8494b4;
+  --blue:#5b8dff;--emerald:#2ee6a8;--amber:#ffb648;--crimson:#ff4d6d;--violet:#a06bff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.12),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
+
+/* ================= CARTOON SCENE ================= */
+.scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:550px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+
+.scene{position:relative;width:100%;height:100%;display:flex;justify-content:space-between;padding:0 20px;}
+
+/* Background Grid */
+.scene::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:40px 40px;perspective:500px;transform:rotateX(60deg);transform-origin:bottom;z-index:0;}
+
+/* Semaphore Counter */
+.semaphore-board{position:absolute;top:20px;left:20px;background:var(--panel);border:2px solid var(--violet);border-radius:12px;padding:16px 24px;text-align:center;z-index:10;box-shadow:0 0 20px rgba(160,107,255,.2);}
+.sem-title{font-family:var(--mono);font-size:12px;color:#c9a7ff;letter-spacing:.1em;font-weight:900;margin-bottom:4px;}
+.sem-val{font-family:var(--mono);font-size:40px;font-weight:900;color:#fff;line-height:1;}
+.sem-val.zero{color:var(--amber);}
+.sem-val.negative{color:var(--crimson);}
+
+/* Areas */
+.area{position:absolute;bottom:20px;border:2px dashed var(--stroke-2);border-radius:16px;padding:16px;z-index:2;background:rgba(255,255,255,.02);}
+.area-title{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#000;padding:0 10px;font-family:var(--mono);font-size:10px;font-weight:900;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;}
+
+.critical-section{left:35%;width:250px;height:180px;border-color:rgba(46,230,168,.4);}
+.critical-section .area-title{color:var(--emerald);}
+
+.blocked-queue{right:20px;width:250px;height:180px;border-color:rgba(255,77,109,.4);}
+.blocked-queue .area-title{color:var(--crimson);}
+
+/* Characters */
+.character{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px;z-index:10;transition:.3s;}
+.char-icon{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:24px;font-weight:900;color:#000;box-shadow:0 5px 15px rgba(0,0,0,.5);}
+.char-name{font-family:var(--mono);font-size:10px;font-weight:800;background:rgba(255,255,255,.1);padding:2px 8px;border-radius:4px;}
+
+.char-alice .char-icon{background:var(--blue);}
+.char-bob .char-icon{background:var(--violet);}
+.char-charlie .char-icon{background:var(--amber);}
+
+/* Speech Bubbles */
+.speech-bubble{position:absolute;top:-45px;background:#fff;color:#000;font-family:var(--mono);font-size:11px;font-weight:900;padding:8px 12px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3);opacity:0;transform:scale(0.8);transition:.3s;white-space:nowrap;pointer-events:none;}
+.speech-bubble::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-width:6px 6px 0;border-style:solid;border-color:#fff transparent transparent transparent;}
+.speech-bubble.active{opacity:1;transform:scale(1);}
+
+/* ================= EXPLANATION PANEL ================= */
+.explanation{background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:24px;min-height:80px;text-align:center;transition:.3s;}
+.exp-title{font-size:18px;font-weight:900;color:var(--violet);margin-bottom:8px;}
+.exp-text{font-size:15px;color:var(--ink-2);}
+
+/* Controls */
+.controls{display:flex;justify-content:center;gap:16px;margin-bottom:20px;}
+.btn{padding:14px 28px;border-radius:12px;border:none;font-family:var(--font);font-size:16px;font-weight:900;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:8px;}
+.btn-primary{background:var(--violet);color:#fff;box-shadow:0 8px 20px -8px rgba(160,107,255,.8);}
+.btn-primary:hover{background:#b585ff;transform:translateY(-2px);}
+.btn-warning{background:var(--amber);color:#000;box-shadow:0 8px 20px -8px rgba(255,182,72,.8);}
+.btn-warning:hover{background:#ffd18a;transform:translateY(-2px);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Deep Dive</span>
+  </a>
+  <div class="nav-links">
+    <a href="semaphore.html" class="nav-link">← Back to Semaphore</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The VIP Club Cartoon</h1>
+    <p class="page-subtitle">Watch how a Semaphore (the Bouncer) protects the Critical Section (the VIP Room).</p>
+  </header>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="playBtn" onclick="startAnimation()">▶ Play Animation</button>
+    <button class="btn btn-warning" id="pauseBtn" onclick="togglePause()" disabled>⏸ Pause</button>
+  </div>
+
+  <!-- THE SCENE -->
+  <div class="scene-wrapper">
+    <div class="scene">
+      
+      <!-- Semaphore Counter Board -->
+      <div class="semaphore-board" id="sem-board">
+        <div class="sem-title">SEMAPHORE (S)</div>
+        <div class="sem-val" id="sem-val">1</div>
+      </div>
+
+      <!-- Critical Section -->
+      <div class="area critical-section">
+        <div class="area-title">Critical Section (VIP Room)</div>
+      </div>
+
+      <!-- Blocked Queue -->
+      <div class="area blocked-queue">
+        <div class="area-title">Blocked Queue (Waiting Line)</div>
+      </div>
+
+      <!-- Characters -->
+      <div class="character char-alice" id="alice" style="left: 20px; top: 200px;">
+        <div class="speech-bubble" id="bubble-alice">wait(S)</div>
+        <div class="char-icon">A</div>
+        <div class="char-name">Alice</div>
+      </div>
+
+      <div class="character char-bob" id="bob" style="left: -80px; top: 300px;">
+        <div class="speech-bubble" id="bubble-bob">wait(S)</div>
+        <div class="char-icon">B</div>
+        <div class="char-name">Bob</div>
+      </div>
+
+      <div class="character char-charlie" id="charlie" style="left: -80px; top: 400px;">
+        <div class="speech-bubble" id="bubble-charlie">wait(S)</div>
+        <div class="char-icon">C</div>
+        <div class="char-name">Charlie</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- EXPLANATION -->
+  <div class="explanation" id="exp-box">
+    <div class="exp-title" id="exp-title">Ready to Play</div>
+    <div class="exp-text" id="exp-text">Click "Play Animation" to watch threads request access to the Critical Section.</div>
+  </div>
+
+</main>
+
+<script>
+/* ================= TIMELINE ENGINE & WAAPI LOGIC ================= */
+const semVal = document.getElementById('sem-val');
+const expTitle = document.getElementById('exp-title');
+const expText = document.getElementById('exp-text');
+
+const alice = document.getElementById('alice');
+const bob = document.getElementById('bob');
+const charlie = document.getElementById('charlie');
+
+const bubbleAlice = document.getElementById('bubble-alice');
+const bubbleBob = document.getElementById('bubble-bob');
+const bubbleCharlie = document.getElementById('bubble-charlie');
+
+const playBtn = document.getElementById('playBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+
+let isPlaying = false;
+let isPaused = false;
+let animationTime = 0;
+let lastFrame = 0;
+let reqId = null;
+
+let anims = [];
+
+// Timeline of events
+const timeline = [
+  { time: 2000, action: step1_AliceArrives },
+  { time: 7000, action: step2_BobArrives },
+  { time: 12000, action: step3_CharlieArrives },
+  { time: 18000, action: step4_AliceLeaves },
+  { time: 24000, action: step5_BobLeaves },
+  { time: 30000, action: step6_CharlieLeaves }
+];
+
+let timelineIndex = 0;
+
+function loop(timestamp) {
+  if (!isPlaying) return;
+  if (isPaused) {
+    lastFrame = timestamp;
+    reqId = requestAnimationFrame(loop);
+    return;
+  }
+
+  if (!lastFrame) lastFrame = timestamp;
+  let delta = timestamp - lastFrame;
+  animationTime += delta;
+  lastFrame = timestamp;
+
+  while (timelineIndex < timeline.length && animationTime >= timeline[timelineIndex].time) {
+    timeline[timelineIndex].action();
+    timelineIndex++;
+  }
+
+  if (timelineIndex < timeline.length) {
+    reqId = requestAnimationFrame(loop);
+  } else {
+    isPlaying = false;
+  }
+}
+
+/* ================= ANIMATION STEPS ================= */
+
+function step1_AliceArrives() {
+  bubbleAlice.classList.add('active');
+  expTitle.textContent = "1. Alice Arrives";
+  expText.textContent = "Alice calls wait(S). The semaphore value goes from 1 to 0. She enters the Critical Section.";
+  
+  semVal.textContent = "0";
+  semVal.className = "sem-val zero";
+  
+  // Animate Alice into the room
+  anims.push(alice.animate([
+    { left: '20px', top: '200px' },
+    { left: '200px', top: '250px' }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+  
+  setTimeout(() => bubbleAlice.classList.remove('active'), 3000);
+}
+
+function step2_BobArrives() {
+  bubbleBob.classList.add('active');
+  expTitle.textContent = "2. Bob Arrives";
+  expText.textContent = "Bob calls wait(S). The value goes to -1. Since S < 0, Bob is blocked and put in the Waiting Line.";
+  
+  semVal.textContent = "-1";
+  semVal.className = "sem-val negative";
+  
+  // Animate Bob to the queue
+  anims.push(bob.animate([
+    { left: '-80px', top: '300px' },
+    { left: '650px', top: '400px' }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+  
+  setTimeout(() => bubbleBob.classList.remove('active'), 3000);
+}
+
+function step3_CharlieArrives() {
+  bubbleCharlie.classList.add('active');
+  expTitle.textContent = "3. Charlie Arrives";
+  expText.textContent = "Charlie calls wait(S). The value goes to -2. Charlie is also blocked and waits in line behind Bob.";
+  
+  semVal.textContent = "-2";
+  
+  // Animate Charlie to the queue
+  anims.push(charlie.animate([
+    { left: '-80px', top: '400px' },
+    { left: '650px', top: '460px' }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+  
+  setTimeout(() => bubbleCharlie.classList.remove('active'), 3000);
+}
+
+function step4_AliceLeaves() {
+  expTitle.textContent = "4. Alice Leaves";
+  expText.textContent = "Alice finishes her work and calls signal(S). The value goes to -1. Bob wakes up and enters the Critical Section.";
+  
+  semVal.textContent = "-1";
+  
+  // Alice leaves
+  anims.push(alice.animate([
+    { left: '200px', top: '250px', opacity: 1 },
+    { left: '-100px', top: '200px', opacity: 0 }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+  
+  // Bob moves to VIP room
+  anims.push(bob.animate([
+    { left: '650px', top: '400px' },
+    { left: '200px', top: '250px' }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out', delay: 1000 }));
+}
+
+function step5_BobLeaves() {
+  expTitle.textContent = "5. Bob Leaves";
+  expText.textContent = "Bob calls signal(S). The value goes to 0. Charlie wakes up and enters the Critical Section.";
+  
+  semVal.textContent = "0";
+  semVal.className = "sem-val zero";
+  
+  // Bob leaves
+  anims.push(bob.animate([
+    { left: '200px', top: '250px', opacity: 1 },
+    { left: '-100px', top: '300px', opacity: 0 }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+  
+  // Charlie moves to VIP room
+  anims.push(charlie.animate([
+    { left: '650px', top: '460px' },
+    { left: '200px', top: '250px' }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out', delay: 1000 }));
+}
+
+function step6_CharlieLeaves() {
+  expTitle.textContent = "6. Charlie Leaves";
+  expText.textContent = "Charlie calls signal(S). The value returns to 1. The system is fully reset and safe.";
+  
+  semVal.textContent = "1";
+  semVal.className = "sem-val";
+  
+  // Charlie leaves
+  anims.push(charlie.animate([
+    { left: '200px', top: '250px', opacity: 1 },
+    { left: '-100px', top: '400px', opacity: 0 }
+  ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
+
+  setTimeout(() => {
+    playBtn.disabled = false;
+    playBtn.textContent = "▶ Play Again";
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = "⏸ Pause";
+    expTitle.textContent = "Animation Complete";
+    expText.textContent = "All threads finished. The Semaphore prevented race conditions perfectly.";
+  }, 3000);
+}
+
+/* ================= CONTROLS ================= */
+
+function startAnimation() {
+  isPlaying = true;
+  isPaused = false;
+  animationTime = 0;
+  lastFrame = 0;
+  timelineIndex = 0;
+  
+  playBtn.disabled = true;
+  playBtn.textContent = "Playing...";
+  pauseBtn.disabled = false;
+  pauseBtn.textContent = "⏸ Pause";
+  
+  anims.forEach(a => a.cancel());
+  anims = [];
+  
+  // Reset States
+  semVal.textContent = "1";
+  semVal.className = "sem-val";
+  
+  alice.style.left = '20px'; alice.style.top = '200px'; alice.style.opacity = '1';
+  bob.style.left = '-80px'; bob.style.top = '300px'; bob.style.opacity = '1';
+  charlie.style.left = '-80px'; charlie.style.top = '400px'; charlie.style.opacity = '1';
+  
+  bubbleAlice.classList.remove('active');
+  bubbleBob.classList.remove('active');
+  bubbleCharlie.classList.remove('active');
+  
+  expTitle.textContent = "Starting...";
+  expText.textContent = "Waiting for threads...";
+  
+  reqId = requestAnimationFrame(loop);
+}
+
+function togglePause() {
+  if (!isPlaying) return;
+  
+  isPaused = !isPaused;
+  
+  if (isPaused) {
+    pauseBtn.textContent = "▶ Resume";
+    anims.forEach(a => { if (a.playState === 'running') a.pause(); });
+  } else {
+    pauseBtn.textContent = "⏸ Pause";
+    anims.forEach(a => { if (a.playState === 'paused') a.play(); });
+  }
+}
+</script>
+
+</body>
+</html>
