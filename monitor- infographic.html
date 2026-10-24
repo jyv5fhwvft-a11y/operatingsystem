@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Monitors · Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f; --panel:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc; --ink-2:#c4cfe6; --muted:#8494b4;
+  --blue:#5b8dff; --emerald:#2ee6a8; --amber:#ffb648; --crimson:#ff4d6d; --violet:#a06bff;
+  --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh;padding-bottom:80px;line-height:1.6;-webkit-user-select:none;user-select:none;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:700px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:600px;margin:0 auto;}
+
+/* ================= FLOWCHART UI ================= */
+.flow-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-bottom:40px;}
+
+/* The moving data packet */
+.data-packet{
+  position:absolute;left:50%;top:0;transform:translateX(-50%);
+  width:12px;height:12px;background:#fff;border-radius:50%;
+  box-shadow:0 0 15px #fff, 0 0 30px var(--violet);
+  z-index:10;animation:flowDown 10s infinite linear;opacity:0;
+}
+
+@keyframes flowDown {
+  0% { top: 40px; opacity: 0; }
+  5% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 95%; opacity: 0; }
+}
+
+/* Nodes */
+.node{
+  background:var(--panel);border:1.5px solid var(--stroke-2);border-radius:12px;
+  padding:16px;text-align:center;position:relative;z-index:2;
+  box-shadow:0 10px 30px -10px rgba(0,0,0,.5);
+  width:100%;max-width:500px;transition:.4s;
+}
+.node.active{
+  border-color:var(--violet);
+  background:rgba(160,107,255,.1);
+  box-shadow:0 0 30px rgba(160,107,255,.2);
+  transform:scale(1.02);
+}
+.node-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:4px;}
+.node-sub{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.node-data{
+  font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:8px;
+  background:rgba(0,0,0,.3);padding:6px 10px;border-radius:6px;
+  display:inline-block;border:1px solid rgba(255,182,72,.2);
+}
+
+/* Special Node Colors */
+.node.enter{border-left:4px solid var(--blue);}
+.node.execute{border-left:4px solid var(--emerald);}
+.node.wait{border-left:4px solid var(--amber);}
+.node.blocked{border-left:4px solid var(--crimson);}
+.node.signal{border-left:4px solid var(--emerald);}
+.node.wake{border-left:4px solid var(--violet);}
+
+/* Arrows */
+.arrow-down{
+  width:2px;height:24px;background:var(--stroke-2);position:relative;z-index:1;
+}
+.arrow-down::after{
+  content:"";position:absolute;bottom:0;left:-4px;
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:6px solid var(--stroke-2);
+}
+
+/* Info Box */
+.info-box{
+  margin-top:20px;background:rgba(255,255,255,.02);border:1px dashed var(--stroke-2);
+  border-radius:12px;padding:20px;text-align:center;
+}
+.info-box h4{color:#fff;font-size:14px;margin-bottom:8px;}
+.info-box p{color:var(--muted);font-size:12px;font-family:var(--mono);line-height:1.6;}
+
+@media (max-width: 600px) {
+  .container { padding: 100px 16px 40px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Sync Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="monitors.html" class="nav-link">← Back to Monitors</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Monitor Flow</h1>
+    <p class="page-subtitle">Watch a single thread enter the monitor, wait on a condition variable, and get signaled back to life.</p>
+  </header>
+
+  <section class="flow-container">
+    <div class="data-packet" id="packet"></div>
+
+    <!-- Step 1 -->
+    <div class="node enter" id="node-0">
+      <div class="node-title">Thread Arrives</div>
+      <div class="node-sub">Calls enter()</div>
+      <div class="node-data">Acquires implicit lock</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Step 2 -->
+    <div class="node execute" id="node-1">
+      <div class="node-title">Thread Executes</div>
+      <div class="node-sub">Inside the Monitor</div>
+      <div class="node-data">Exclusive access granted</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Step 3 -->
+    <div class="node wait" id="node-2">
+      <div class="node-title">Condition Not Met</div>
+      <div class="node-sub">Calls wait(cv)</div>
+      <div class="node-data">Releases lock atomically</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Step 4 -->
+    <div class="node blocked" id="node-3">
+      <div class="node-title">Thread Blocked</div>
+      <div class="node-sub">Moves to Condition Queue</div>
+      <div class="node-data">Sleeps until signal(cv)</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Step 5 -->
+    <div class="node signal" id="node-4">
+      <div class="node-title">Another Thread Signals</div>
+      <div class="node-sub">Calls signal(cv)</div>
+      <div class="node-data">Wakes one waiter</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Step 6 -->
+    <div class="node wake" id="node-5">
+      <div class="node-title">Thread Wakes Up</div>
+      <div class="node-sub">Moves to Entry Queue</div>
+      <div class="node-data">Must re-acquire the lock</div>
+    </div>
+
+    <div class="info-box">
+      <h4>⚖️ The Magic of Mesa Semantics</h4>
+      <p>When a thread is signaled, it does not instantly take over. It must re-acquire the implicit lock and re-check its condition inside a <code>while</code> loop. This prevents race conditions.</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= FLOWCHART ANIMATION LOGIC ================= */
+const nodes = [
+  document.getElementById('node-0'),
+  document.getElementById('node-1'),
+  document.getElementById('node-2'),
+  document.getElementById('node-3'),
+  document.getElementById('node-4'),
+  document.getElementById('node-5')
+];
+
+let currentStep = 0;
+
+// Reset the data packet animation to sync with the highlight
+function resetPacket() {
+  const packet = document.getElementById('packet');
+  packet.style.animation = 'none';
+  packet.offsetHeight; /* trigger reflow */
+  packet.style.animation = 'flowDown 10s infinite linear';
+}
+
+// Loop through the nodes and highlight them
+setInterval(() => {
+  // Remove active class from all
+  nodes.forEach(n => n.classList.remove('active'));
+  
+  // Add active to current
+  nodes[currentStep].classList.add('active');
+  
+  // Move to next (loop back to 0 if at end)
+  currentStep = (currentStep + 1) % nodes.length;
+  
+  // If we start over, reset the packet animation
+  if (currentStep === 0) {
+    resetPacket();
+  }
+}, 1400); // Each stage highlights for 1.4 seconds
+</script>
+
+</body>
+</html>
