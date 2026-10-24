@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Monitors · Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f; --panel:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc; --ink-2:#c4cfe6; --muted:#8494b4;
+  --blue:#5b8dff; --emerald:#2ee6a8; --amber:#ffb648; --crimson:#ff4d6d; --violet:#a06bff;
+  --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;-webkit-user-select:none;user-select:none;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= SANDBOX UI ================= */
+.sandbox-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;margin-bottom:30px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+
+/* Control Panel */
+.control-panel{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:24px;}
+.btn{padding:16px;border:none;border-radius:12px;font-family:var(--font);font-size:14px;font-weight:800;cursor:pointer;transition:.3s;text-align:center;line-height:1.4;display:flex;justify-content:space-between;align-items:center;}
+.btn:hover{transform:translateY(-3px);}
+.btn-normal{background:var(--emerald);color:#000;box-shadow:0 8px 20px -8px rgba(46,230,168,.8);}
+.btn-starve{background:var(--amber);color:#000;box-shadow:0 8px 20px -8px rgba(255,182,72,.8);}
+.btn-deadlock{background:var(--crimson);color:#fff;box-shadow:0 8px 20px -8px rgba(255,77,109,.8);}
+.btn span:last-child{font-family:var(--mono);font-size:12px;opacity:0.8;}
+
+/* Terminal */
+.terminal{background:#05080f;border:1px solid var(--stroke-2);border-radius:12px;padding:24px;font-family:var(--mono);font-size:13px;min-height:280px;display:flex;flex-direction:column;justify-content:flex-start;box-shadow:inset 0 0 20px rgba(0,0,0,.5);}
+.term-line{display:block;margin-bottom:8px;line-height:1.6;white-space:pre-wrap;}
+.t-error{color:var(--crimson);font-weight:800;}
+.t-success{color:var(--emerald);font-weight:800;}
+.t-info{color:var(--blue);}
+.t-warn{color:var(--amber);}
+.t-dim{color:var(--muted);}
+
+/* Shake Animation for errors */
+.shake{animation:shake 0.4s;}
+@keyframes shake{
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+@media (max-width: 700px) {
+  .btn { flex-direction: column; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="monitors.html" class="nav-link">← Back to Monitors</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">The Monitor Sandbox</h1>
+    <p class="page-subtitle">Monitors can freeze your system if used wrong. Run the scenarios below to see how Lost Signals, Starvation, and Deadlocks happen.</p>
+  </header>
+
+  <div class="sandbox-box">
+
+    <div class="control-panel">
+      <button class="btn btn-normal" onclick="runSim('normal')">
+        <span>✅ Normal Execution</span>
+        <span>Thread waits, gets signaled, and exits cleanly.</span>
+      </button>
+      
+      <button class="btn btn-starve" onclick="runSim('starve')">
+        <span>⏳ Lost Signal (Starvation)</span>
+        <span>A signal is sent when nobody is waiting. It vanishes.</span>
+      </button>
+      
+      <button class="btn btn-deadlock" onclick="runSim('deadlock')">
+        <span>💀 Deadlock (Circular Wait)</span>
+        <span>Two threads wait on conditions held by each other.</span>
+      </button>
+    </div>
+
+    <!-- TERMINAL OUTPUT -->
+    <div class="terminal" id="terminal">
+      <span class="term-line t-info">OS Scheduler initialized. Awaiting thread execution...</span>
+      <span class="term-line t-dim">Press one of the scenario buttons above to start.</span>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+/* ================= SANDBOX LOGIC ================= */
+const terminal = document.getElementById('terminal');
+let timeouts = [];
+
+function clearTimeouts() {
+  timeouts.forEach(t => clearTimeout(t));
+  timeouts = [];
+}
+
+function printLine(html, delay = 0) {
+  const t = setTimeout(() => {
+    const line = document.createElement('div');
+    line.className = 'term-line';
+    line.innerHTML = html;
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+  }, delay);
+  timeouts.push(t);
+}
+
+function runSim(type) {
+  clearTimeouts();
+  terminal.className = 'terminal';
+  terminal.innerHTML = '';
+
+  if (type === 'normal') {
+    printLine('<span class="t-info">[System] Starting Thread A and Thread B...</span>', 100);
+    printLine('<span class="t-dim">[Thread A] Calls enter()...</span>', 800);
+    printLine('<span class="t-success">[Thread A] Lock acquired! Entering Monitor Body...</span>', 1200);
+    printLine('<span class="t-dim">[Thread A] Buffer is empty. Calling wait(cv)...</span>', 1800);
+    printLine('<span class="t-warn">[Thread A] Lock released. Moving to Condition Queue.</span>', 2200);
+    printLine('<span class="t-dim">[Thread B] Calls enter()...</span>', 2800);
+    printLine('<span class="t-success">[Thread B] Lock acquired! Entering Monitor Body...</span>', 3200);
+    printLine('<span class="t-dim">[Thread B] Produced an item. Calling signal(cv)...</span>', 3800);
+    printLine('<span class="t-success">[Thread B] Woke up Thread A! Exiting monitor.</span>', 4300);
+    printLine('<span class="t-info">[Thread A] Wakes up. Re-acquiring lock...</span>', 5000);
+    printLine('<span class="t-success">[Thread A] Lock acquired! Processing item... System stable.</span>', 5600);
+  } 
+  
+  else if (type === 'starve') {
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+    
+    printLine('<span class="t-info">[System] Starting Thread A and Thread B...</span>', 100);
+    printLine('<span class="t-dim">[Thread B] Calls enter()...</span>', 800);
+    printLine('<span class="t-success">[Thread B] Lock acquired! Entering Monitor Body...</span>', 1200);
+    printLine('<span class="t-warn">[Thread B] Calls signal(cv) but no one is waiting...</span>', 1800);
+    printLine('<span class="t-error">[System] Signal lost! Condition variable has no memory.</span>', 2200);
+    printLine('<span class="t-dim">[Thread B] Calls exit(). Lock released.</span>', 2800);
+    printLine('<span class="t-dim">[Thread A] Calls enter()...</span>', 3400);
+    printLine('<span class="t-success">[Thread A] Lock acquired! Entering Monitor Body...</span>', 3800);
+    printLine('<span class="t-dim">[Thread A] Buffer is empty. Calling wait(cv)...</span>', 4400);
+    printLine('<span class="t-dim">[Thread A] Waiting in Condition Queue...</span>', 5000);
+    printLine('<span class="t-error">[System] STARVATION DETECTED. Thread A will wait forever...</span>', 6000);
+  } 
+  
+  else if (type === 'deadlock') {
+    terminal.classList.add('shake');
+    setTimeout(() => terminal.classList.remove('shake'), 500);
+
+    printLine('<span class="t-info">[System] Thread A and Thread B need Monitors M1 and M2 to proceed...</span>', 100);
+    printLine('<span class="t-dim">[Thread A] Enters M1. Lock acquired.</span>', 1000);
+    printLine('<span class="t-dim">[Thread B] Enters M2. Lock acquired.</span>', 2000);
+    printLine('<span class="t-warn">[Thread A] Needs data from M2. Calls wait(cv2)... Blocked.</span>', 3000);
+    printLine('<span class="t-warn">[Thread B] Needs data from M1. Calls wait(cv1)... Blocked.</span>', 4000);
+    printLine('<span class="t-error">[System] DEADLOCK! Circular Wait detected...</span>', 5000);
+    printLine('<span class="t-error">[System] Thread A is waiting for Thread B...</span>', 5500);
+    printLine('<span class="t-error">[System] Thread B is waiting for Thread A...</span>', 6000);
+    printLine('<span class="t-dim">[System] No thread can proceed. CPU utilization drops to 0%...</span>', 7000);
+  }
+}
+</script>
+
+</body>
+</html>
