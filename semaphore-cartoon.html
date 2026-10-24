@@ -36,7 +36,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 /* ================= CARTOON SCENE ================= */
 .scene-wrapper{position:relative;background:#000;border:2px solid var(--stroke-2);border-radius:24px;padding:20px;overflow:hidden;height:550px;margin-bottom:30px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
 
-.scene{position:relative;width:100%;height:100%;display:flex;justify-content:space-between;padding:0 20px;}
+.scene{position:relative;width:100%;height:100%;padding:0 20px;}
 
 /* Background Grid */
 .scene::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:40px 40px;perspective:500px;transform:rotateX(60deg);transform-origin:bottom;z-index:0;}
@@ -49,13 +49,13 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .sem-val.negative{color:var(--crimson);}
 
 /* Areas */
-.area{position:absolute;bottom:20px;border:2px dashed var(--stroke-2);border-radius:16px;padding:16px;z-index:2;background:rgba(255,255,255,.02);}
+.area{position:absolute;bottom:40px;border:2px dashed var(--stroke-2);border-radius:16px;padding:16px;z-index:2;background:rgba(255,255,255,.02);}
 .area-title{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#000;padding:0 10px;font-family:var(--mono);font-size:10px;font-weight:900;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;}
 
-.critical-section{left:35%;width:250px;height:180px;border-color:rgba(46,230,168,.4);}
+.critical-section{left:30%;width:260px;height:200px;border-color:rgba(46,230,168,.4);}
 .critical-section .area-title{color:var(--emerald);}
 
-.blocked-queue{right:20px;width:250px;height:180px;border-color:rgba(255,77,109,.4);}
+.blocked-queue{right:20px;width:260px;height:200px;border-color:rgba(255,77,109,.4);}
 .blocked-queue .area-title{color:var(--crimson);}
 
 /* Characters */
@@ -84,6 +84,8 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
 .btn-primary:hover{background:#b585ff;transform:translateY(-2px);}
 .btn-warning{background:var(--amber);color:#000;box-shadow:0 8px 20px -8px rgba(255,182,72,.8);}
 .btn-warning:hover{background:#ffd18a;transform:translateY(-2px);}
+.btn-secondary{background:rgba(255,255,255,.1);color:#fff;border:1px solid var(--stroke-2);}
+.btn-secondary:hover{background:rgba(255,255,255,.15);transform:translateY(-2px);}
 .btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
 </style>
 </head>
@@ -109,6 +111,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
   <div class="controls">
     <button class="btn btn-primary" id="playBtn" onclick="startAnimation()">▶ Play Animation</button>
     <button class="btn btn-warning" id="pauseBtn" onclick="togglePause()" disabled>⏸ Pause</button>
+    <button class="btn btn-secondary" onclick="resetAnimation()">🔄 Reset</button>
   </div>
 
   <!-- THE SCENE -->
@@ -138,105 +141,17 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(900px 
         <div class="char-name">Alice</div>
       </div>
 
-      <div class="character char-bob" id="bob" style="left: -80px; top: 300px;">
+      <div class="character char-bob" id="bob" style="left: 20px; top: 300px;">
         <div class="speech-bubble" id="bubble-bob">wait(S)</div>
         <div class="char-icon">B</div>
         <div class="char-name">Bob</div>
       </div>
 
-      <div class="character char-charlie" id="charlie" style="left: -80px; top: 400px;">
-        <div class="speech-bubble" id="bubble-charlie">wait(S)</div>
-        <div class="char-icon">C</div>
-        <div class="char-name">Charlie</div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- EXPLANATION -->
-  <div class="explanation" id="exp-box">
-    <div class="exp-title" id="exp-title">Ready to Play</div>
-    <div class="exp-text" id="exp-text">Click "Play Animation" to watch threads request access to the Critical Section.</div>
-  </div>
-
-</main>
-
-<script>
-/* ================= TIMELINE ENGINE & WAAPI LOGIC ================= */
-const semVal = document.getElementById('sem-val');
-const expTitle = document.getElementById('exp-title');
-const expText = document.getElementById('exp-text');
-
-const alice = document.getElementById('alice');
-const bob = document.getElementById('bob');
-const charlie = document.getElementById('charlie');
-
-const bubbleAlice = document.getElementById('bubble-alice');
-const bubbleBob = document.getElementById('bubble-bob');
-const bubbleCharlie = document.getElementById('bubble-charlie');
-
-const playBtn = document.getElementById('playBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-
-let isPlaying = false;
-let isPaused = false;
-let animationTime = 0;
-let lastFrame = 0;
-let reqId = null;
-
-let anims = [];
-
-// Timeline of events
-const timeline = [
-  { time: 2000, action: step1_AliceArrives },
-  { time: 7000, action: step2_BobArrives },
-  { time: 12000, action: step3_CharlieArrives },
-  { time: 18000, action: step4_AliceLeaves },
-  { time: 24000, action: step5_BobLeaves },
-  { time: 30000, action: step6_CharlieLeaves }
-];
-
-let timelineIndex = 0;
-
-function loop(timestamp) {
-  if (!isPlaying) return;
-  if (isPaused) {
-    lastFrame = timestamp;
-    reqId = requestAnimationFrame(loop);
-    return;
-  }
-
-  if (!lastFrame) lastFrame = timestamp;
-  let delta = timestamp - lastFrame;
-  animationTime += delta;
-  lastFrame = timestamp;
-
-  while (timelineIndex < timeline.length && animationTime >= timeline[timelineIndex].time) {
-    timeline[timelineIndex].action();
-    timelineIndex++;
-  }
-
-  if (timelineIndex < timeline.length) {
-    reqId = requestAnimationFrame(loop);
-  } else {
-    isPlaying = false;
-  }
-}
-
-/* ================= ANIMATION STEPS ================= */
-
-function step1_AliceArrives() {
-  bubbleAlice.classList.add('active');
-  expTitle.textContent = "1. Alice Arrives";
-  expText.textContent = "Alice calls wait(S). The semaphore value goes from 1 to 0. She enters the Critical Section.";
-  
-  semVal.textContent = "0";
-  semVal.className = "sem-val zero";
-  
-  // Animate Alice into the room
+      <div class="character char-charlie" id="charlie" style="left: 20px; top: 400px;">
+  // Animate Alice INTO the Critical Section
   anims.push(alice.animate([
     { left: '20px', top: '200px' },
-    { left: '200px', top: '250px' }
+    { left: '38%', top: '420px' } 
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
   
   setTimeout(() => bubbleAlice.classList.remove('active'), 3000);
@@ -250,10 +165,10 @@ function step2_BobArrives() {
   semVal.textContent = "-1";
   semVal.className = "sem-val negative";
   
-  // Animate Bob to the queue
+  // Animate Bob INTO the Blocked Queue (left side)
   anims.push(bob.animate([
-    { left: '-80px', top: '300px' },
-    { left: '650px', top: '400px' }
+    { left: '20px', top: '300px' },
+    { left: '68%', top: '420px' }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
   
   setTimeout(() => bubbleBob.classList.remove('active'), 3000);
@@ -266,10 +181,10 @@ function step3_CharlieArrives() {
   
   semVal.textContent = "-2";
   
-  // Animate Charlie to the queue
+  // Animate Charlie INTO the Blocked Queue (right side)
   anims.push(charlie.animate([
-    { left: '-80px', top: '400px' },
-    { left: '650px', top: '460px' }
+    { left: '20px', top: '400px' },
+    { left: '82%', top: '420px' }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
   
   setTimeout(() => bubbleCharlie.classList.remove('active'), 3000);
@@ -283,14 +198,14 @@ function step4_AliceLeaves() {
   
   // Alice leaves
   anims.push(alice.animate([
-    { left: '200px', top: '250px', opacity: 1 },
+    { left: '38%', top: '420px', opacity: 1 },
     { left: '-100px', top: '200px', opacity: 0 }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
   
   // Bob moves to VIP room
   anims.push(bob.animate([
-    { left: '650px', top: '400px' },
-    { left: '200px', top: '250px' }
+    { left: '68%', top: '420px' },
+    { left: '38%', top: '420px' }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out', delay: 1000 }));
 }
 
@@ -303,14 +218,14 @@ function step5_BobLeaves() {
   
   // Bob leaves
   anims.push(bob.animate([
-    { left: '200px', top: '250px', opacity: 1 },
+    { left: '38%', top: '420px', opacity: 1 },
     { left: '-100px', top: '300px', opacity: 0 }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
   
   // Charlie moves to VIP room
   anims.push(charlie.animate([
-    { left: '650px', top: '460px' },
-    { left: '200px', top: '250px' }
+    { left: '82%', top: '420px' },
+    { left: '38%', top: '420px' }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out', delay: 1000 }));
 }
 
@@ -323,7 +238,7 @@ function step6_CharlieLeaves() {
   
   // Charlie leaves
   anims.push(charlie.animate([
-    { left: '200px', top: '250px', opacity: 1 },
+    { left: '38%', top: '420px', opacity: 1 },
     { left: '-100px', top: '400px', opacity: 0 }
   ], { duration: 2000, fill: 'forwards', easing: 'ease-in-out' }));
 
@@ -339,32 +254,50 @@ function step6_CharlieLeaves() {
 
 /* ================= CONTROLS ================= */
 
-function startAnimation() {
-  isPlaying = true;
+function resetAnimation() {
+  // Stop loop
+  isPlaying = false;
   isPaused = false;
+  if (reqId) cancelAnimationFrame(reqId);
+
+  // Cancel all active animations
+  anims.forEach(a => a.cancel());
+  anims = [];
+
+  // Reset Timeline
+  timelineIndex = 0;
   animationTime = 0;
   lastFrame = 0;
-  timelineIndex = 0;
+
+  // Reset UI
+  playBtn.disabled = false;
+  playBtn.textContent = "▶ Play Animation";
+  pauseBtn.disabled = true;
+  pauseBtn.textContent = "⏸ Pause";
+
+  semVal.textContent = "1";
+  semVal.className = "sem-val";
+
+  alice.style.left = '20px'; alice.style.top = '200px'; alice.style.opacity = '1';
+  bob.style.left = '20px'; bob.style.top = '300px'; bob.style.opacity = '1';
+  charlie.style.left = '20px'; charlie.style.top = '400px'; charlie.style.opacity = '1';
+
+  bubbleAlice.classList.remove('active');
+  bubbleBob.classList.remove('active');
+  bubbleCharlie.classList.remove('active');
+
+  expTitle.textContent = "Ready to Play";
+  expText.textContent = "Click 'Play Animation' to watch threads request access to the Critical Section.";
+}
+
+function startAnimation() {
+  resetAnimation(); // Ensure clean state before playing
   
+  isPlaying = true;
   playBtn.disabled = true;
   playBtn.textContent = "Playing...";
   pauseBtn.disabled = false;
   pauseBtn.textContent = "⏸ Pause";
-  
-  anims.forEach(a => a.cancel());
-  anims = [];
-  
-  // Reset States
-  semVal.textContent = "1";
-  semVal.className = "sem-val";
-  
-  alice.style.left = '20px'; alice.style.top = '200px'; alice.style.opacity = '1';
-  bob.style.left = '-80px'; bob.style.top = '300px'; bob.style.opacity = '1';
-  charlie.style.left = '-80px'; charlie.style.top = '400px'; charlie.style.opacity = '1';
-  
-  bubbleAlice.classList.remove('active');
-  bubbleBob.classList.remove('active');
-  bubbleCharlie.classList.remove('active');
   
   expTitle.textContent = "Starting...";
   expText.textContent = "Waiting for threads...";
