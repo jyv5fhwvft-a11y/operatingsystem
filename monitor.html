@@ -1,637 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Monitors · OS Visual Course</title>
-
-<!-- ================= GOOGLE FONTS ================= -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Process Sync · Monitors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
-
-/* ================= THEME TOKENS (matches knowledgebase.html) ================= */
+/* ================= CSS VARIABLES & RESET ================= */
 :root{
-  --bg:      #06090f;
-  --panel:   rgba(255,255,255,.04);
-  --panel-2: rgba(255,255,255,.06);
-  --border:  rgba(255,255,255,.10);
-  --text:    #e8edf7;
-  --muted:   #8b96ad;
-  --blue:    #5b8dff;
-  --emerald: #2ee6a8;
-  --amber:   #ffb648;
-  --crimson: #ff4d6d;
-  --violet:  #a06bff;
-  --radius:  16px;
+  --bg:#06090f; --panel:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc; --ink-2:#c4cfe6; --muted:#8494b4;
+  --blue:#5b8dff; --emerald:#2ee6a8; --amber:#ffb648; --crimson:#ff4d6d; --violet:#a06bff;
+  --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
 }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.12),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.12),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
 
-/* ================= BASE / RESET ================= */
-*{ box-sizing:border-box; margin:0; padding:0; }
-html{ scroll-behavior:smooth; }
-body{
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  background-image:
-    radial-gradient(900px 400px at 15% -10%, rgba(91,141,255,.10), transparent 60%),
-    radial-gradient(700px 380px at 100% 0%,  rgba(160,107,255,.08), transparent 60%);
-  background-repeat: no-repeat;
-}
-a{ color: inherit; text-decoration: none; }
-code, .mono{ font-family:'JetBrains Mono', monospace; }
+/* ================= NAVIGATION BAR ================= */
+nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
 
-/* ================= NAV BAR (fixed, glowing dot) ================= */
-.nav{
-  position: fixed; top:0; left:0; right:0; z-index: 100;
-  height: 58px;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  background: rgba(6,9,15,.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
-}
-.nav-brand{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px; letter-spacing:.3px; }
-.dot{
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--blue);
-  box-shadow: 0 0 10px var(--blue), 0 0 22px rgba(91,141,255,.6);
-  animation: dotPulse 2.4s ease-in-out infinite;
-}
-@keyframes dotPulse{
-  0%,100%{ transform:scale(1); opacity:1; }
-  50%    { transform:scale(.75); opacity:.6; }
-}
-.nav-links{ display:flex; align-items:center; gap:18px; font-size:13px; color:var(--muted); }
-.nav-links a:hover{ color: var(--blue); }
-.nav-links .back{ color: var(--text); font-weight:600; }
-.nav-links .back:hover{ color: var(--blue); }
-
-/* ================= PAGE WRAPPER ================= */
-.wrap{ max-width: 1100px; margin: 0 auto; padding: 92px 20px 70px; }
-
-/* ================= HERO ================= */
-.hero{ margin-bottom: 26px; }
-.pill{
-  display:inline-flex; align-items:center; gap:8px;
-  font-size: 11px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase;
-  color: var(--violet);
-  background: rgba(160,107,255,.10);
-  border: 1px solid rgba(160,107,255,.30);
-  padding: 5px 12px; border-radius: 999px;
-  margin-bottom: 14px;
-}
-.hero h1{
-  font-size: clamp(30px, 5vw, 46px);
-  font-weight: 800;
-  letter-spacing: -1px;
-  line-height: 1.1;
-}
-.hero h1 span{
-  background: linear-gradient(100deg, var(--blue), var(--violet));
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.hero p{ color: var(--muted); font-size: 15px; margin-top: 10px; max-width: 720px; }
+/* ================= MAIN PAGE LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1100px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:50px;}
+.page-title{font-size:clamp(36px,5vw,56px);font-weight:900;letter-spacing:-.03em;margin-bottom:16px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:18px;color:var(--ink-2);max-width:700px;margin:0 auto;line-height:1.6;}
 
 /* ================= DEFINITION CARD ================= */
-.def-card{
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--blue);
-  border-radius: var(--radius);
-  padding: 22px 24px;
-  margin-bottom: 30px;
-  position: relative;
-}
-.def-label{
-  font-size: 10.5px; font-weight: 800; letter-spacing: 2px;
-  color: var(--blue); text-transform: uppercase; margin-bottom: 10px;
-}
-.def-card p{
-  font-size: clamp(16px, 1.5vw, 18px);
-  color: var(--text);
-}
-.def-card p + p{ margin-top: 10px; }
-
-/* ================= SECTION HEADINGS ================= */
-.section-head{
-  display:flex; align-items:center; gap:10px;
-  font-size: 13px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
-  color: var(--muted); margin: 34px 0 16px;
-}
-.section-head::after{
-  content:""; flex:1; height:1px; background: var(--border);
-}
+.definition-card{background:linear-gradient(150deg,rgba(160,107,255,.08),rgba(255,255,255,.02));border:1px solid rgba(160,107,255,.3);border-radius:24px;padding:40px;margin-bottom:40px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.def-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:var(--violet);margin-bottom:16px;display:block;}
+.def-text{font-size:clamp(16px,1.5vw,18px);line-height:1.7;color:#eaf0fc;font-weight:500;}
 
 /* ================= ANALOGY GRID ================= */
-.analogy-grid{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-.analogy{
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex; flex-direction: column;
-}
-.analogy h3{
-  font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-  margin-bottom: 10px; display:flex; align-items:center; gap:8px;
-}
-.analogy.kid h3{ color: var(--amber); }
-.analogy.tech h3{ color: var(--emerald); }
-.analogy p{ font-size: 14px; color: var(--text); }
-.analogy p + p{ margin-top: 8px; }
-.analogy .note{ font-size: 12.5px; color: var(--muted); margin-top: 8px; }
-.stage-box{
-  margin-top: 16px;
-  background: rgba(0,0,0,.28);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
+.analogy-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:60px;}
+.analogy-box{background:var(--panel);border:1px solid var(--stroke);border-radius:24px;padding:32px;transition:.3s;display:flex;flex-direction:column;}
+.analogy-box:hover{border-color:var(--stroke-2);transform:translateY(-4px);}
+.analogy-box.el5{border-top:4px solid var(--amber);}
+.analogy-box.tech{border-top:4px solid var(--violet);}
+.analogy-title{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;color:#fff;}
+.analogy-body{font-size:15px;line-height:1.7;color:var(--ink-2);flex-grow:1;}
+.analogy-body strong{color:#fff;}
 
-/* ================= 5TH GRADER SCENE ================= */
-.scene{ position: relative; height: 250px; }
-.scene .room{
-  position:absolute; left:48%; top:8%; width:46%; height:52%;
-  border: 2px dashed rgba(91,141,255,.45);
-  border-radius: 12px;
-  background: rgba(91,141,255,.06);
-}
-.scene .room-tag{
-  position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
-  font-size:10px; letter-spacing:1.2px; text-transform:uppercase;
-  color: var(--blue); white-space:nowrap;
-}
-.scene .zone-tag{
-  position:absolute; font-size:10px; letter-spacing:1px; text-transform:uppercase;
-  color: var(--muted); white-space:nowrap;
-}
-.scene .door{
-  position:absolute; left:44%; top:22%; font-size:30px; z-index:4;
-  transition: transform .3s ease;
-}
-.scene .door.locked{ filter: drop-shadow(0 0 8px rgba(255,77,109,.8)); }
-.scene .key{
-  position:absolute; left:44%; top:44%; font-size:19px; z-index:3;
-  animation: keyBob 2.2s ease-in-out infinite;
-}
-@keyframes keyBob{
-  0%,100%{ transform: translateY(0) rotate(-8deg); }
-  50%    { transform: translateY(-6px) rotate(8deg); }
-}
-.scene .bench{
-  position:absolute; left:8%; top:76%; font-size:22px; z-index:2;
-}
-.scene .janitor{
-  position:absolute; left:34%; top:72%; font-size:20px; opacity:0;
-  transition: opacity .35s ease, transform .35s ease;
-  transform: scale(.6);
-}
-.scene .janitor.on{ opacity:1; transform: scale(1.15); }
-.scene .kid{
-  position:absolute; font-size:26px; z-index:5;
-  transform: translate(-50%,-50%);
-  transition: left .75s cubic-bezier(.3,.9,.35,1), top .75s cubic-bezier(.3,.9,.35,1), opacity .4s;
-  filter: drop-shadow(0 0 6px rgba(255,255,255,.18));
-}
-.scene .kid::after{
-  content: attr(data-name);
-  position:absolute; left:50%; bottom:-12px; transform:translateX(-50%);
-  font-family:'JetBrains Mono',monospace;
-  font-size:9px; letter-spacing:1px; color: var(--muted);
-}
-.kid[data-pos="inside"]{ left:68%; top:32%; }
-.kid[data-pos="entry"] { left:24%; top:40%; }
-.kid[data-pos="queue2"]{ left:10%; top:58%; }
-.kid[data-pos="bench"] { left:18%; top:76%; }
-.kid[data-pos="gone"]  { left:10%; top:58%; opacity:0; }
+/* ================= VISUAL ANIMATION BOX ================= */
+.anim-container{margin-top:24px;padding:20px;background:rgba(0,0,0,.3);border-radius:16px;border:1px solid rgba(255,255,255,.08);min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;width:100%;}
 
-.scene-caption{
-  position:absolute; left:0; right:0; bottom:0;
-  padding: 9px 12px;
-  font-family:'JetBrains Mono', monospace;
-  font-size: 11.5px; line-height: 1.4;
-  color: var(--amber);
-  background: rgba(0,0,0,.35);
-  border-top: 1px solid var(--border);
-}
+/* 5th Grader Monitor Animation */
+.monitor-scene{display:flex;align-items:center;justify-content:center;gap:20px;width:100%;}
+.door-icon{font-size:40px;animation:doorPulse 2s infinite;}
+@keyframes doorPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+.counter-box{background:rgba(255,182,72,.15);border:2px solid var(--amber);padding:12px 20px;border-radius:12px;font-family:var(--mono);font-size:24px;font-weight:900;color:#ffd18a;box-shadow:0 0 20px rgba(255,182,72,.3);transition:.4s;}
+.thread-line{display:flex;flex-direction:column;gap:5px;align-items:center;}
+.thread-dot{width:16px;height:16px;border-radius:50%;background:var(--muted);transition:.4s;}
 
-/* ================= TECHNICAL SCENE ================= */
-.tech-scene{
-  position: relative; height: 262px;
-  background:
-    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 100% 22px,
-    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 22px 100%;
-}
-.tbox{
-  position:absolute;
-  border: 2px solid var(--border);
-  border-radius: 11px;
-  background: rgba(255,255,255,.03);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; gap:3px;
-  padding: 6px;
-  transition: border-color .2s;
-}
-.tbox span{ font-size: 11.5px; font-weight: 700; }
-.tbox small{ font-family:'JetBrains Mono',monospace; font-size: 9.5px; color: var(--muted); }
+/* Technical Block Animation */
+.tech-block{display:flex;flex-direction:column;gap:8px;width:100%;}
+.tb-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.05);border-radius:8px;font-family:var(--mono);font-size:11px;border-left:3px solid var(--stroke-2);transition:.3s;}
+.tb-row.active{border-left-color:var(--violet);background:rgba(160,107,255,.15);transform:scale(1.02);color:#fff;font-weight:800;}
+.tb-name{color:#fff;}
+.tb-desc{color:var(--muted);}
 
-.tbox.entry  { left: 3%;  top: 8%;  width: 27%; height: 30%; animation: glowEntry 9s linear infinite; }
-.tbox.mon    { left: 37%; top: 8%;  width: 27%; height: 30%; animation: glowMon   9s linear infinite; }
-.tbox.cond   { left: 37%; top: 62%; width: 27%; height: 30%; animation: glowCond  9s linear infinite; }
+/* ================= MULTIMODAL HUB & FEYNMAN ================= */
+.hub-section{margin-top:60px;padding-top:40px;border-top:1px solid var(--stroke);}
+.hub-title{font-size:24px;font-weight:900;text-align:center;margin-bottom:12px;color:#fff;}
+.hub-subtitle{text-align:center;color:var(--muted);font-size:15px;margin-bottom:40px;}
+.hub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.feynman-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:30px;}
+.hub-card,.feynman-card{background:var(--panel);border:1px solid var(--stroke);border-radius:20px;padding:24px;text-align:center;transition:.3s;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;align-items:center;}
+.hub-card:hover,.feynman-card:hover{background:rgba(255,255,255,.06);border-color:var(--stroke-2);transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);}
+.hub-icon,.feynman-icon{font-size:32px;margin-bottom:16px;}
+.hub-card-title,.feynman-title{font-size:16px;font-weight:800;margin-bottom:8px;color:#fff;}
+.hub-card-text,.feynman-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;flex-grow:1;}
+.hub-btn{padding:8px 16px;border-radius:8px;background:rgba(160,107,255,.15);color:#c9a7ff;font-family:var(--mono);font-size:11px;font-weight:800;letter-spacing:.06em;transition:.2s;}
 
-@keyframes glowEntry{
-  0%,14%   { border-color: var(--blue);   box-shadow: 0 0 22px rgba(91,141,255,.45); }
-  15%,100% { border-color: var(--border); box-shadow: none; }
-}
-@keyframes glowMon{
-  0%,24%   { border-color: var(--border); box-shadow: none; }
-  25%,42%  { border-color: var(--blue);   box-shadow: 0 0 22px rgba(91,141,255,.45); }
-  43%,78%  { border-color: var(--border); box-shadow: none; }
-  79%,95%  { border-color: var(--emerald);box-shadow: 0 0 22px rgba(46,230,168,.45); }
-  96%,100% { border-color: var(--border); box-shadow: none; }
-}
-@keyframes glowCond{
-  0%,50%   { border-color: var(--border); box-shadow: none; }
-  52%,70%  { border-color: var(--violet); box-shadow: 0 0 22px rgba(160,107,255,.45); }
-  72%,100% { border-color: var(--border); box-shadow: none; }
-}
-
-.ttoken{
-  position:absolute; width: 15px; height: 15px; border-radius: 50%;
-  background: var(--emerald);
-  box-shadow: 0 0 12px var(--emerald), 0 0 26px rgba(46,230,168,.5);
-  transform: translate(-50%,-50%);
-  z-index: 6;
-  animation: tokFlow 9s linear infinite;
-}
-@keyframes tokFlow{
-  0%   { left:16.5%; top:23%; opacity:1; }
-  13%  { left:16.5%; top:23%; opacity:1; }
-  26%  { left:50.5%; top:23%; opacity:1; }
-  40%  { left:50.5%; top:23%; opacity:1; }
-  52%  { left:50.5%; top:77%; opacity:1; }
-  68%  { left:50.5%; top:77%; opacity:1; }
-  80%  { left:50.5%; top:23%; opacity:1; }
-  94%  { left:50.5%; top:23%; opacity:1; }
-  100% { left:88%;   top:23%; opacity:0; }
-}
-.tarrow{
-  position:absolute; font-family:'JetBrains Mono',monospace;
-  font-size: 10.5px; color: var(--muted); z-index: 5; white-space:nowrap;
-}
-.tarrow.right{ left:31%; top:19%; }
-.tarrow.down { left:67%; top:44%; color: var(--violet); }
-.tarrow.up   { left:67%; top:52%; color: var(--emerald); }
-.tarrow.exit { left:66%; top:19%; color: var(--muted); }
-
-.tech-note{
-  display:flex; flex-wrap:wrap; gap:8px; margin-top: 12px;
-}
-.tag{
-  font-family:'JetBrains Mono',monospace;
-  font-size: 10.5px; padding: 3px 9px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--muted);
-}
-.tag.h{ color: var(--amber); border-color: rgba(255,182,72,.35); background: rgba(255,182,72,.08); }
-.tag.m{ color: var(--emerald); border-color: rgba(46,230,168,.35); background: rgba(46,230,168,.08); }
-
-.replay{
-  margin-top: 12px; align-self:flex-start;
-  font-family:'Inter',sans-serif; font-size:12px; font-weight:700;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 7px 14px;
-  cursor: pointer;
-  transition: border-color .2s, color .2s, transform .1s;
-}
-.replay:hover{ border-color: var(--blue); color: var(--blue); }
-.replay:active{ transform: scale(.97); }
-
-/* ================= LINK HUBS ================= */
-.hub-grid{
-  display:grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-.lab-grid{
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 14px;
-}
-.link-card{
-  display:block;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
-  transition: transform .18s ease, border-color .18s ease, background .18s ease;
-  position: relative;
-  overflow: hidden;
-}
-.link-card::after{
-  content: "→";
-  position:absolute; right: 14px; top: 14px;
-  color: var(--muted); font-size: 14px;
-  transition: transform .18s ease, color .18s ease;
-}
-.link-card:hover{
-  transform: translateY(-3px);
-  border-color: rgba(91,141,255,.55);
-  background: var(--panel-2);
-}
-.link-card:hover::after{ transform: translateX(3px); color: var(--blue); }
-.link-card .ic{ font-size: 18px; display:block; margin-bottom: 8px; }
-.link-card .t{ font-size: 14px; font-weight: 700; }
-.link-card .d{ font-size: 12px; color: var(--muted); margin-top: 4px; line-height:1.45; }
-
-/* ================= FOOTER ================= */
-.footer{
-  margin-top: 48px; padding-top: 20px;
-  border-top: 1px solid var(--border);
-  display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between;
-  font-size: 12px; color: var(--muted);
-}
-.footer a:hover{ color: var(--blue); }
-
-/* ================= RESPONSIVE (portrait iPad) ================= */
-@media (max-width: 850px){
-  .analogy-grid{ grid-template-columns: 1fr; }
-  .hub-grid{ grid-template-columns: 1fr; }
-  .lab-grid{ grid-template-columns: 1fr 1fr; }
-  .wrap{ padding: 84px 14px 60px; }
-  .nav-links{ gap: 12px; font-size: 12px; }
-  .nav-brand .sub{ display:none; }
-}
-@media (max-width: 520px){
-  .lab-grid{ grid-template-columns: 1fr; }
+@media (max-width:850px){
+  .analogy-grid,.hub-grid,.feynman-grid{grid-template-columns:1fr;}
+  .definition-card{padding:24px;}
 }
 </style>
 </head>
 <body>
 
-<!-- ================= NAV ================= -->
 <nav class="nav">
-  <div class="nav-brand">
-    <span class="dot"></span>
-    <span>OS Visual Course <span class="sub" style="color:var(--muted);font-weight:500">· CS 301</span></span>
-  </div>
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Sync Topics</span>
+  </a>
   <div class="nav-links">
-    <a href="index.html">Home</a>
-    <a class="back" href="knowledgebase.html">← Back to Glossary</a>
+    <a href="knowledgebase.html" class="nav-link">← Back to Glossary</a>
+    <a href="index.html" class="nav-link">Home</a>
   </div>
 </nav>
 
-<main class="wrap">
+<main class="container">
 
-  <!-- ================= HERO ================= -->
-  <header class="hero">
-    <div class="pill">Process Synchronization</div>
-    <h1><span>Monitors</span></h1>
-    <p>
-      A high-level synchronization construct that wraps shared data inside a protective
-      room — only one thread may be inside at a time, and condition variables let a
-      thread politely step out and wait without hogging the lock.
-    </p>
+  <header class="page-header">
+    <h1 class="page-title">Monitors</h1>
+    <p class="page-subtitle">A high-level synchronization construct that wraps shared data inside a protective room — one thread inside at a time, with condition variables for polite waiting.</p>
   </header>
 
-  <!-- ================= DEFINITION ================= -->
-  <section class="def-card">
-    <div class="def-label">Definition</div>
-    <p>
-      A <strong>monitor</strong> is a synchronization construct that combines a mutex with one or more
-      <strong>condition variables</strong>. It encapsulates shared data together with the procedures
-      that operate on that data, and guarantees that <strong>at most one thread executes inside the
-      monitor at any time</strong>.
-    </p>
-    <p>
-      Inside the monitor, <code>wait(cv)</code> atomically releases the lock and blocks the caller on
-      condition variable <code>cv</code>; <code>signal(cv)</code> wakes one waiter. A thread that wakes
-      must re-acquire the monitor lock before continuing — and in <em>Mesa</em> semantics it must
-      re-check its predicate in a <code>while</code> loop, because the condition may no longer hold.
+  <section class="definition-card">
+    <span class="def-label">The Definition</span>
+    <p class="def-text">
+      A <strong>Monitor</strong> is a synchronization construct that combines a mutex with one or more <code>condition variables</code>. It encapsulates shared data together with the procedures that operate on that data, and guarantees that <strong>at most one thread executes inside the monitor at any time</strong>. Threads inside call <code>wait(cv)</code> to atomically release the lock and block, and <code>signal(cv)</code> to wake a waiter — who must then re-acquire the lock before continuing.
     </p>
   </section>
 
-  <!-- ================= ANALOGY GRID ================= -->
-  <div class="section-head">Two Analogies</div>
   <div class="analogy-grid">
 
-    <!-- ---------- 5TH GRADER ---------- -->
-    <article class="analogy kid">
-      <h3>🎒 5th Grader Analogy</h3>
-      <p>
-        Imagine a <strong>bathroom with one key</strong>. Only the kid holding the key can go inside —
-        that's the monitor. Everyone else waits in line outside.
-      </p>
-      <p>
-        If you get inside and discover the toilet paper is out, you can't just sit there hogging the
-        key forever. You step out to the <strong>waiting bench</strong> (that's <code>wait()</code>)
-        and hand the key to the next kid. When the janitor restocks (that's <code>signal()</code>),
-        you get back in line.
-      </p>
-      <p class="note">Rule: one kid inside at a time. Waiting kids always give up the key.</p>
-
-      <div class="stage-box">
-        <div class="scene" id="scene5">
-          <div class="room">
-            <div class="room-tag">monitor · one at a time</div>
+    <!-- 5TH GRADER -->
+    <div class="analogy-box el5">
+      <div class="analogy-title">🎈 The 5th Grader Analogy</div>
+      <div class="analogy-body">
+        Imagine a <strong>bathroom with one key</strong>. Only the kid holding the key can go inside — that's the monitor. Everyone else waits in line outside.
+        <br><br>
+        If you get inside and discover there's no toilet paper, you can't just sit there hogging the key. You step out to the <strong>waiting bench</strong> (that's <code>wait()</code>) and hand the key to the next kid. When the janitor restocks (<code>signal()</code>), you wake up and rejoin the queue.
+      </div>
+      <div class="anim-container">
+        <div class="monitor-scene">
+          <div class="door-icon">🚪</div>
+          <div class="counter-box" id="monitorCounter">1</div>
+          <div class="thread-line">
+            <div class="thread-dot" style="background:var(--emerald);"></div>
+            <div class="thread-dot" style="background:var(--emerald);"></div>
+            <div class="thread-dot" style="background:var(--muted);"></div>
+            <div class="thread-dot" style="background:var(--muted);"></div>
           </div>
-          <div class="door locked" id="door5">🔒</div>
-          <div class="key">🔑</div>
-          <div class="bench">🪑</div>
-          <div class="zone-tag" style="left:8%;top:64%">bench = wait()</div>
-          <div class="zone-tag" style="left:18%;top:26%">entry queue</div>
-          <div class="janitor" id="janitor5">📦</div>
-
-          <div class="kid" id="kidA" data-name="A" data-pos="inside">🧒</div>
-          <div class="kid" id="kidB" data-name="B" data-pos="entry">🧒</div>
-          <div class="kid" id="kidC" data-name="C" data-pos="queue2">🧒</div>
-
-          <div class="scene-caption" id="cap5">Kid A is inside the monitor — the door is locked.</div>
         </div>
       </div>
-    </article>
-
-    <!-- ---------- TECHNICAL ---------- -->
-    <article class="analogy tech">
-      <h3>⚙️ Technical Analogy</h3>
-      <p>
-        A monitor = <strong>implicit mutex</strong> + <strong>condition variables</strong> +
-        <strong>entry / exit discipline</strong>. The compiler inserts lock/unlock around every
-        monitor method, so you never call <code>lock()</code> by hand.
-      </p>
-      <p>
-        Threads queue at the entry. Inside, <code>wait(cv)</code> releases the lock and blocks on
-        <code>cv</code>. <code>signal(cv)</code> wakes one waiter — who then must re-acquire the lock.
-        That re-check is why every wait lives in a <code>while</code> loop.
-      </p>
-      <p class="note">Watch the token: entry → monitor → condition queue → back → out.</p>
-
-      <div class="stage-box">
-        <div class="tech-scene" id="techScene">
-          <div class="tbox entry"><span>Entry Queue</span><small>blocked threads</small></div>
-          <div class="tbox mon"><span>Monitor Body</span><small>mutex held · 1 thread</small></div>
-          <div class="tbox cond"><span>Condition Queue</span><small>wait(cv)</small></div>
-
-          <div class="tarrow right">lock() →</div>
-          <div class="tarrow down">wait(cv) ↓</div>
-          <div class="tarrow up">↑ signal(cv)</div>
-          <div class="tarrow exit">exit →</div>
-
-          <div class="ttoken" id="ttoken"></div>
-        </div>
-      </div>
-
-      <div class="tech-note">
-        <span class="tag h">Hoare: signal-and-wait</span>
-        <span class="tag m">Mesa: signal-and-continue</span>
-        <span class="tag">Java = Mesa</span>
-      </div>
-
-      <button class="replay" id="replayBtn">↻ Replay animation</button>
-    </article>
-
-  </div>
-
-  <!-- ================= MULTIMODAL HUB ================= -->
-  <div class="section-head">Multimodal Hub</div>
-  <div class="hub-grid">
-    <a class="link-card" href="monitors-steps.html">
-      <span class="ic">⚙️</span>
-      <div class="t">Step-by-Step Mechanics</div>
-      <div class="d">Run a thread through the monitor and watch the lock and condition queues update live.</div>
-    </a>
-    <a class="link-card" href="monitors-mindmap.html">
-      <span class="ic">🧭</span>
-      <div class="t">Interactive Mind Map</div>
-      <div class="d">Six branches: mutex, condition variables, wait, signal, Hoare vs Mesa, and common pitfalls.</div>
-    </a>
-    <a class="link-card" href="monitors-infographic.html">
-      <span class="ic">🗺️</span>
-      <div class="t">Visual Cheat Sheet</div>
-      <div class="d">A one-glance diagram of the monitor, its queues, and the data flow between them.</div>
-    </a>
-  </div>
-
-  <!-- ================= FEYNMAN MASTERY LAB ================= -->
-  <div class="section-head">Feynman Mastery Lab</div>
-  <div class="lab-grid">
-    <a class="link-card" href="monitors-sandbox.html">
-      <span class="ic">🧪</span>
-      <div class="t">What-If Sandbox</div>
-      <div class="d">Type a number of threads and see what happens when the monitor is stressed.</div>
-    </a>
-    <a class="link-card" href="monitors-puzzle.html">
-      <span class="ic">🧩</span>
-      <div class="t">Tap-to-Place Puzzle</div>
-      <div class="d">Put the four monitor operations back in the correct order.</div>
-    </a>
-    <a class="link-card" href="monitors-terminal.html">
-      <span class="ic">💻</span>
-      <div class="t">Real OS Terminal</div>
-      <div class="d">Fake Linux shell showing how monitors appear in real code and tools.</div>
-    </a>
-    <a class="link-card" href="monitors-flashcards.html">
-      <span class="ic">⚡</span>
-      <div class="t">Rapid-Fire Recall</div>
-      <div class="d">Quick multiple-choice drills with instant explanations.</div>
-    </a>
-    <a class="link-card" href="monitors-spot.html">
-      <span class="ic">🎯</span>
-      <div class="t">Spot-the-Difference</div>
-      <div class="d">Find the wasted space or the unsafe block in a memory diagram.</div>
-    </a>
-  </div>
-
-  <!-- ================= FOOTER ================= -->
-  <footer class="footer">
-    <div>CS 301 · Operating Systems · Monitors module</div>
-    <div>
-      <a href="knowledgebase.html">Glossary</a> ·
-      <a href="index.html">Home</a>
     </div>
-  </footer>
+
+    <!-- TECHNICAL -->
+    <div class="analogy-box tech">
+      <div class="analogy-title">📐 The Technical Analogy</div>
+      <div class="analogy-body">
+        A monitor = <strong>implicit mutex</strong> + <strong>condition variables</strong> + <strong>entry / exit discipline</strong>. The compiler inserts lock/unlock around every monitor method — you never call <code>lock()</code> by hand.
+        <br><br>
+        <code>wait(cv)</code> releases the lock and blocks on <code>cv</code>. <code>signal(cv)</code> wakes one waiter, who re-acquires the lock. That re-check is why every wait lives inside a <code>while</code> loop.
+      </div>
+      <div class="anim-container">
+        <div class="tech-block" id="techTrack">
+          <div class="tb-row active" data-step="0"><span class="tb-name">enter monitor</span><span class="tb-desc">Acquire implicit lock</span></div>
+          <div class="tb-row" data-step="1"><span class="tb-name">wait(cv)</span><span class="tb-desc">Release lock + sleep on cv</span></div>
+          <div class="tb-row" data-step="2"><span class="tb-name">signal(cv)</span><span class="tb-desc">Wake one waiter on cv</span></div>
+          <div class="tb-row" data-step="3"><span class="tb-name">exit monitor</span><span class="tb-desc">Release implicit lock</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MULTIMODAL LEARNING HUB -->
+  <section class="hub-section">
+    <h2 class="hub-title">Choose Your Learning Style</h2>
+    <p class="hub-subtitle">Explore Monitors visually and step-by-step.</p>
+    <div class="hub-grid">
+      <a href="monitors-steps.html" class="hub-card">
+        <div class="hub-icon">⚙️</div>
+        <div class="hub-card-title">Step-by-Step Mechanics</div>
+        <div class="hub-card-text">Walk through monitor entry, wait(), signal(), and exit with a live thread simulator.</div>
+        <div class="hub-btn">Open Timeline →</div>
+      </a>
+      <a href="monitors-mindmap.html" class="hub-card">
+        <div class="hub-icon">🧭</div>
+        <div class="hub-card-title">Interactive Mind Map</div>
+        <div class="hub-card-text">See how Monitors connect to Mutexes, Condition Variables, and Hoare vs Mesa semantics.</div>
+        <div class="hub-btn">Explore Mind Map →</div>
+      </a>
+      <a href="monitors-infographic.html" class="hub-card">
+        <div class="hub-icon">📊</div>
+        <div class="hub-card-title">Visual Infographic</div>
+        <div class="hub-card-text">A visual flow of a thread entering, waiting, waking, and exiting the monitor.</div>
+        <div class="hub-btn">View Infographic →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- FEYNMAN MASTERY LAB -->
+  <section class="hub-section">
+    <h2 class="hub-title" style="color:#c9a7ff;">The Feynman Mastery Lab</h2>
+    <p class="hub-subtitle">Don't just read. Play, break, and test the system to prove you understand it.</p>
+    <div class="feynman-grid">
+      <a href="monitors-sandbox.html" class="feynman-card">
+        <span class="feynman-icon">🧪</span>
+        <div class="feynman-title">The "What If?" Sandbox</div>
+        <div class="feynman-desc">Simulate a lost signal() and watch the monitor deadlock.</div>
+      </a>
+      <a href="monitors-puzzle.html" class="feynman-card">
+        <span class="feynman-icon">🧩</span>
+        <div class="feynman-title">The Sync Puzzle</div>
+        <div class="feynman-desc">Order the four steps of a monitor's wait/signal cycle.</div>
+      </a>
+      <a href="monitors-terminal.html" class="feynman-card">
+        <span class="feynman-icon">💻</span>
+        <div class="feynman-title">The Real OS Terminal</div>
+        <div class="feynman-desc">Use pthread mutexes and condition variables in a simulated C program.</div>
+      </a>
+      <a href="monitors-flashcards.html" class="feynman-card">
+        <span class="feynman-icon">⚡</span>
+        <div class="feynman-title">Rapid-Fire Flashcards</div>
+        <div class="feynman-desc">Test your knowledge of wait/signal semantics and Mesa vs Hoare.</div>
+      </a>
+      <a href="monitors-spot.html" class="feynman-card">
+        <span class="feynman-icon">🔍</span>
+        <div class="feynman-title">Monitor Failure Hunt</div>
+        <div class="feynman-desc">Find the missing signal() that froze the producer-consumer queue.</div>
+      </a>
+    </div>
+  </section>
 
 </main>
 
-<!-- ================= JAVASCRIPT ================= -->
 <script>
-/* ============================================================
-   5TH GRADER SCENE — a small state machine
-   ============================================================ */
-(function(){
-  const A   = document.getElementById('kidA');
-  const B   = document.getElementById('kidB');
-  const C   = document.getElementById('kidC');
-  const jan = document.getElementById('janitor5');
-  const cap = document.getElementById('cap5');
-  const door= document.getElementById('door5');
+/* ================= ANIMATION 1: MONITOR DOOR (5TH GRADER) ================= */
+const monitorCounter = document.getElementById('monitorCounter');
+const threadDots = document.querySelectorAll('.thread-dot');
+let occupancy = 1;
 
-  const states = [
-    {
-      cap: 'Kid A is inside the monitor — the door is locked. Only one kid at a time. 🔒',
-      A: 'inside', B: 'entry', C: 'queue2', janitor: false
-    },
-    {
-      cap: 'A needs toilet paper → wait(): A steps out to the bench and gives up the key. 🪑',
-      A: 'bench', B: 'inside', C: 'entry', janitor: false
-    },
-    {
-      cap: 'B grabs the key and enters. Still exactly one kid inside. 🔑',
-      A: 'bench', B: 'inside', C: 'entry', janitor: false
-    },
-    {
-      cap: 'Janitor restocks → signal(): A wakes up and rejoins the entry queue. 📦',
-      A: 'queue2', B: 'inside', C: 'entry', janitor: true
-    }
-  ];
+setInterval(() => {
+  occupancy = occupancy === 1 ? 0 : 1;
+  monitorCounter.textContent = occupancy;
+  monitorCounter.style.color = occupancy === 0 ? 'var(--emerald)' : '#ffd18a';
+  monitorCounter.style.borderColor = occupancy === 0 ? 'var(--emerald)' : 'var(--amber)';
 
-  let i = 0;
-  function apply(s){
-    A.dataset.pos = s.A;
-    B.dataset.pos = s.B;
-    C.dataset.pos = s.C;
-    cap.textContent = s.cap;
-    jan.classList.toggle('on', s.janitor);
-    door.classList.add('locked');
+  if (occupancy === 0) {
+    threadDots[0].style.background = 'var(--muted)';
+  } else {
+    threadDots[0].style.background = 'var(--emerald)';
   }
-  apply(states[0]);
-  setInterval(() => {
-    i = (i + 1) % states.length;
-    apply(states[i]);
-  }, 2400);
-})();
+}, 1500);
 
-/* ============================================================
-   TECHNICAL SCENE — replay button restarts CSS keyframes
-   ============================================================ */
-(function(){
-  const btn   = document.getElementById('replayBtn');
-  const token = document.getElementById('ttoken');
-  const boxes = document.querySelectorAll('.tbox');
+/* ================= ANIMATION 2: TECH ROWS ================= */
+const tbRows = document.querySelectorAll('.tb-row');
+let currentTb = 0;
 
-  function restart(el, cls){
-    el.style.animation = 'none';
-    void el.offsetWidth;             /* force reflow */
-    el.style.animation = '';
-  }
-
-  btn.addEventListener('click', () => {
-    restart(token);
-    boxes.forEach(b => restart(b));
-    btn.textContent = '↻ Replaying…';
-    setTimeout(() => { btn.textContent = '↻ Replay animation'; }, 900);
-  });
-})();
+setInterval(() => {
+  tbRows.forEach(r => r.classList.remove('active'));
+  tbRows[currentTb].classList.add('active');
+  currentTb = (currentTb + 1) % tbRows.length;
+}, 1400);
 </script>
+
 </body>
 </html>
