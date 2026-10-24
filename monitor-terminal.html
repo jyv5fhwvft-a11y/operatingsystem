@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Monitors · POSIX Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f; --panel:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc; --ink-2:#c4cfe6; --muted:#8494b4;
+  --blue:#5b8dff; --emerald:#2ee6a8; --amber:#ffb648; --crimson:#ff4d6d; --violet:#a06bff;
+  --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(46,230,168,.10),transparent 60%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= TERMINAL UI ================= */
+.terminal{background:#000;border:1px solid var(--stroke-2);border-radius:16px;overflow:hidden;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);margin-bottom:30px;font-family:var(--mono);}
+.term-body{padding:24px;font-size:13.5px;line-height:1.6;min-height:350px;max-height:500px;overflow-y:auto;color:#d1d5db;}
+.term-line{display:block;margin-bottom:4px;white-space:pre-wrap;}
+
+/* Text Colors */
+.t-prompt{color:var(--emerald);font-weight:700;}
+.t-cmd{color:#fff;}
+.t-thread1{color:var(--blue);}
+.t-thread2{color:var(--amber);}
+.t-success{color:var(--emerald);font-weight:800;}
+.t-system{color:var(--muted);font-style:italic;}
+.t-error{color:var(--crimson);}
+
+/* Input Line */
+.term-input-line{display:flex;gap:10px;margin-top:10px;}
+.term-input-line span{color:var(--emerald);font-weight:700;}
+.term-input{background:transparent;border:none;outline:none;color:#fff;font-family:var(--mono);font-size:13.5px;flex-grow:1;caret-color:var(--emerald);}
+
+/* Helper Box */
+.helper-box{background:rgba(255,255,255,.04);border:1px dashed var(--stroke-2);border-radius:12px;padding:20px;}
+.helper-box h4{color:#fff;margin-bottom:12px;font-size:16px;}
+.helper-box p{font-size:14px;margin-bottom:16px;color:var(--ink-2);}
+.helper-grid{display:flex;gap:10px;flex-wrap:wrap;}
+.helper-btn{background:var(--violet);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;transition:.2s;}
+.helper-btn:hover{background:#b585ff;transform:translateY(-2px);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Feynman Lab</span>
+  </a>
+  <div class="nav-links">
+    <a href="monitors.html" class="nav-link">← Back to Monitors</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">POSIX Monitor Terminal</h1>
+    <p class="page-subtitle">Run a real multithreaded C program. Watch how <code>pthread_cond_wait()</code> releases the mutex and blocks Thread 1 until Thread 2 calls <code>pthread_cond_signal()</code>.</p>
+  </header>
+
+  <div class="terminal">
+    <div class="term-body" id="termBody">
+      <span class="term-line">Welcome to the POSIX Monitor Simulator.</span>
+      <span class="term-line">Type <span class="t-success">./monitor_sync</span> and press Enter to run the multithreaded program.</span>
+      <br>
+      <div class="term-input-line">
+        <span>user@cs301-machine:~$</span>
+        <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </div>
+
+  <!-- HELPER UI -->
+  <div class="helper-box">
+    <h4>Run the Simulation</h4>
+    <p>Click the button to execute the compiled C program using pthreads.</p>
+    <button class="helper-btn" onclick="runCommand('./monitor_sync')">./monitor_sync</button>
+  </div>
+
+</main>
+
+<script>
+/* ================= TERMINAL LOGIC ================= */
+const termInput = document.getElementById('termInput');
+const termBody = document.getElementById('termBody');
+let isRunning = false;
+
+// Focus input on click
+termBody.addEventListener('click', () => termInput.focus());
+
+// Handle Enter key
+termInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const cmd = termInput.value.trim();
+    if (cmd) {
+      runCommand(cmd);
+      termInput.value = '';
+    }
+  }
+});
+
+function runCommand(cmd) {
+  if (isRunning) return;
+  isRunning = true;
+  termInput.disabled = true;
+
+  // Show the typed command
+  const cmdLine = document.createElement('div');
+  cmdLine.className = 'term-input-line';
+  cmdLine.innerHTML = `<span>user@cs301-machine:~$</span> <span class="t-cmd">${cmd}</span>`;
+  termBody.insertBefore(cmdLine, termBody.lastElementChild);
+
+  setTimeout(() => {
+    if (cmd === './monitor_sync') {
+      printMonitorOutput();
+    } else if (cmd === 'clear') {
+      termBody.innerHTML = '';
+      addInputLine();
+      isRunning = false;
+      termInput.disabled = false;
+      termInput.focus();
+    } else {
+      const output = document.createElement('div');
+      output.innerHTML = `<span class="term-line t-error">bash: ${cmd}: command not found</span><br>`;
+      termBody.insertBefore(output, termBody.lastElementChild);
+      resetInput();
+    }
+  }, 300);
+}
+
+function printMonitorOutput() {
+  const lines = [
+    {t: '[System] Compiling monitor_sync.c...', c: 't-system', d: 0},
+    {t: '[System] ./monitor_sync started. Main thread initializing...', c: 't-system', d: 500},
+    {t: '[Main] pthread_mutex_init(&mutex, NULL) -> Mutex initialized', c: 't-system', d: 1000},
+    {t: '[Main] pthread_cond_init(&cond, NULL) -> Condition Variable initialized', c: 't-system', d: 1500},
+    {t: '[Thread 1] Starting Consumer thread...', c: 't-thread1', d: 2000},
+    {t: '[Thread 2] Starting Producer thread...', c: 't-thread2', d: 2100},
+    {t: '[Thread 1] pthread_mutex_lock(&mutex)...', c: 't-thread1', d: 2800},
+    {t: '[Thread 1] Buffer is empty. Calling pthread_cond_wait(&cond, &mutex)...', c: 't-thread1', d: 3400},
+    {t: '[Thread 1] Mutex RELEASED. Thread 1 blocked in Condition Queue.', c: 't-thread1', d: 4000},
+    {t: '[Thread 2] pthread_mutex_lock(&mutex)...', c: 't-thread2', d: 4600},
+    {t: '[Thread 2] Buffer locked. Producing item...', c: 't-thread2', d: 5200},
+    {t: '[Thread 2] Calling pthread_cond_signal(&cond)...', c: 't-thread2', d: 6000},
+    {t: '[Thread 2] Woke up Thread 1. pthread_mutex_unlock(&mutex)...', c: 't-thread2', d: 6600},
+    {t: '[Thread 1] WOKE UP. Re-acquiring mutex...', c: 't-thread1', d: 7200},
+    {t: '[Thread 1] Mutex acquired. Consuming item...', c: 't-success', d: 7800},
+    {t: '[Thread 1] pthread_mutex_unlock(&mutex)...', c: 't-thread1', d: 8400},
+    {t: '[Thread 1] Exiting.', c: 't-success', d: 8800},
+    {t: '[Main] Threads joined. pthread_mutex_destroy(&mutex)', c: 't-success', d: 9400},
+    {t: '[System] Program finished with no race conditions.', c: 't-system', d: 9800}
+  ];
+
+  lines.forEach(line => {
+    setTimeout(() => {
+      printOutput(line.t, line.c);
+    }, line.d);
+  });
+
+  setTimeout(() => {
+    resetInput();
+  }, 10000);
+}
+
+function printOutput(text, className) {
+  const output = document.createElement('div');
+  output.innerHTML = `<span class="term-line ${className}">${text}</span>`;
+  termBody.insertBefore(output, termBody.lastElementChild);
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function resetInput() {
+  isRunning = false;
+  termInput.disabled = false;
+  if (!document.querySelector('.term-input-line:last-of-type')) {
+    addInputLine();
+  }
+  termInput.focus();
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function addInputLine() {
+  const inputLine = document.createElement('div');
+  inputLine.className = 'term-input-line';
+  inputLine.innerHTML = `<span>user@cs301-machine:~$</span> <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false">`;
+  termBody.appendChild(inputLine);
+
+  const newInput = inputLine.querySelector('input');
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const cmd = newInput.value.trim();
+      if (cmd) {
+        runCommand(cmd);
+        newInput.value = '';
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
