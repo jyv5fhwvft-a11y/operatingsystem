@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paging, Cartoon Edition 🧠</title>
+<style>
+  :root{
+    --ink:#242433;
+    --card:#fffdf8;
+    --hl:#ffd166;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    padding:20px 16px 48px;
+    font-family:"Comic Sans MS","Chalkboard SE","Comic Neue","Trebuchet MS",system-ui,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 12% 6%, #ffe6a8 0%, transparent 42%),
+      radial-gradient(circle at 88% 2%, #c6e8ff 0%, transparent 38%),
+      radial-gradient(circle at 50% 105%, #ffd9e8 0%, transparent 45%),
+      #f7f4ea;
+    min-height:100vh;
+  }
+
+  h1{
+    text-align:center;
+    font-size:clamp(20px,3.4vw,32px);
+    margin:0 0 14px;
+    text-shadow:3px 3px 0 #ffd166;
+    letter-spacing:.5px;
+  }
+
+  /* ---------- narrator ---------- */
+  .narrator{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    max-width:1120px;
+    margin:0 auto 18px;
+  }
+  .cpu{
+    position:relative;
+    flex:0 0 auto;
+    width:76px;height:76px;
+    background:#ffd166;
+    border:3px solid var(--ink);
+    border-radius:16px;
+    box-shadow:4px 4px 0 var(--ink);
+    transform:rotate(-3deg);
+  }
+  .cpu::before,.cpu::after{
+    content:"";
+    position:absolute;
+    top:26px;
+    width:7px;height:22px;
+    background:var(--ink);
+    border-radius:3px;
+  }
+  .cpu::before{left:-10px}
+  .cpu::after{right:-10px}
+  .face{position:absolute;inset:0}
+  .eye{
+    position:absolute;top:22px;
+    width:11px;height:11px;border-radius:50%;
+    background:var(--ink);
+    animation:blink 4.2s infinite;
+  }
+  .eye.l{left:20px}
+  .eye.r{right:20px}
+  .smile{
+    position:absolute;left:50%;top:42px;
+    width:22px;height:11px;
+    border:3px solid var(--ink);
+    border-top:none;
+    border-radius:0 0 22px 22px;
+    transform:translateX(-50%);
+  }
+  @keyframes blink{
+    0%,92%,100%{transform:scaleY(1)}
+    95%{transform:scaleY(.1)}
+  }
+  .bubble{
+    position:relative;
+    flex:1;
+    background:var(--card);
+    border:3px solid var(--ink);
+    border-radius:16px;
+    box-shadow:4px 4px 0 var(--ink);
+    padding:12px 16px;
+    font-size:15px;
+    line-height:1.4;
+    min-height:52px;
+  }
+  .bubble::before{
+    content:"";
+    position:absolute;
+    left:-13px;top:24px;
+    width:0;height:0;
+    border:7px solid transparent;
+    border-right-color:var(--ink);
+  }
+  .bubble.pop{animation:pop .35s ease}
+  @keyframes pop{
+    0%{transform:scale(.94) rotate(-1deg)}
+    60%{transform:scale(1.02) rotate(.4deg)}
+    100%{transform:scale(1)}
+  }
+  .bubble b{background:#fff2b8;border-radius:5px;padding:0 3px}
+
+  /* ---------- stage ---------- */
+  .stage{
+    position:relative;
+    display:grid;
+    grid-template-columns:1fr 1.15fr 1fr;
+    gap:16px;
+    align-items:start;
+    max-width:1120px;
+    margin:0 auto;
+  }
+  .panel{
+    background:var(--card);
+    border:3px solid var(--ink);
+    border-radius:18px;
+    padding:12px;
+    box-shadow:5px 5px 0 var(--ink);
+  }
+  .panel h2{
+    margin:0 0 10px;
+    font-size:13px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    display:flex;align-items:center;gap:7px;
+    border-bottom:2px dashed #d8d3c4;
+    padding-bottom:8px;
+  }
+
+  /* ---------- virtual pages ---------- */
+  .vpage{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:9px 11px;
+    margin-bottom:7px;
+    background:#fff;
+    border:2.5px solid var(--ink);
+    border-radius:12px;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .vpage:hover{transform:translateX(3px)}
+  .vpage .vname{
+    font-size:13.5px;
+    font-weight:700;
+    display:flex;align-items:center;gap:8px;
+  }
+  .vpage .vname i{
+    width:13px;height:13px;border-radius:50%;
+    border:2px solid var(--ink);
+    display:inline-block;
+    background:var(--c);
+  }
+  .vpage .vaddr{font-size:11.5px;opacity:.65;font-family:ui-monospace,monospace}
+
+  /* ---------- page table ---------- */
+  .prow{
+    display:grid;
+    grid-template-columns:1fr 22px 1fr 46px;
+    gap:6px;
+    align-items:center;
+    padding:6px 9px;
+    margin-bottom:6px;
+    background:#fff;
+    border:2px solid var(--ink);
+    border-radius:10px;
+    font-size:13px;
+    transition:background .2s;
+  }
+  .prow.head{
+    background:#f0ece0;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    font-weight:700;
+    border-style:dashed;
+  }
+  .prow .cell{display:flex;align-items:center;gap:6px;font-family:ui-monospace,monospace;font-weight:700}
+  .prow .cell i{
+    width:10px;height:10px;border-radius:50%;border:2px solid var(--ink);
+    display:inline-block;font-style:normal;
+  }
+  .prow .arrow{text-align:center;opacity:.5}
+  .badge{
+    justify-content:center;
+    border-radius:7px;
+    font-family:inherit;
+    font-size:12px;
+    padding:1px 0;
+    border:2px solid var(--ink);
+  }
+  .badge.ok{background:#c8f5c8}
+  .badge.no{background:#ffc9c9}
+
+  /* ---------- frames ---------- */
+  .frame{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:8px 11px;
+    margin-bottom:7px;
+    background:#fff;
+    border:2.5px solid var(--ink);
+    border-radius:12px;
+    min-height:46px;
+  }
+  .frame .fnum{font-size:12px;font-weight:700;opacity:.6;white-space:nowrap}
+  .frame .fcontent{
+    font-size:13px;
+    font-weight:700;
+    padding:3px 12px;
+    border-radius:8px;
+    border:2px solid var(--ink);
+  }
+  .frame.empty .fcontent{
+    border-style:dashed;
+    border-color:#bbb;
+    color:#aaa;
+    font-weight:400;
+    background:transparent;
+  }
+
+  /* ---------- animation states ---------- */
+  .active{
+    animation:glow .85s ease-in-out infinite alternate;
+    background:#fffbe8 !important;
+  }
+  @keyframes glow{
+    from{box-shadow:0 0 0 0 rgba(255,209,102,.95)}
+    to{box-shadow:0 0 0 9px rgba(255,209,102,0)}
+  }
+  .prow.fault{
+    background:#ffdede !important;
+    animation:shake .4s ease 3;
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-5px)}
+    75%{transform:translateX(5px)}
+  }
+  .frame.added{animation:popIn .5s ease}
+  @keyframes popIn{
+    0%{transform:scale(.85) rotate(-3deg)}
+    60%{transform:scale(1.06) rotate(2deg)}
+    100%{transform:scale(1) rotate(0)}
+  }
+  .frame.evicting{
+    animation:fadeOut .9s ease forwards;
+  }
+  @keyframes fadeOut{
+    to{opacity:.15;transform:translateX(40px) rotate(6deg)}
+  }
+
+  .flydot{
+    position:absolute;
+    width:16px;height:16px;
+    margin-left:-8px;margin-top:-8px;
+    border-radius:50%;
+    border:2.5px solid var(--ink);
+    z-index:60;
+    pointer-events:none;
+    transition:transform .5s cubic-bezier(.25,.8,.35,1);
+  }
+
+  /* ---------- controls ---------- */
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    justify-content:center;
+    align-items:center;
+    max-width:1120px;
+    margin:22px auto 0;
+  }
+  button{
+    font-family:inherit;
+    font-size:14px;
+    font-weight:700;
+    padding:10px 18px;
+    border:3px solid var(--ink);
+    border-radius:14px;
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:4px 4px 0 var(--ink);
+    transition:transform .1s, box-shadow .1s;
+  }
+  button:hover:not(:disabled){transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--ink)}
+  button:active:not(:disabled){transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+  button:disabled{opacity:.45;cursor:not-allowed;box-shadow:2px 2px 0 var(--ink)}
+  #btnRandom{background:#ffd166}
+  #btnReset{background:#c6e8ff}
+  .speedwrap{
+    display:flex;
+    gap:0;
+    border:3px solid var(--ink);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:4px 4px 0 var(--ink);
+    background:#fff;
+  }
+  .speedwrap button{
+    border:none;border-radius:0;box-shadow:none;
+    padding:10px 14px;
+    background:transparent;
+  }
+  .speedwrap button:hover:not(:disabled){transform:none;box-shadow:none;background:#f3efe2}
+  .speedwrap button.on{background:#b7f0c0}
+
+  .hint{
+    text-align:center;
+    font-size:12.5px;
+    opacity:.6;
+    margin:16px auto 0;
+    max-width:700px;
+  }
+
+  @media (max-width:880px){
+    .stage{grid-template-columns:1fr}
+    .narrator{flex-direction:column;align-items:stretch}
+    .bubble::before{
+      left:36px;top:-13px;
+      border:7px solid transparent;
+      border-bottom-color:var(--ink);
+      border-right-color:transparent;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>🧠 Paging, Cartoon Edition</h1>
+
+<div class="narrator">
+  <div class="cpu"><div class="face">
+    <div class="eye l"></div><div class="eye r"></div><div class="smile"></div>
+  </div></div>
+  <div class="bubble" id="bubble" aria-live="polite">
+    Hi! I'm the CPU 👋 Press <b>Request a page</b> and I'll show you how virtual memory
+    gets translated into real RAM frames.
+  </div>
+</div>
+
+<div class="stage" id="stage">
+
+  <section class="panel">
+    <h2>📚 Virtual Memory</h2>
+    <div id="vpages"></div>
+  </section>
+
+  <section class="panel">
+    <h2>🗂️ Page Table</h2>
+    <div id="ptable"></div>
+  </section>
+
+  <section class="panel">
+    <h2>💾 Physical RAM</h2>
+    <div id="frames"></div>
+  </section>
+
+</div>
+
+<div class="controls">
+  <button id="btnRandom">🎲 Request a page</button>
+  <button id="btnReset">🔄 Reset</button>
+  <div class="speedwrap">
+    <button data-speed="1" class="on">1×</button>
+    <button data-speed="2">2×</button>
+    <button data-speed="4">4×</button>
+  </div>
+</div>
+
+<p class="hint">
+  Each virtual page is 4&nbsp;KB. The page table maps <b>VPN → PFN</b>.
+  A ✗ means the page isn't in RAM — that's a <b>page fault</b>, and the OS must fetch it from disk
+  (evicting an old page if RAM is full). Press <b>Space</b> for a random access.
+</p>
+
+<script>
+(() => {
+  const NUM_PAGES  = 8;
+  const NUM_FRAMES = 6;
+  const PAGE_SIZE  = 4096;
+
+  const stage    = document.getElementById('stage');
+  const vpagesEl = document.getElementById('vpages');
+  const ptableEl = document.getElementById('ptable');
+  const framesEl = document.getElementById('frames');
+  const bubble   = document.getElementById('bubble');
+  const btnRandom = document.getElementById('btnRandom');
+  const btnReset  = document.getElementById('btnReset');
+  const speedBtns = [...document.querySelectorAll('[data-speed]')];
+
+  let pageTable = [];
+  let frames    = [];
+  let fifo      = [];      // frame indices, oldest first
+  let busy      = false;
+  let speed     = 1;
+
+  const sleep   = ms => new Promise(r => setTimeout(r, ms / speed));
+  const colorOf = p  => `hsl(${(p * 47) % 360} 82% 70%)`;
+  const addrOf  = p  => '0x' + (p * PAGE_SIZE).toString(16).toUpperCase().padStart(4, '0');
+
+  /* ---------------- speech ---------------- */
+  function say(html) {
+    bubble.innerHTML = html;
+    bubble.classList.remove('pop');
+    void bubble.offsetWidth;
+    bubble.classList.add('pop');
+  }
+
+  /* ---------------- rendering ---------------- */
+  function renderVPages() {
+    vpagesEl.innerHTML = '';
+    for (let p = 0; p < NUM_PAGES; p++) {
+      const d = document.createElement('div');
+      d.className = 'vpage';
+      d.dataset.page = p;
+      d.style.setProperty('--c', colorOf(p));
+      d.innerHTML = `<span class="vname"><i></i>Page ${p}</span>
+                     <span class="vaddr">${addrOf(p)}</span>`;
+      d.addEventListener('click', () => requestPage(p));
+      vpagesEl.appendChild(d);
+    }
+  }
+
+  function renderPTable() {
+    ptableEl.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'prow head';
+    head.innerHTML = '<span class="cell">VPN</span><span class="arrow"></span>' +
+                     '<span class="cell">PFN</span><span class="cell badge">OK</span>';
+    ptableEl.appendChild(head);
+
+    for (let p = 0; p < NUM_PAGES; p++) {
+      const e = pageTable[p];
+      const row = document.createElement('div');
+      row.className = 'prow';
+      row.dataset.page = p;
+      row.innerHTML = `
+        <span class="cell"><i style="background:${colorOf(p)}"></i>${p}</span>
+        <span class="arrow">→</span>
+        <span class="cell">${e.valid ? e.frame : '—'}</span>
+        <span class="cell badge ${e.valid ? 'ok' : 'no'}">${e.valid ? '✓' : '✗'}</span>`;
+      ptableEl.appendChild(row);
+    }
+  }
+
+  function renderFrames() {
+    framesEl.innerHTML = '';
+    for (let f = 0; f < NUM_FRAMES; f++) {
+      const page = frames[f];
+      const d = document.createElement('div');
+      d.className = 'frame';
+      d.dataset.frame = f;
+      if (page === null) {
+        d.classList.add('empty');
+        d.innerHTML = `<span class="fnum">Frame ${f}</span>
+                       <span class="fcontent">free</span>`;
+      } else {
+        d.innerHTML = `<span class="fnum">Frame ${f}</span>
+                       <span class="fcontent" style="background:${colorOf(page)}">Page ${page}</span>`;
+      }
+      framesEl.appendChild(d);
+    }
+  }
+
+  function renderAll() {
+    renderVPages();
+    renderPTable();
+    renderFrames();
+  }
+
+  /* ---------------- helpers ---------------- */
+  const $vpage = p => document.querySelector(`.vpage[data-page="${p}"]`);
+  const $prow  = p => document.querySelector(`.prow[data-page="${p}"]`);
+  const $frame = f => document.querySelector(`.frame[data-frame="${f}"]`);
+
+  function clearHighlights() {
+    document.querySelectorAll('.active, .fault, .added, .evicting')
+      .forEach(el => el.classList.remove('active', 'fault', 'added', 'evicting'));
+    document.querySelectorAll('.flydot').forEach(d => d.remove());
+  }
+
+  function lock(on) {
+    busy = on;
+    btnRandom.disabled = on;
+    btnReset.disabled  = on;
+    speedBtns.forEach(b => b.disabled = on);
+  }
+
+  /* flying packet */
+  async function fly(fromEl, toEl, color) {
+    if (!fromEl || !toEl) return;
+    const s = stage.getBoundingClientRect();
+    const a = fromEl.getBoundingClientRect();
+    const b = toEl.getBoundingClientRect();
+
+    const dot = document.createElement('div');
+    dot.className = 'flydot';
+    dot.style.background = color;
+    dot.style.left = (a.left + a.width / 2 - s.left) + 'px';
+    dot.style.top  = (a.top  + a.height / 2 - s.top) + 'px';
+    stage.appendChild(dot);
+
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
+    const dy = (b.top  + b.height / 2) - (a.top  + a.height / 2);
+    dot.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    await sleep(520);
+    dot.remove();
+  }
+
+  /* ---------------- state ---------------- */
+  function load(page, frame) {
+    pageTable[page] = { frame, valid: true };
+    frames[frame] = page;
+    fifo.push(frame);
+  }
+
+  function init() {
+    pageTable = Array.from({ length: NUM_PAGES }, () => ({ frame: null, valid: false }));
+    frames = Array(NUM_FRAMES).fill(null);
+    fifo = [];
+    load(0, 2);
+    load(1, 0);
+    load(3, 4);
+    renderAll();
+    clearHighlights();
+  }
+
+  /* ---------------- the show ---------------- */
+  async function requestPage(vpn) {
+    if (busy) return;
+    clearHighlights();
+    lock(true);
+
+    const color = colorOf(vpn);
+
+    say(`Hey! Please give me <b>Page ${vpn}</b> (virtual address ${addrOf(vpn)}).`);
+    $vpage(vpn).classList.add('active');
+    await sleep(650);
+
+    const entry = pageTable[vpn];
+
+    if (entry.valid) {
+      /* ---- HIT ---- */
+      $prow(vpn).classList.add('active');
+      await fly($vpage(vpn), $prow(vpn), color);
+      say(`Page table says <b>Page ${vpn} → Frame ${entry.frame}</b>. ✅ Hit — no disk needed!`);
+      await sleep(800);
+
+      const target = $frame(entry.frame);
+      target.classList.add('active');
+      await fly($prow(vpn), target, color);
+      say(`Boom 💥 Page ${vpn} is sitting in <b>Frame ${entry.frame}</b>. Reading data… done!`);
+      await sleep(900);
+
+    } else {
+      /* ---- FAULT ---- */
+      $prow(vpn).classList.add('active');
+      await fly($vpage(vpn), $prow(vpn), color);
+      $prow(vpn).classList.add('fault');
+      say(`Uh oh… <b>PAGE FAULT!</b> 😱 Page ${vpn} isn't in RAM. Off to the disk we go!`);
+      await sleep(1000);
+
+      let frameIdx = frames.indexOf(null);
+      let evicted = null;
+
+      if (frameIdx === -1) {
+        frameIdx = fifo.shift();
+        evicted = frames[frameIdx];
+      }
+
+      if (evicted !== null && evicted !== undefined) {
+        const old = $frame(frameIdx);
+        old.classList.add('evicting');
+        say(`RAM is full! Evicting <b>Page ${evicted}</b> from Frame ${frameIdx} back to disk… 🥾`);
+        await sleep(1000);
+
+        pageTable[evicted].valid = false;
+        pageTable[evicted].frame = null;
+        frames[frameIdx] = null;
+      }
+
+      /* load the page */
+      frames[frameIdx] = vpn;
+      pageTable[vpn] = { frame: frameIdx, valid: true };
+      fifo.push(frameIdx);
+      renderAll();
+
+      $vpage(vpn).classList.add('active');
+      $prow(vpn).classList.add('active');
+      $frame(frameIdx).classList.add('added');
+      say(`Loaded <b>Page ${vpn}</b> into <b>Frame ${frameIdx}</b> and updated the page table ✍️`);
+      await sleep(900);
+
+      await fly($prow(vpn), $frame(frameIdx), color);
+      say(`Page ${vpn} is now in Frame ${frameIdx}. Retrying the access… ✅ All good!`);
+      await sleep(900);
+    }
+
+    clearHighlights();
+    lock(false);
+  }
+
+  /* ---------------- controls ---------------- */
+  btnRandom.addEventListener('click', () => {
+    requestPage(Math.floor(Math.random() * NUM_PAGES));
+  });
+
+  btnReset.addEventListener('click', () => {
+    if (busy) return;
+    init();
+    say(`Fresh start! 🧼 Three pages are already in RAM. Try requesting another one.`);
+  });
+
+  speedBtns.forEach(b => {
+    b.addEventListener('click', () => {
+      speed = Number(b.dataset.speed);
+      speedBtns.forEach(x => x.classList.toggle('on', x === b));
+    });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !busy) {
+      e.preventDefault();
+      requestPage(Math.floor(Math.random() * NUM_PAGES));
+    }
+  });
+
+  /* ---------------- go ---------------- */
+  init();
+})();
+</script>
+</body>
+</html>
