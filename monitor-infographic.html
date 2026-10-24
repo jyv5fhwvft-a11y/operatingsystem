@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 301 · Monitors · Mind Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= CSS VARIABLES & RESET ================= */
+:root{
+  --bg:#06090f; --panel:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.10); --stroke-2:rgba(255,255,255,.18);
+  --ink:#eaf0fc; --ink-2:#c4cfe6; --muted:#8494b4;
+  --blue:#5b8dff; --emerald:#2ee6a8; --amber:#ffb648; --crimson:#ff4d6d; --violet:#a06bff;
+  --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow-x:hidden;min-height:100vh;padding-bottom:80px;line-height:1.6;-webkit-user-select:none;user-select:none;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(900px 600px at 12% -8%,rgba(160,107,255,.15),transparent 62%),radial-gradient(800px 560px at 100% 108%,rgba(255,182,72,.10),transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 30%,#000 20%,transparent 82%);pointer-events:none;z-index:0;}
+
+/* ================= NAVIGATION BAR ================= */
+nav{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(6,9,15,.85);border-bottom:1px solid var(--stroke);backdrop-filter:blur(18px);z-index:100;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;}
+.nav-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet);}
+.nav-links{display:flex;gap:16px;}
+.nav-link{color:var(--muted);text-decoration:none;transition:.2s;}
+.nav-link:hover{color:#c9a7ff;}
+
+/* ================= MAIN LAYOUT ================= */
+.container{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:120px 24px 40px;}
+.page-header{text-align:center;margin-bottom:40px;}
+.page-title{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-.03em;margin-bottom:12px;background:linear-gradient(100deg,#fff,#c9a7ff 60%,#a06bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.page-subtitle{font-size:15px;color:var(--ink-2);max-width:700px;margin:0 auto;}
+
+/* ================= MIND MAP GRID ================= */
+.mindmap-container{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:auto auto auto;
+  gap:20px;
+  align-items:center;
+  justify-items:center;
+  margin-bottom:40px;
+  position:relative;
+  padding: 20px 0;
+}
+
+/* The crosshair background connecting the nodes */
+.mindmap-container::before{
+  content:"";
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:70%;height:70%;
+  background:
+    linear-gradient(to right, transparent 49.5%, var(--stroke-2) 49.5%, var(--stroke-2) 50.5%, transparent 50.5%),
+    linear-gradient(to bottom, transparent 49.5%, var(--stroke-2) 49.5%, var(--stroke-2) 50.5%, transparent 50.5%);
+  z-index:0;
+  pointer-events:none;
+}
+
+/* Nodes */
+.map-node{
+  position:relative;
+  z-index:1;
+  background:var(--panel);
+  border:1.5px solid var(--stroke-2);
+  border-radius:16px;
+  padding:16px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .3s ease;
+  width:100%;
+  max-width:240px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:110px;
+}
+.map-node:hover{
+  background:rgba(255,255,255,.06);
+  border-color:var(--violet);
+  transform:translateY(-2px);
+}
+.map-node.active{
+  border-color:var(--violet);
+  background:rgba(160,107,255,.1);
+  box-shadow:0 0 30px rgba(160,107,255,.2);
+  transform:scale(1.02);
+}
+.node-icon{font-size:28px;margin-bottom:8px;}
+.node-title{font-size:14px;font-weight:800;color:#fff;line-height:1.3;}
+.node-sub{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px;}
+
+/* Center Node Special */
+.map-node.center{
+  grid-column:2;grid-row:2;
+  background:rgba(160,107,255,.15);
+  border-color:var(--violet);
+  box-shadow:0 0 30px rgba(160,107,255,.3);
+  cursor:default;
+}
+.map-node.center:hover{transform:none;}
+
+/* Grid Positioning */
+.top-left{grid-column:1;grid-row:1;}
+.top-right{grid-column:3;grid-row:1;}
+.left{grid-column:1;grid-row:2;}
+.right{grid-column:3;grid-row:2;}
+.bottom-left{grid-column:1;grid-row:3;}
+.bottom-right{grid-column:3;grid-row:3;}
+
+/* ================= INFO PANEL ================= */
+.info-panel{
+  background:var(--panel);
+  border:1px dashed var(--stroke-2);
+  border-radius:16px;
+  padding:24px;
+  text-align:center;
+  min-height:140px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  transition:opacity .15s ease;
+}
+.info-panel h3{color:var(--violet);font-size:18px;margin-bottom:10px;font-weight:900;transition:color .3s;}
+.info-panel p{color:var(--ink-2);font-size:15px;line-height:1.7;}
+.info-panel code{font-family:var(--mono);background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;color:#fff;}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width:800px){
+  .mindmap-container{grid-template-columns:1fr;grid-template-rows:auto;}
+  .mindmap-container::before{display:none;}
+  .map-node{grid-column:1 !important;grid-row:auto !important;max-width:100%;}
+  .map-node.center{order:-1;margin-bottom:20px;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>CS 301 · Sync Topics</span>
+  </a>
+  <div class="nav-links">
+    <a href="monitors.html" class="nav-link">← Back to Monitors</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <header class="page-header">
+    <h1 class="page-title">Monitor Mind Map</h1>
+    <p class="page-subtitle">Tap any node to see how Monitors connect to Mutexes, Condition Variables, and synchronization semantics.</p>
+  </header>
+
+  <section class="mindmap-container">
+
+    <!-- Center Node -->
+    <div class="map-node center">
+      <span class="node-icon">🔐</span>
+      <div class="node-title">Monitors</div>
+    </div>
+
+    <!-- Surrounding Nodes -->
+    <div class="map-node top-left" data-target="mutex">
+      <span class="node-icon">🔒</span>
+      <div class="node-title">Implicit Mutex</div>
+      <div class="node-sub">The Lock</div>
+    </div>
+
+    <div class="map-node top-right" data-target="cv">
+      <span class="node-icon">⏳</span>
+      <div class="node-title">Condition Variables</div>
+      <div class="node-sub">The Waiting Rooms</div>
+    </div>
+
+    <div class="map-node left" data-target="wait">
+      <span class="node-icon">⏸️</span>
+      <div class="node-title">wait(cv)</div>
+      <div class="node-sub">Block and Release</div>
+    </div>
+
+    <div class="map-node right" data-target="signal">
+      <span class="node-icon">🔔</span>
+      <div class="node-title">signal(cv)</div>
+      <div class="node-sub">Wake and Re-acquire</div>
+    </div>
+
+    <div class="map-node bottom-left" data-target="semantics">
+      <span class="node-icon">⚖️</span>
+      <div class="node-title">Mesa vs Hoare</div>
+      <div class="node-sub">Signaling Semantics</div>
+    </div>
+
+    <div class="map-node bottom-right" data-target="deadlock">
+      <span class="node-icon">💀</span>
+      <div class="node-title">Deadlock & Starvation</div>
+      <div class="node-sub">The Risks</div>
+    </div>
+
+  </section>
+
+  <!-- INFO PANEL -->
+  <section class="info-panel" id="infoPanel">
+    <h3>🧠 Tap a Node</h3>
+    <p>Select any of the surrounding branches to explore how it fits into Process Synchronization.</p>
+  </section>
+
+</main>
+
+<script>
+/* ================= MIND MAP DATA ================= */
+const nodeData = {
+  mutex: {
+    title: "Implicit Mutex",
+    text: "Every monitor has a built-in mutex lock. The compiler automatically inserts <code>lock()</code> at the start and <code>unlock()</code> at the end of every monitor method. You never manage this lock manually — the monitor enforces <b>mutual exclusion</b> for you."
+  },
+  cv: {
+    title: "Condition Variables",
+    text: "Condition variables are the 'waiting rooms' inside a monitor. They allow a thread to pause execution until a specific condition is met. Unlike a semaphore, a condition variable has no memory — if you signal with no one waiting, the signal is lost."
+  },
+  wait: {
+    title: "wait(cv)",
+    text: "When a thread calls <code>wait(cv)</code>, it <b>atomically releases the implicit lock</b> and moves itself to the condition queue. This is crucial: it allows another thread waiting in the entry queue to enter the monitor and potentially change the condition."
+  },
+  signal: {
+    title: "signal(cv)",
+    text: "When a thread calls <code>signal(cv)</code>, it wakes up one thread waiting on that condition variable. The woken thread must then <b>re-acquire the monitor's lock</b> before it can continue executing."
+  },
+  semantics: {
+    title: "Mesa vs Hoare Semantics",
+    text: "<b>Mesa semantics (most common, e.g., Java):</b> The signaling thread keeps the lock until it finishes, while the woken thread waits in the entry queue. <br><br><b>Hoare semantics:</b> The signaling thread immediately hands the lock to the woken thread and pauses itself."
+  },
+  deadlock: {
+    title: "Deadlock & Starvation",
+    text: "If a thread forgets to <code>signal()</code>, or if signals are lost because no one was waiting, threads can wait forever (Starvation). Circular dependencies inside nested monitors can lead to Deadlocks."
+  }
+};
+
+const nodes = document.querySelectorAll('.map-node:not(.center)');
+const panel = document.getElementById('infoPanel');
+
+nodes.forEach(node => {
+  node.addEventListener('click', () => {
+    // 1. Remove active class from all nodes
+    nodes.forEach(n => n.classList.remove('active'));
+    
+    // 2. Add active class to clicked node
+    node.classList.add('active');
+    
+    // 3. Get the data for this node
+    const target = node.getAttribute('data-target');
+    const data = nodeData[target];
+    
+    // 4. Update the info panel with a fade effect
+    panel.style.opacity = 0;
+    
+    setTimeout(() => {
+      panel.innerHTML = `<h3>${data.title}</h3><p>${data.text}</p>`;
+      panel.style.opacity = 1;
+    }, 150);
+  });
+});
+</script>
+
+</body>
+</html>
